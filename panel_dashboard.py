@@ -975,6 +975,12 @@ with tab6:
                 st.info("No stage-level worker data yet.")
 
             # ── Time Breakdown ──
+            def _hms(h):
+                if pd.isna(h) or h == 0:
+                    return '—'
+                s = int(round(h * 3600))
+                return f"{s//3600}:{(s%3600)//60:02d}:{s%60:02d}"
+
             st.markdown("<div class='section-header'>Time Breakdown</div>",
                         unsafe_allow_html=True)
 
@@ -1096,12 +1102,6 @@ with tab6:
             # ── Panel detail table ──
             st.markdown("<div class='section-header'>Panel Detail</div>",
                         unsafe_allow_html=True)
-
-            def _hms(h):
-                if pd.isna(h) or h == 0:
-                    return '—'
-                s = int(round(h * 3600))
-                return f"{s//3600}:{(s%3600)//60:02d}:{s%60:02d}"
 
             detail = tmf[[c for c in [
                 'panel_number', 'job_number', 'panel_seq',
