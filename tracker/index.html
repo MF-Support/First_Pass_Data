@@ -139,15 +139,18 @@
     </div>
   </div>
 
-  <!-- Production line (new panels only) -->
+  <!-- New panel setup (first scan of this job+panel only) -->
   <div class="card" id="cf-line-card" style="display:none">
-    <div class="card-title">Production Line</div>
-    <div style="display:flex;gap:10px">
+    <div class="card-title">New Panel Setup</div>
+    <label style="margin-top:0">Production Line</label>
+    <div style="display:flex;gap:10px;margin-bottom:14px">
       <button class="line-btn" onclick="selectLine('A')">A</button>
       <button class="line-btn" onclick="selectLine('B')">B</button>
       <button class="line-btn" onclick="selectLine('C')">C</button>
       <button class="line-btn" onclick="selectLine('D')">D</button>
     </div>
+    <label>How many panels on this job?</label>
+    <input type="number" id="cf-job-qty" min="1" placeholder="e.g. 5" inputmode="numeric">
   </div>
 
   <!-- Stage + Worker -->
@@ -214,14 +217,34 @@
   </div>
 </div>
 
+<!-- ══ SNAPSHOT VIEW (completed panel) ══ -->
+<div class="view" id="view-snapshot">
+  <div class="card">
+    <div class="info-strip">
+      <div class="info-item"><div class="ilabel">Job #</div><div class="ivalue" id="sn-job">—</div></div>
+      <div class="info-item"><div class="ilabel">Panel #</div><div class="ivalue" id="sn-panel">—</div></div>
+      <div class="info-item"><div class="ilabel">Line</div><div class="ivalue" id="sn-line">—</div></div>
+      <div class="info-item"><div class="ilabel">Count</div><div class="ivalue" id="sn-count">—</div></div>
+    </div>
+  </div>
+  <div class="card">
+    <div class="card-title">Stage Summary</div>
+    <table class="history-table" id="sn-table">
+      <thead><tr><th>Stage</th><th>Worker</th><th>Duration</th></tr></thead>
+      <tbody id="sn-rows"></tbody>
+    </table>
+  </div>
+  <button class="btn btn-gray" onclick="cancelConfirm()">← Back to Scanner</button>
+</div>
+
 <!-- ══ HISTORY VIEW ══ -->
 <div class="view" id="view-history">
   <div class="card">
     <div class="card-title">Recent Scans</div>
     <div style="overflow-x:auto">
       <table class="history-table">
-        <thead><tr><th>Job #</th><th>Panel #</th><th>Stage</th><th>Worker</th><th>Duration</th></tr></thead>
-        <tbody id="history-rows"><tr><td colspan="5" class="text-center text-sm" style="padding:20px">No records yet</td></tr></tbody>
+        <thead><tr><th>Job #</th><th>Panel #</th><th>Count</th><th>Stage</th><th>Worker</th><th>Duration</th><th>Outcome</th></tr></thead>
+        <tbody id="history-rows"><tr><td colspan="7" class="text-center text-sm" style="padding:20px">No records yet</td></tr></tbody>
       </table>
     </div>
   </div>
@@ -382,24 +405,30 @@ function updateCurrentJobView() {
 async function goHistory() {
   showView('history');
   try {
-    let rows;
-    try {
-      rows = await sbFetch('scans?select=panel_code,stage,worker_name,started_at,stopped_at,panels(job_number,panel_number)&order=started_at.desc&limit=50');
-    } catch {
-      rows = await sbFetch('scans?select=panel_code,stage,worker_name,started_at,stopped_at&order=started_at.desc&limit=50');
-    }
+    const rows = await sbFetch(
+      'scans?select=panel_code,stage,worker_name,started_at,stopped_at,pause_reason,panels(job_number,panel_number,panel_seq,job_qty)&order=started_at.desc&limit=50'
+    );
     const tbody = document.getElementById('history-rows');
-    if (!rows.length) { tbody.innerHTML = '<tr><td colspan="5" class="text-center text-sm" style="padding:20px">No records yet</td></tr>'; return; }
+    if (!rows.length) {
+      tbody.innerHTML = '<tr><td colspan="7" class="text-center text-sm" style="padding:20px">No records yet</td></tr>';
+      return;
+    }
     tbody.innerHTML = rows.map(r => {
       let dur = '—';
       if (r.started_at && r.stopped_at) {
-        const mins = Math.round((new Date(r.stopped_at) - new Date(r.started_at)) / 60000);
-        dur = mins < 60 ? `${mins}m` : `${Math.floor(mins/60)}h ${mins%60}m`;
+        const secs = Math.floor((new Date(r.stopped_at) - new Date(r.started_at)) / 1000);
+        const h = Math.floor(secs / 3600);
+        const m = Math.floor((secs % 3600) / 60);
+        const s = secs % 60;
+        dur = `${String(h).padStart(2,'0')}:${String(m).padStart(2,'0')}:${String(s).padStart(2,'0')}`;
       } else if (r.started_at) { dur = '▶ active'; }
-      const job   = r.panels?.job_number   || '—';
-      const panel = r.panels?.panel_number || r.panel_code;
-      const stage = r.pause_reason ? `${r.stage} ⏸` : r.stage;
-      return `<tr><td>${job}</td><td>${panel}</td><td>${stage}</td><td>${r.worker_name}</td><td>${dur}</td></tr>`;
+      const job     = r.panels?.job_number   || '—';
+      const panel   = r.panels?.panel_number || r.panel_code;
+      const seq     = r.panels?.panel_seq    ?? '?';
+      const qty     = r.panels?.job_qty      ?? '?';
+      const count   = `${seq} of ${qty}`;
+      const outcome = r.stopped_at ? (r.pause_reason ? 'Paused' : 'Complete') : '▶ Active';
+      return `<tr><td>${job}</td><td>${panel}</td><td>${count}</td><td>${r.stage}</td><td>${r.worker_name}</td><td>${dur}</td><td>${outcome}</td></tr>`;
     }).join('');
   } catch (e) { toast('Error loading history: ' + e.message); }
 }
@@ -447,26 +476,60 @@ async function loadByCode(code) {
     const panels = await sbFetch(`panels?panel_code=eq.${encodeURIComponent(code)}&select=*`);
 
     if (!panels.length) {
-      // New panel — parse job/panel from QR and show confirm as Layout
       const parts = code.split('|');
-      const job   = parts.length >= 2 ? parts[0] : '';
+      const job   = parts.length >= 2 ? parts[0] : code;
       const panel = parts.length >= 2 ? parts[1] : '';
-      currentPanel = { panel_code: code, job_number: job, panel_number: panel, is_complete: false, scans: [], _isNew: true };
+
+      // Check if same job+panel combo already exists (different serial)
+      let siblings = [];
+      if (job && panel) {
+        siblings = await sbFetch(
+          `panels?job_number=eq.${encodeURIComponent(job)}&panel_number=eq.${encodeURIComponent(panel)}&select=panel_seq,job_qty,production_line&order=panel_seq.desc&limit=1`
+        );
+      }
+
+      if (siblings.length > 0) {
+        const ref = siblings[0];
+        currentPanel = {
+          panel_code:      code,
+          job_number:      job,
+          panel_number:    panel,
+          is_complete:     false,
+          scans:           [],
+          _isNew:          true,
+          _isFirstOfJob:   false,
+          production_line: ref.production_line,
+          job_qty:         ref.job_qty,
+          panel_seq:       (ref.panel_seq || 0) + 1
+        };
+      } else {
+        currentPanel = {
+          panel_code:    code,
+          job_number:    job,
+          panel_number:  panel,
+          is_complete:   false,
+          scans:         [],
+          _isNew:        true,
+          _isFirstOfJob: true,
+          panel_seq:     1
+        };
+      }
       currentStage = 'Layout';
       showConfirm();
       return;
     }
 
     const p = panels[0];
-    if (p.is_complete) { toast('⛔ Panel complete — QR is void'); return; }
-
     const scans = await sbFetch(`scans?panel_code=eq.${encodeURIComponent(code)}&select=*&order=started_at`);
     p.scans = scans;
 
     const next = nextStageFor(scans);
-    if (!next) { toast('⛔ Panel complete — QR is void'); return; }
+    if (!next) {
+      // Panel fully complete — show snapshot
+      showSnapshot(p, scans);
+      return;
+    }
 
-    // Check if stage is currently in progress on another device
     if (scans.find(s => s.stage === next && !s.stopped_at)) {
       toast(`${next} already in progress`);
       return;
@@ -517,21 +580,23 @@ function showConfirm() {
   document.getElementById('cf-job').textContent   = currentPanel.job_number   || '—';
   document.getElementById('cf-panel').textContent = currentPanel.panel_number || '—';
 
-  // Production line display (existing panels)
+  // Production line in info strip (any panel that has one)
   const lineItem = document.getElementById('cf-line-item');
   const lineDisp = document.getElementById('cf-line-display');
-  if (!currentPanel._isNew && currentPanel.production_line) {
+  if (currentPanel.production_line) {
     lineItem.style.display = '';
     lineDisp.textContent   = currentPanel.production_line;
   } else {
     lineItem.style.display = 'none';
   }
 
-  // Production line selector (new panels only)
+  // Setup card only for brand-new job+panel combo
   const lineCard = document.getElementById('cf-line-card');
-  lineCard.style.display = currentPanel._isNew ? '' : 'none';
+  lineCard.style.display = currentPanel._isFirstOfJob ? '' : 'none';
   selectedLine = '';
   document.querySelectorAll('.line-btn').forEach(b => b.classList.remove('selected'));
+  const qtyEl = document.getElementById('cf-job-qty');
+  if (qtyEl) qtyEl.value = '';
 
   // Stage progress pills
   const scans = currentPanel.scans || [];
@@ -543,15 +608,35 @@ function showConfirm() {
     return `<div class="stage-pill ${cls}">${icon}${s}</div>`;
   }).join('');
 
-  // Stage badge
   const badge = document.getElementById('cf-stage-badge');
   badge.textContent = currentStage;
   badge.className = 'stage-badge' + (currentPanel._isNew ? ' new-label' : '');
 
-  // Worker dropdown filtered by stage
   populateWorkerSelect('cf-worker', currentStage);
-
   showView('confirm');
+}
+
+// ── Snapshot (completed panel) ─────────────────────────────────────────────
+function showSnapshot(panel, scans) {
+  document.getElementById('sn-job').textContent   = panel.job_number   || '—';
+  document.getElementById('sn-panel').textContent = panel.panel_number || '—';
+  document.getElementById('sn-line').textContent  = panel.production_line || '—';
+  const seq = panel.panel_seq ?? '?';
+  const qty = panel.job_qty   ?? '?';
+  document.getElementById('sn-count').textContent = `${seq} of ${qty}`;
+
+  document.getElementById('sn-rows').innerHTML = STAGES.map(stage => {
+    const s = scans.find(sc => sc.stage === stage && sc.stopped_at && !sc.pause_reason);
+    if (!s) return `<tr><td>${stage}</td><td colspan="2" style="color:#bbb">—</td></tr>`;
+    const secs = Math.floor((new Date(s.stopped_at) - new Date(s.started_at)) / 1000);
+    const h = Math.floor(secs / 3600);
+    const m = Math.floor((secs % 3600) / 60);
+    const sec = secs % 60;
+    const dur = `${String(h).padStart(2,'0')}:${String(m).padStart(2,'0')}:${String(sec).padStart(2,'0')}`;
+    return `<tr><td>${stage}</td><td>${s.worker_name}</td><td>${dur}</td></tr>`;
+  }).join('');
+
+  showView('snapshot');
 }
 
 async function cancelConfirm() {
@@ -580,23 +665,29 @@ async function startStage() {
     } catch { /* allow start if check fails */ }
   }
 
-  if (currentPanel._isNew && !selectedLine) {
-    toast('Select a production line (A, B, C, or D)');
-    return;
+  if (currentPanel._isFirstOfJob) {
+    if (!selectedLine) { toast('Select a production line (A, B, C, or D)'); return; }
+    const qtyVal = parseInt(document.getElementById('cf-job-qty').value);
+    if (!qtyVal || qtyVal < 1) { toast('Enter how many panels are on this job'); return; }
+    currentPanel._pendingQty = qtyVal;
   }
 
   try {
-    // Register new panel first if needed
     if (currentPanel._isNew) {
       await sbFetch('panels', 'POST', {
         panel_code:      currentPanel.panel_code,
         job_number:      currentPanel.job_number,
         panel_number:    currentPanel.panel_number,
         is_complete:     false,
-        production_line: selectedLine
+        production_line: currentPanel._isFirstOfJob ? selectedLine             : currentPanel.production_line,
+        job_qty:         currentPanel._isFirstOfJob ? currentPanel._pendingQty : currentPanel.job_qty,
+        panel_seq:       currentPanel.panel_seq || 1
       });
       currentPanel._isNew = false;
-      currentPanel.production_line = selectedLine;
+      if (currentPanel._isFirstOfJob) {
+        currentPanel.production_line = selectedLine;
+        currentPanel.job_qty         = currentPanel._pendingQty;
+      }
     }
 
     const now  = new Date().toISOString();
@@ -633,12 +724,8 @@ async function stopStage(pauseReason = null) {
     await sbFetch(`scans?id=eq.${currentPanel._activeScanId}`, 'PATCH',
       patch, { Prefer: 'return=minimal' });
 
-    if (!pauseReason && currentStage === FINAL_STAGE) {
-      await sbFetch(`panels?panel_code=eq.${encodeURIComponent(currentPanel.panel_code)}`, 'PATCH',
-        { is_complete: true }, { Prefer: 'return=minimal' });
-      toast('✅ Panel complete — QR is now void');
-    } else if (pauseReason) {
-      toast(`⏸ Paused: ${pauseReason}`);
+    if (pauseReason) {
+      toast(`⏸ Paused`);
     } else {
       toast(`${currentStage} complete!`);
     }
