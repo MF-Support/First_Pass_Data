@@ -606,34 +606,44 @@ with tab5:
     comp["Pass Rate%"] = ((comp["Panels"] - comp["Fails"]) / comp["Panels"] * 100).round(1)
     comp["Fail Rate%"] = (comp["Fails"] / comp["Panels"] * 100).round(1)
 
-    fig_comp = make_subplots(specs=[[{"secondary_y": True}]])
-    fig_comp.add_trace(go.Bar(
-        x=comp["Period"], y=comp["Panels"],
-        name="Panels", marker_color=BLUE,
-        text=comp["Panels"], textposition="outside",
-    ), secondary_y=False)
-    fig_comp.add_trace(go.Scatter(
+    fig_comp = px.bar(
+        comp, x="Period", y="Panels", text="Panels",
+        title=f"Total Panels by {compare_by}",
+        color_discrete_sequence=[BLUE]
+    )
+    fig_comp.update_traces(textposition="outside")
+    fig_comp.update_layout(
+        plot_bgcolor=OFFWHITE, paper_bgcolor=OFFWHITE,
+        font=dict(family="Arial", color=NAVY),
+        title_font=dict(family="Georgia", color=NAVY, size=14),
+        height=320, margin=dict(l=10, r=10, t=40, b=20),
+        xaxis=dict(tickangle=-35 if compare_by == "Month" else 0)
+    )
+    st.plotly_chart(fig_comp, use_container_width=True)
+
+    fig_fail = go.Figure()
+    fig_fail.add_trace(go.Scatter(
         x=comp["Period"], y=comp["Fail Rate%"],
-        name="Fail Rate %", mode="lines+markers+text",
+        mode="lines+markers+text",
         line=dict(color=RED, width=2),
         marker=dict(size=7, color=RED),
         text=comp["Fail Rate%"].map(lambda v: f"{v:.1f}%"),
         textposition="top center",
         textfont=dict(color=RED, size=11),
-    ), secondary_y=True)
-    fig_comp.update_layout(
+        fill="tozeroy",
+        fillcolor="rgba(192,57,43,0.08)",
+    ))
+    fig_fail.update_layout(
         plot_bgcolor=OFFWHITE, paper_bgcolor=OFFWHITE,
         font=dict(family="Arial", color=NAVY),
-        title=dict(text=f"Total Panels & Fail Rate by {compare_by}",
+        title=dict(text=f"Fail Rate % by {compare_by}",
                    font=dict(family="Georgia", color=NAVY, size=14)),
-        legend=dict(orientation="h", y=1.12, x=0),
-        height=380, margin=dict(l=10, r=10, t=50, b=20),
+        height=280, margin=dict(l=10, r=10, t=40, b=20),
+        yaxis=dict(title="Fail Rate %", ticksuffix="%", rangemode="tozero"),
         xaxis=dict(tickangle=-35 if compare_by == "Month" else 0),
+        showlegend=False,
     )
-    fig_comp.update_yaxes(title_text="Panels Built", secondary_y=False)
-    fig_comp.update_yaxes(title_text="Fail Rate %", secondary_y=True,
-                          ticksuffix="%", showgrid=False)
-    st.plotly_chart(fig_comp, use_container_width=True)
+    st.plotly_chart(fig_fail, use_container_width=True)
 
     display_comp = comp[["Period","Panels","Fails","Pass Rate%","Fail Rate%"]].copy()
     if compare_by == "Month":
