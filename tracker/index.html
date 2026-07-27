@@ -55,6 +55,16 @@
     .stage-pill.paused  { background: #fff3e0;       color: var(--orange);  border-color: var(--orange); }
 
 
+    /* Production line selector */
+    .line-btn { flex:1; padding:16px 6px; font-size:22px; font-weight:bold; border:2px solid #ddd; border-radius:10px; background:white; color:var(--navy); cursor:pointer; }
+    .line-btn.selected { background:var(--blue); color:white; border-color:var(--navy); }
+
+    /* New worker overlay */
+    #new-worker-overlay { display:none; position:fixed; inset:0; background:rgba(0,0,0,0.55); z-index:1000; align-items:center; justify-content:center; }
+    #new-worker-overlay.show { display:flex; }
+    #new-worker-sheet { background:white; width:90%; max-width:360px; border-radius:16px; padding:24px 20px; }
+    #new-worker-sheet h2 { font-family:Georgia,serif; font-size:17px; color:var(--navy); margin-bottom:16px; text-align:center; }
+
     /* Stage badge on confirm card */
     .stage-badge { display: inline-block; background: var(--blue); color: white; border-radius: 20px; padding: 6px 18px; font-size: 15px; font-weight: bold; letter-spacing: 0.5px; margin-top: 4px; }
     .stage-badge.new-label { background: var(--orange); }
@@ -122,9 +132,21 @@
     <div class="info-strip">
       <div class="info-item"><div class="ilabel">Job #</div><div class="ivalue" id="cf-job">—</div></div>
       <div class="info-item"><div class="ilabel">Panel #</div><div class="ivalue" id="cf-panel">—</div></div>
+      <div class="info-item" id="cf-line-item" style="display:none"><div class="ilabel">Line</div><div class="ivalue" id="cf-line-display">—</div></div>
     </div>
     <div style="margin-top:12px">
       <div class="stage-row" id="cf-stage-progress"></div>
+    </div>
+  </div>
+
+  <!-- Production line (new panels only) -->
+  <div class="card" id="cf-line-card" style="display:none">
+    <div class="card-title">Production Line</div>
+    <div style="display:flex;gap:10px">
+      <button class="line-btn" onclick="selectLine('A')">A</button>
+      <button class="line-btn" onclick="selectLine('B')">B</button>
+      <button class="line-btn" onclick="selectLine('C')">C</button>
+      <button class="line-btn" onclick="selectLine('D')">D</button>
     </div>
   </div>
 
@@ -136,10 +158,8 @@
     </div>
     <label>Worker</label>
     <select id="cf-worker"></select>
-    <label style="margin-top:10px">Or add new worker</label>
-    <div style="display:flex;gap:8px">
-      <input type="text" id="cf-new-worker" placeholder="First Last" autocomplete="off">
-      <button class="btn btn-gray btn-sm" onclick="addNewWorker()">Add</button>
+    <div class="mt-8">
+      <button class="btn btn-gray" onclick="showNewWorkerOverlay()">+ New Worker</button>
     </div>
     <div class="mt-16">
       <button class="btn btn-green" onclick="startStage()">▶ Start</button>
@@ -164,7 +184,7 @@
     <div class="timer-label" id="tm-worker">Worker</div>
     <div class="timer-display" id="timer-display">00:00:00</div>
     <div class="mt-16" style="display:flex;gap:10px">
-      <button class="btn btn-red" style="flex:1" onclick="stopStage()">✅ Complete</button>
+      <button class="btn btn-green" style="flex:1" onclick="stopStage()">✅ Complete</button>
       <button class="btn" style="flex:1;background:var(--orange);color:white" onclick="stopStage('Paused')">⏸ Pause</button>
     </div>
   </div>
@@ -187,7 +207,7 @@
       <div class="timer-label" id="cj-worker">—</div>
       <div class="timer-display" id="cj-timer-display">00:00:00</div>
       <div class="mt-16" style="display:flex;gap:10px">
-        <button class="btn btn-red" style="flex:1" onclick="stopStage()">✅ Complete</button>
+        <button class="btn btn-green" style="flex:1" onclick="stopStage()">✅ Complete</button>
         <button class="btn" style="flex:1;background:var(--orange);color:white" onclick="stopStage('Paused')">⏸ Pause</button>
       </div>
     </div>
@@ -230,6 +250,19 @@
 </div>
 
 
+<!-- ══ NEW WORKER OVERLAY ══ -->
+<div id="new-worker-overlay" onclick="hideNewWorkerOverlay(event)">
+  <div id="new-worker-sheet">
+    <h2>Add New Worker</h2>
+    <label style="margin-top:0">Full Name</label>
+    <input type="text" id="nw-name" placeholder="First Last" autocomplete="off">
+    <div style="display:flex;gap:10px;margin-top:16px">
+      <button class="btn btn-gray btn-sm" style="flex:1" onclick="hideNewWorkerOverlay()">Cancel</button>
+      <button class="btn btn-green btn-sm" style="flex:1" onclick="confirmNewWorker()">Add</button>
+    </div>
+  </div>
+</div>
+
 <div id="toast"></div>
 
 <script>
@@ -268,11 +301,12 @@ const ALL_WORKERS = [
 
 // ── State ──────────────────────────────────────────────────────────────────
 let defWorker    = localStorage.getItem('defWorker') || '';
-let currentPanel = null;   // loaded panel object
-let currentStage = '';     // auto-detected next stage
+let currentPanel = null;
+let currentStage = '';
 let activeStarted= null;
 let activeWorker = '';
 let timerInterval= null;
+let selectedLine = '';
 
 // ── Supabase ───────────────────────────────────────────────────────────────
 async function sbFetch(path, method = 'GET', body = null, extra = {}) {
@@ -446,10 +480,58 @@ async function loadByCode(code) {
   }
 }
 
+// ── Production line ─────────────────────────────────────────────────────────
+function selectLine(line) {
+  selectedLine = line;
+  document.querySelectorAll('.line-btn').forEach(b => {
+    b.classList.toggle('selected', b.textContent === line);
+  });
+}
+
+// ── New worker overlay ──────────────────────────────────────────────────────
+function showNewWorkerOverlay() {
+  document.getElementById('nw-name').value = '';
+  document.getElementById('new-worker-overlay').classList.add('show');
+  setTimeout(() => document.getElementById('nw-name').focus(), 100);
+}
+
+function hideNewWorkerOverlay(evt) {
+  if (evt && evt.target !== document.getElementById('new-worker-overlay')) return;
+  document.getElementById('new-worker-overlay').classList.remove('show');
+}
+
+async function confirmNewWorker() {
+  const name = document.getElementById('nw-name').value.trim();
+  if (!name) { document.getElementById('nw-name').focus(); return; }
+  const extras = JSON.parse(localStorage.getItem('extraWorkers') || '[]');
+  if (!extras.includes(name)) { extras.push(name); localStorage.setItem('extraWorkers', JSON.stringify(extras)); }
+  try { await sbFetch('workers', 'POST', { name, tech_only: false }); } catch { /* ok */ }
+  populateWorkerSelect('cf-worker', currentStage);
+  document.getElementById('cf-worker').value = name;
+  document.getElementById('new-worker-overlay').classList.remove('show');
+  toast('Worker added: ' + name);
+}
+
 // ── Confirm view ───────────────────────────────────────────────────────────
 function showConfirm() {
   document.getElementById('cf-job').textContent   = currentPanel.job_number   || '—';
   document.getElementById('cf-panel').textContent = currentPanel.panel_number || '—';
+
+  // Production line display (existing panels)
+  const lineItem = document.getElementById('cf-line-item');
+  const lineDisp = document.getElementById('cf-line-display');
+  if (!currentPanel._isNew && currentPanel.production_line) {
+    lineItem.style.display = '';
+    lineDisp.textContent   = currentPanel.production_line;
+  } else {
+    lineItem.style.display = 'none';
+  }
+
+  // Production line selector (new panels only)
+  const lineCard = document.getElementById('cf-line-card');
+  lineCard.style.display = currentPanel._isNew ? '' : 'none';
+  selectedLine = '';
+  document.querySelectorAll('.line-btn').forEach(b => b.classList.remove('selected'));
 
   // Stage progress pills
   const scans = currentPanel.scans || [];
@@ -480,18 +562,6 @@ async function cancelConfirm() {
   startScanner();
 }
 
-async function addNewWorker() {
-  const name = document.getElementById('cf-new-worker').value.trim();
-  if (!name) return;
-  const extras = JSON.parse(localStorage.getItem('extraWorkers') || '[]');
-  if (!extras.includes(name)) { extras.push(name); localStorage.setItem('extraWorkers', JSON.stringify(extras)); }
-  try { await sbFetch('workers', 'POST', { name, tech_only: false }); } catch { /* ok */ }
-  populateWorkerSelect('cf-worker', currentStage);
-  document.getElementById('cf-worker').value = name;
-  document.getElementById('cf-new-worker').value = '';
-  toast('Worker added: ' + name);
-}
-
 // ── Stage start / stop ─────────────────────────────────────────────────────
 async function startStage() {
   const worker = document.getElementById('cf-worker').value;
@@ -510,16 +580,23 @@ async function startStage() {
     } catch { /* allow start if check fails */ }
   }
 
+  if (currentPanel._isNew && !selectedLine) {
+    toast('Select a production line (A, B, C, or D)');
+    return;
+  }
+
   try {
     // Register new panel first if needed
     if (currentPanel._isNew) {
       await sbFetch('panels', 'POST', {
-        panel_code:   currentPanel.panel_code,
-        job_number:   currentPanel.job_number,
-        panel_number: currentPanel.panel_number,
-        is_complete:  false
+        panel_code:      currentPanel.panel_code,
+        job_number:      currentPanel.job_number,
+        panel_number:    currentPanel.panel_number,
+        is_complete:     false,
+        production_line: selectedLine
       });
       currentPanel._isNew = false;
+      currentPanel.production_line = selectedLine;
     }
 
     const now  = new Date().toISOString();
