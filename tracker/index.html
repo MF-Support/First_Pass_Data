@@ -7,9 +7,7 @@
   <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
   <meta name="apple-mobile-web-app-title" content="Panel Tracker">
   <title>Panel Tracker</title>
-
   <script src="https://unpkg.com/html5-qrcode@2.3.8/html5-qrcode.min.js"></script>
-
   <style>
     :root {
       --navy:    #000E57;
@@ -22,79 +20,24 @@
       --orange:  #E67E22;
     }
     * { box-sizing: border-box; margin: 0; padding: 0; -webkit-tap-highlight-color: transparent; }
+    body { font-family: Arial, sans-serif; background: var(--offwhite); color: var(--navy); min-height: 100vh; display: flex; flex-direction: column; }
 
-    body {
-      font-family: Arial, sans-serif;
-      background: var(--offwhite);
-      color: var(--navy);
-      min-height: 100vh;
-      display: flex;
-      flex-direction: column;
-    }
-
-    header {
-      background: var(--navy);
-      color: white;
-      padding: 14px 18px;
-      display: flex;
-      align-items: center;
-      justify-content: space-between;
-    }
+    header { background: var(--navy); color: white; padding: 14px 18px; display: flex; align-items: center; justify-content: space-between; }
     header h1 { font-family: Georgia, serif; font-size: 18px; }
-    header .station-badge {
-      background: var(--blue);
-      color: white;
-      padding: 4px 12px;
-      border-radius: 20px;
-      font-size: 13px;
-      font-weight: bold;
-    }
 
-    .view { display: none; flex-direction: column; flex: 1; padding: 16px; gap: 14px; }
+    .view { display: none; flex-direction: column; flex: 1; padding: 16px; gap: 14px; overflow-y: auto; }
     .view.active { display: flex; }
 
-    .card {
-      background: white;
-      border-radius: 12px;
-      padding: 18px;
-      box-shadow: 0 2px 8px rgba(0,0,0,0.07);
-    }
-    .card-title {
-      font-family: Georgia, serif;
-      font-size: 14px;
-      color: var(--navy);
-      font-weight: bold;
-      margin-bottom: 12px;
-      text-transform: uppercase;
-      letter-spacing: 0.5px;
-    }
+    .card { background: white; border-radius: 12px; padding: 18px; box-shadow: 0 2px 8px rgba(0,0,0,0.07); }
+    .card-title { font-family: Georgia, serif; font-size: 14px; color: var(--navy); font-weight: bold; margin-bottom: 12px; text-transform: uppercase; letter-spacing: 0.5px; }
 
     label { font-size: 12px; color: var(--gray); display: block; margin-bottom: 4px; margin-top: 10px; }
     label:first-of-type { margin-top: 0; }
-    input, select {
-      width: 100%;
-      padding: 13px 14px;
-      font-size: 16px;
-      border: 2px solid #ddd;
-      border-radius: 8px;
-      background: var(--offwhite);
-      color: var(--navy);
-      appearance: none;
-      -webkit-appearance: none;
-    }
+    input, select { width: 100%; padding: 13px 14px; font-size: 16px; border: 2px solid #ddd; border-radius: 8px; background: var(--offwhite); color: var(--navy); appearance: none; -webkit-appearance: none; }
     input:focus, select:focus { outline: none; border-color: var(--blue); }
+    input[readonly] { background: #f5f5f5; color: #666; }
 
-    .btn {
-      width: 100%;
-      padding: 16px;
-      font-size: 17px;
-      font-weight: bold;
-      border: none;
-      border-radius: 10px;
-      cursor: pointer;
-      letter-spacing: 0.5px;
-      transition: opacity 0.15s, transform 0.1s;
-    }
+    .btn { width: 100%; padding: 16px; font-size: 17px; font-weight: bold; border: none; border-radius: 10px; cursor: pointer; letter-spacing: 0.5px; transition: opacity 0.15s, transform 0.1s; }
     .btn:active { opacity: 0.85; transform: scale(0.98); }
     .btn-primary { background: var(--blue);  color: white; }
     .btn-navy    { background: var(--navy);  color: white; }
@@ -104,217 +47,164 @@
     .btn:disabled { opacity: 0.4; cursor: not-allowed; transform: none; }
     .btn-sm      { padding: 10px 14px; font-size: 14px; width: auto; }
 
+    /* Stage pills */
     .stage-row { display: flex; gap: 8px; flex-wrap: wrap; }
-    .stage-pill {
-      flex: 1; min-width: 70px; padding: 10px 6px;
-      border-radius: 8px; text-align: center;
-      font-size: 12px; font-weight: bold;
-      background: #f0f0f0; color: #999;
-      border: 2px solid transparent;
-    }
+    .stage-pill { flex: 1; min-width: 70px; padding: 10px 6px; border-radius: 8px; text-align: center; font-size: 12px; font-weight: bold; background: #f0f0f0; color: #999; border: 2px solid transparent; }
     .stage-pill.done    { background: var(--tint); color: var(--navy); border-color: var(--blue); }
-    .stage-pill.active  { background: var(--green); color: white; }
-    .stage-pill.current { background: var(--blue); color: white; border-color: var(--navy); }
+    .stage-pill.next    { background: var(--blue); color: white; border-color: var(--navy); }
 
-    .timer-display {
-      text-align: center;
-      font-size: 52px;
-      font-family: Georgia, serif;
-      color: var(--navy);
-      font-weight: bold;
-      letter-spacing: 2px;
-      padding: 10px 0;
-    }
+    /* Stage badge on confirm card */
+    .stage-badge { display: inline-block; background: var(--blue); color: white; border-radius: 20px; padding: 6px 18px; font-size: 15px; font-weight: bold; letter-spacing: 0.5px; margin-top: 4px; }
+    .stage-badge.new-label { background: var(--orange); }
+
+    /* Timer */
+    .timer-display { text-align: center; font-size: 52px; font-family: Georgia, serif; color: var(--navy); font-weight: bold; letter-spacing: 2px; padding: 10px 0; }
     .timer-label { text-align: center; font-size: 12px; color: var(--gray); margin-bottom: 4px; }
 
+    /* Info strip */
     .info-strip { display: flex; gap: 10px; }
-    .info-item {
-      flex: 1; background: var(--tint);
-      border-radius: 8px; padding: 10px 12px; text-align: center;
-    }
-    .info-item .label { font-size: 10px; color: var(--gray); text-transform: uppercase; letter-spacing: 0.5px; }
-    .info-item .value { font-size: 16px; font-weight: bold; color: var(--navy); margin-top: 2px; }
+    .info-item { flex: 1; background: var(--tint); border-radius: 8px; padding: 10px 12px; text-align: center; }
+    .info-item .ilabel { font-size: 10px; color: var(--gray); text-transform: uppercase; letter-spacing: 0.5px; }
+    .info-item .ivalue { font-size: 16px; font-weight: bold; color: var(--navy); margin-top: 2px; }
 
-    #scanner-container { width: 100%; border-radius: 10px; overflow: hidden; background: #000; }
-    #scanner-container video { width: 100%; border-radius: 10px; }
+    /* Scanner */
+    #scanner-container { width: 100%; border-radius: 10px; overflow: hidden; background: #111; min-height: 200px; display: flex; align-items: center; justify-content: center; }
+    #qr-reader { width: 100%; }
+    .scan-prompt { color: #fff; font-size: 14px; text-align: center; padding: 40px 20px; }
 
-    /* New panel badge — shown in register card */
-    .new-panel-code {
-      background: var(--tint);
-      border: 2px solid var(--blue);
-      border-radius: 8px;
-      padding: 10px 14px;
-      font-family: monospace;
-      font-size: 17px;
-      font-weight: bold;
-      color: var(--navy);
-      letter-spacing: 1px;
-      text-align: center;
-      margin-bottom: 4px;
-    }
+    /* Tap-to-scan button overlay */
+    #tap-to-scan { width: 100%; padding: 20px; font-size: 18px; font-weight: bold; border: none; border-radius: 10px; cursor: pointer; background: var(--blue); color: white; margin-top: 12px; }
 
-    #toast {
-      position: fixed;
-      bottom: 24px; left: 50%;
-      transform: translateX(-50%) translateY(100px);
-      background: var(--navy); color: white;
-      padding: 12px 24px; border-radius: 24px;
-      font-size: 14px; font-weight: bold;
-      transition: transform 0.3s ease;
-      z-index: 9999; white-space: nowrap;
-    }
+    /* Toast */
+    #toast { position: fixed; bottom: 80px; left: 50%; transform: translateX(-50%) translateY(100px); background: var(--navy); color: white; padding: 12px 24px; border-radius: 24px; font-size: 14px; font-weight: bold; transition: transform 0.3s ease; z-index: 9999; white-space: nowrap; }
     #toast.show { transform: translateX(-50%) translateY(0); }
 
-    #view-setup { justify-content: center; }
-    .setup-logo { text-align: center; font-family: Georgia, serif; font-size: 26px; color: var(--navy); margin-bottom: 8px; }
-    .setup-sub  { text-align: center; font-size: 13px; color: var(--gray); margin-bottom: 20px; }
+    /* Settings */
+    #view-settings { justify-content: flex-start; }
 
+    /* History */
     .history-table { width: 100%; border-collapse: collapse; font-size: 13px; }
-    .history-table th {
-      background: var(--navy); color: white;
-      padding: 8px 10px; text-align: left;
-      font-size: 11px; text-transform: uppercase;
-    }
+    .history-table th { background: var(--navy); color: white; padding: 8px 10px; text-align: left; font-size: 11px; text-transform: uppercase; }
     .history-table td { padding: 8px 10px; border-bottom: 1px solid #eee; }
     .history-table tr:nth-child(even) td { background: var(--tint); }
 
-    .divider { height: 1px; background: #eee; margin: 4px 0; }
     .text-center { text-align: center; }
     .text-sm { font-size: 12px; color: var(--gray); }
-    .mt-4 { margin-top: 4px; }
+    .mt-8 { margin-top: 8px; }
+    .mt-16 { margin-top: 16px; }
   </style>
 </head>
 <body>
 
 <header>
   <h1>⚡ Panel Tracker</h1>
-  <span class="station-badge" id="header-station">—</span>
 </header>
 
-<!-- ══ SETUP VIEW ══ -->
-<div class="view active" id="view-setup">
-  <div class="setup-logo">Panel Tracker</div>
-  <div class="setup-sub">Configure this iPad's station before use</div>
-  <div class="card">
-    <div class="card-title">Station Setup</div>
-    <label>This station's stage</label>
-    <select id="setup-stage">
-      <option value="">— Select stage —</option>
-      <option value="Layout">Layout</option>
-      <option value="Wire">Wire</option>
-      <option value="Final">Final</option>
-      <option value="Tech">Tech</option>
-    </select>
-    <label>Default worker (optional)</label>
-    <select id="setup-worker">
-      <option value="">— Select worker —</option>
-    </select>
-    <div style="margin-top:16px">
-      <button class="btn btn-navy" onclick="saveSetup()">Save &amp; Continue</button>
-    </div>
-  </div>
-</div>
+<!-- ══ SCAN VIEW (main) ══ -->
+<div class="view active" id="view-scan">
 
-<!-- ══ MAIN VIEW ══ -->
-<div class="view" id="view-main">
-
-  <!-- Panel info strip (shown once a panel is loaded) -->
-  <div class="card" id="panel-info-card" style="display:none">
-    <div class="info-strip">
-      <div class="info-item"><div class="label">Job #</div><div class="value" id="pi-job">—</div></div>
-      <div class="info-item"><div class="label">Panel #</div><div class="value" id="pi-panel">—</div></div>
-      <div class="info-item"><div class="label">Code</div><div class="value" id="pi-code" style="font-size:11px;letter-spacing:1px">—</div></div>
-    </div>
-    <div style="margin-top:12px">
-      <div class="stage-row" id="stage-progress"></div>
-    </div>
-  </div>
-
-  <!-- Scan card — primary action on every station -->
+  <!-- Scanner card -->
   <div class="card" id="scan-card">
-    <div class="card-title" id="scan-title">Scan Panel QR Code</div>
+    <div class="card-title">Scan Panel Label</div>
     <div id="scanner-container">
       <div id="qr-reader"></div>
     </div>
-    <div style="margin-top:12px;display:flex;gap:10px">
-      <button class="btn btn-gray btn-sm" id="scan-cancel-btn" onclick="cancelScan()" style="flex:1;display:none">Cancel</button>
-      <button class="btn btn-primary" onclick="startScanner()" id="scan-btn">📷 Open Camera</button>
-    </div>
-    <div class="divider" style="margin-top:14px"></div>
-    <div class="mt-4">
-      <label>Or enter code manually</label>
-      <div style="display:flex;gap:8px">
-        <input type="text" id="manual-code" placeholder="CP-20250724-0001" style="text-transform:uppercase" autocomplete="off">
-        <button class="btn btn-navy btn-sm" onclick="loadByCode(document.getElementById('manual-code').value)">Go</button>
-      </div>
+    <button id="tap-to-scan" onclick="startScanner()" style="display:none">📷 Tap to Open Camera</button>
+    <div class="mt-8" style="display:flex;gap:8px">
+      <input type="text" id="manual-code" placeholder="Enter code manually" style="text-transform:uppercase;flex:1" autocomplete="off">
+      <button class="btn btn-navy btn-sm" onclick="loadByCode(document.getElementById('manual-code').value)">Go</button>
     </div>
   </div>
 
-  <!-- Register new panel (Layout only — shown when scanned code is unknown) -->
-  <div class="card" id="register-card" style="display:none">
-    <div class="card-title">New Panel — Register Details</div>
-    <div class="new-panel-code" id="register-code">—</div>
-    <label>Job #</label>
-    <input type="text" id="reg-job" placeholder="e.g. 24-1234" autocomplete="off">
-    <label>Panel #</label>
-    <input type="text" id="reg-panel" placeholder="e.g. 001" autocomplete="off">
+</div>
+
+<!-- ══ CONFIRM VIEW ══ -->
+<div class="view" id="view-confirm">
+
+  <!-- Panel info -->
+  <div class="card">
+    <div class="info-strip">
+      <div class="info-item"><div class="ilabel">Job #</div><div class="ivalue" id="cf-job">—</div></div>
+      <div class="info-item"><div class="ilabel">Panel #</div><div class="ivalue" id="cf-panel">—</div></div>
+    </div>
+    <div style="margin-top:12px">
+      <div class="stage-row" id="cf-stage-progress"></div>
+    </div>
+  </div>
+
+  <!-- Stage + Worker -->
+  <div class="card">
+    <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:14px">
+      <span style="font-size:13px;color:var(--gray);font-weight:bold;text-transform:uppercase;letter-spacing:0.5px">Next Stage</span>
+      <span class="stage-badge" id="cf-stage-badge">Layout</span>
+    </div>
     <label>Worker</label>
-    <select id="reg-worker"></select>
-    <div style="margin-top:16px;display:flex;gap:10px">
-      <button class="btn btn-gray btn-sm" onclick="cancelRegister()" style="flex:1">Cancel</button>
-      <button class="btn btn-green" onclick="registerAndStart()" style="flex:2">▶ Register &amp; Start</button>
-    </div>
-  </div>
-
-  <!-- Worker selector (non-Layout stations after scan) -->
-  <div class="card" id="worker-card" style="display:none">
-    <div class="card-title">Who is working this stage?</div>
-    <select id="scan-worker"></select>
+    <select id="cf-worker"></select>
     <label style="margin-top:10px">Or add new worker</label>
     <div style="display:flex;gap:8px">
-      <input type="text" id="new-worker-name" placeholder="First Last" autocomplete="off">
+      <input type="text" id="cf-new-worker" placeholder="First Last" autocomplete="off">
       <button class="btn btn-gray btn-sm" onclick="addNewWorker()">Add</button>
     </div>
-    <div style="margin-top:16px">
-      <button class="btn btn-green" onclick="startStage()">▶ Start Stage</button>
+    <div class="mt-16">
+      <button class="btn btn-green" onclick="startStage()">▶ Start</button>
+    </div>
+    <div style="margin-top:10px">
+      <button class="btn btn-gray" onclick="cancelConfirm()">← Back to Scanner</button>
     </div>
   </div>
 
-  <!-- Active stage / timer -->
-  <div class="card" id="timer-card" style="display:none">
-    <div class="card-title text-center" id="timer-stage-label">Layout in Progress</div>
-    <div class="timer-label" id="timer-worker-label">Worker</div>
+</div>
+
+<!-- ══ TIMER VIEW ══ -->
+<div class="view" id="view-timer">
+  <div class="card">
+    <div class="info-strip">
+      <div class="info-item"><div class="ilabel">Job #</div><div class="ivalue" id="tm-job">—</div></div>
+      <div class="info-item"><div class="ilabel">Panel #</div><div class="ivalue" id="tm-panel">—</div></div>
+    </div>
+  </div>
+  <div class="card">
+    <div class="card-title text-center" id="tm-stage">Layout in Progress</div>
+    <div class="timer-label" id="tm-worker">Worker</div>
     <div class="timer-display" id="timer-display">00:00:00</div>
-    <div style="margin-top:16px">
+    <div class="mt-16">
       <button class="btn btn-red" onclick="stopStage()">⬛ Stop &amp; Complete Stage</button>
     </div>
   </div>
-
 </div>
 
 <!-- ══ HISTORY VIEW ══ -->
 <div class="view" id="view-history">
   <div class="card">
     <div class="card-title">Recent Scans</div>
-    <div id="history-body" style="overflow-x:auto">
+    <div style="overflow-x:auto">
       <table class="history-table">
-        <thead>
-          <tr><th>Job #</th><th>Panel #</th><th>Stage</th><th>Worker</th><th>Duration</th></tr>
-        </thead>
-        <tbody id="history-rows">
-          <tr><td colspan="5" class="text-center text-sm" style="padding:20px">No records yet</td></tr>
-        </tbody>
+        <thead><tr><th>Job #</th><th>Panel #</th><th>Stage</th><th>Worker</th><th>Duration</th></tr></thead>
+        <tbody id="history-rows"><tr><td colspan="5" class="text-center text-sm" style="padding:20px">No records yet</td></tr></tbody>
       </table>
     </div>
   </div>
-  <button class="btn btn-gray" onclick="showView('main')">← Back</button>
+</div>
+
+<!-- ══ SETTINGS VIEW ══ -->
+<div class="view" id="view-settings">
+  <div class="card">
+    <div class="card-title">Settings</div>
+    <label>Default Worker (auto-selected after scan)</label>
+    <select id="settings-worker">
+      <option value="">— None —</option>
+    </select>
+    <div class="mt-16">
+      <button class="btn btn-navy" onclick="saveSettings()">Save</button>
+    </div>
+  </div>
 </div>
 
 <!-- Bottom nav -->
-<div style="background:var(--navy);display:flex;border-top:2px solid var(--blue)">
-  <button onclick="showView('main')" style="flex:1;padding:14px;background:none;border:none;color:white;font-size:12px;cursor:pointer">🏠 Scan</button>
-  <button onclick="loadHistory()" style="flex:1;padding:14px;background:none;border:none;color:white;font-size:12px;cursor:pointer">📋 History</button>
-  <button onclick="showView('setup')" style="flex:1;padding:14px;background:none;border:none;color:white;font-size:12px;cursor:pointer">⚙ Setup</button>
+<div style="background:var(--navy);display:flex;border-top:2px solid var(--blue);position:sticky;bottom:0">
+  <button onclick="goScan()" style="flex:1;padding:14px;background:none;border:none;color:white;font-size:12px;cursor:pointer">🏠 Scan</button>
+  <button onclick="goHistory()" style="flex:1;padding:14px;background:none;border:none;color:white;font-size:12px;cursor:pointer">📋 History</button>
+  <button onclick="showView('settings')" style="flex:1;padding:14px;background:none;border:none;color:white;font-size:12px;cursor:pointer">⚙ Settings</button>
 </div>
 
 <div id="toast"></div>
@@ -327,40 +217,39 @@ const STAGES      = ['Layout', 'Wire', 'Final', 'Tech'];
 const FINAL_STAGE = 'Tech';
 
 const ALL_WORKERS = [
-  { name: 'Amelia Soto',          initials: 'AS', techOnly: false },
-  { name: 'Loi Cronce',           initials: 'LC', techOnly: false },
-  { name: 'Angelo Bloodworth',    initials: 'AB', techOnly: false },
-  { name: 'Marites Peters',       initials: 'MP', techOnly: false },
-  { name: 'Craig Webb',           initials: 'CW', techOnly: false },
-  { name: 'Jonathan Brazzle',     initials: 'JB', techOnly: false },
-  { name: 'Rory Gaston',          initials: 'RG', techOnly: false },
-  { name: 'Gary Kellogg',         initials: 'GK', techOnly: true  },
-  { name: 'Configuration Dept',   initials: 'CD', techOnly: false },
-  { name: 'Corey Watkins',        initials: 'CO', techOnly: false },
-  { name: 'Joshua Yates',         initials: 'JY', techOnly: false },
-  { name: 'Sharon Allen',         initials: 'SA', techOnly: false },
-  { name: 'Vinh Vu-dinh',         initials: 'VV', techOnly: false },
-  { name: 'Quan Phoc',            initials: 'QP', techOnly: false },
-  { name: 'Linda Thatlor',        initials: 'LT', techOnly: false },
-  { name: 'Sai Kai',              initials: 'SK', techOnly: false },
-  { name: 'Renisha Grant',        initials: 'RE', techOnly: false },
-  { name: 'Carlos Guerrero',      initials: 'CG', techOnly: true  },
-  { name: 'Brandon Price',        initials: 'BP', techOnly: true  },
-  { name: 'David Fowler',         initials: 'DF', techOnly: true  },
-  { name: 'Victoria Cotto',       initials: 'VC', techOnly: false },
-  { name: 'Eric Samson',          initials: 'ES', techOnly: false },
-  { name: 'Ivey Mack',            initials: 'IM', techOnly: false },
-  { name: 'Ashley Sending',       initials: 'AH', techOnly: false },
+  { name: 'Amelia Soto',          techOnly: false },
+  { name: 'Angelo Bloodworth',    techOnly: false },
+  { name: 'Ashley Sending',       techOnly: false },
+  { name: 'Brandon Price',        techOnly: true  },
+  { name: 'Carlos Guerrero',      techOnly: true  },
+  { name: 'Configuration Dept',   techOnly: false },
+  { name: 'Corey Watkins',        techOnly: false },
+  { name: 'Craig Webb',           techOnly: false },
+  { name: 'David Fowler',         techOnly: true  },
+  { name: 'Eric Samson',          techOnly: false },
+  { name: 'Gary Kellogg',         techOnly: true  },
+  { name: 'Ivey Mack',            techOnly: false },
+  { name: 'Jonathan Brazzle',     techOnly: false },
+  { name: 'Joshua Yates',         techOnly: false },
+  { name: 'Linda Thatlor',        techOnly: false },
+  { name: 'Loi Cronce',           techOnly: false },
+  { name: 'Marites Peters',       techOnly: false },
+  { name: 'Quan Phoc',            techOnly: false },
+  { name: 'Renisha Grant',        techOnly: false },
+  { name: 'Rory Gaston',          techOnly: false },
+  { name: 'Sai Kai',              techOnly: false },
+  { name: 'Sharon Allen',         techOnly: false },
+  { name: 'Victoria Cotto',       techOnly: false },
+  { name: 'Vinh Vu-dinh',         techOnly: false },
 ];
 
 // ── State ──────────────────────────────────────────────────────────────────
-let station   = localStorage.getItem('station')  || '';
-let defWorker = localStorage.getItem('defWorker') || '';
-let currentPanel  = null;
-let activeStarted = null;
-let timerInterval = null;
-let scanner       = null;
-let pendingCode   = '';   // code scanned but not yet registered
+let defWorker    = localStorage.getItem('defWorker') || '';
+let currentPanel = null;   // loaded panel object
+let currentStage = '';     // auto-detected next stage
+let activeStarted= null;
+let timerInterval= null;
+let scanner      = null;
 
 // ── Supabase ───────────────────────────────────────────────────────────────
 async function sbFetch(path, method = 'GET', body = null, extra = {}) {
@@ -379,60 +268,29 @@ async function sbFetch(path, method = 'GET', body = null, extra = {}) {
   return method === 'DELETE' ? null : res.json();
 }
 
-// ── Workers ────────────────────────────────────────────────────────────────
-function workersForStation(stationName) {
-  const isTech = stationName === 'Tech';
+// ── Helpers ────────────────────────────────────────────────────────────────
+function nextStageFor(scans) {
+  for (const s of STAGES) {
+    if (!scans.find(sc => sc.stage === s && sc.stopped_at)) return s;
+  }
+  return null;
+}
+
+function workersForStage(stageName) {
+  const isTech = stageName === 'Tech';
   const extras = JSON.parse(localStorage.getItem('extraWorkers') || '[]');
-  const base = ALL_WORKERS.filter(w => isTech || !w.techOnly);
+  const base   = ALL_WORKERS.filter(w => isTech || !w.techOnly);
   return [...base, ...extras.map(n => ({ name: n, techOnly: false }))]
     .sort((a, b) => a.name.localeCompare(b.name));
 }
 
-function populateWorkerSelects() {
-  const list    = workersForStation(station);
-  const allList = ALL_WORKERS.slice().sort((a,b) => a.name.localeCompare(b.name));
-  [
-    { id: 'setup-worker', workers: allList },
-    { id: 'reg-worker',   workers: list    },
-    { id: 'scan-worker',  workers: list    },
-  ].forEach(({ id, workers: wList }) => {
-    const el = document.getElementById(id);
-    if (!el) return;
-    const cur = el.value;
-    el.innerHTML = '<option value="">— Select worker —</option>' +
-      wList.map(w => `<option value="${w.name}">${w.name}</option>`).join('');
-    if (id === 'setup-worker' && defWorker) el.value = defWorker;
-    else if (cur) el.value = cur;
-    // Pre-select default worker where applicable
-    if ((id === 'reg-worker' || id === 'scan-worker') && defWorker) el.value = defWorker;
-  });
-}
-
-async function addNewWorker() {
-  const name = document.getElementById('new-worker-name').value.trim();
-  if (!name) return;
-  const extras = JSON.parse(localStorage.getItem('extraWorkers') || '[]');
-  if (!extras.includes(name)) { extras.push(name); localStorage.setItem('extraWorkers', JSON.stringify(extras)); }
-  try { await sbFetch('workers', 'POST', { name, tech_only: false }); } catch { /* ok */ }
-  populateWorkerSelects();
-  document.getElementById('scan-worker').value = name;
-  document.getElementById('new-worker-name').value = '';
-  toast('Worker added: ' + name);
-}
-
-// ── Setup ──────────────────────────────────────────────────────────────────
-function saveSetup() {
-  const s = document.getElementById('setup-stage').value;
-  if (!s) { toast('Please select a stage'); return; }
-  station   = s;
-  defWorker = document.getElementById('setup-worker').value;
-  localStorage.setItem('station', station);
-  localStorage.setItem('defWorker', defWorker);
-  document.getElementById('header-station').textContent = station;
-  populateWorkerSelects();
-  showView('main');
-  initMainView();
-  toast('Station set to ' + station);
+function populateWorkerSelect(id, stageName) {
+  const el = document.getElementById(id);
+  if (!el) return;
+  const list = stageName ? workersForStage(stageName) : ALL_WORKERS.slice().sort((a,b)=>a.name.localeCompare(b.name));
+  el.innerHTML = '<option value="">— Select worker —</option>' +
+    list.map(w => `<option value="${w.name}">${w.name}</option>`).join('');
+  if (defWorker) el.value = defWorker;
 }
 
 // ── Views ──────────────────────────────────────────────────────────────────
@@ -441,166 +299,186 @@ function showView(name) {
   document.getElementById('view-' + name).classList.add('active');
 }
 
-function initMainView() {
-  document.getElementById('header-station').textContent = station || '—';
-  document.getElementById('scan-title').textContent = station === 'Layout'
-    ? 'Scan Label on Panel' : 'Scan Panel QR Code';
-  showCard('scan-card');
-  hideCard('register-card');
-  hideCard('worker-card');
-  hideCard('timer-card');
-  hideCard('panel-info-card');
-  stopTimer();
-  currentPanel = null;
-  pendingCode  = '';
+function goScan() {
+  showView('scan');
+  startScanner();
 }
 
-function hideCard(id) { document.getElementById(id).style.display = 'none'; }
-function showCard(id) { document.getElementById(id).style.display = ''; }
+async function goHistory() {
+  showView('history');
+  try {
+    let rows;
+    try {
+      rows = await sbFetch('scans?select=panel_code,stage,worker_name,started_at,stopped_at,panels(job_number,panel_number)&order=started_at.desc&limit=50');
+    } catch {
+      rows = await sbFetch('scans?select=panel_code,stage,worker_name,started_at,stopped_at&order=started_at.desc&limit=50');
+    }
+    const tbody = document.getElementById('history-rows');
+    if (!rows.length) { tbody.innerHTML = '<tr><td colspan="5" class="text-center text-sm" style="padding:20px">No records yet</td></tr>'; return; }
+    tbody.innerHTML = rows.map(r => {
+      let dur = '—';
+      if (r.started_at && r.stopped_at) {
+        const mins = Math.round((new Date(r.stopped_at) - new Date(r.started_at)) / 60000);
+        dur = mins < 60 ? `${mins}m` : `${Math.floor(mins/60)}h ${mins%60}m`;
+      } else if (r.started_at) { dur = '▶ active'; }
+      const job   = r.panels?.job_number   || '—';
+      const panel = r.panels?.panel_number || r.panel_code;
+      return `<tr><td>${job}</td><td>${panel}</td><td>${r.stage}</td><td>${r.worker_name}</td><td>${dur}</td></tr>`;
+    }).join('');
+  } catch (e) { toast('Error loading history: ' + e.message); }
+}
+
+// ── Settings ───────────────────────────────────────────────────────────────
+function saveSettings() {
+  defWorker = document.getElementById('settings-worker').value;
+  localStorage.setItem('defWorker', defWorker);
+  toast('Settings saved');
+  goScan();
+}
 
 // ── Scanner ────────────────────────────────────────────────────────────────
 function startScanner() {
   if (scanner) return;
-  document.getElementById('scan-btn').style.display = 'none';
-  document.getElementById('scan-cancel-btn').style.display = '';
+  const btn = document.getElementById('tap-to-scan');
+  btn.style.display = 'none';
+
   scanner = new Html5Qrcode('qr-reader');
   scanner.start(
     { facingMode: 'environment' },
-    { fps: 10, qrbox: { width: 240, height: 240 }, formatsToSupport: [Html5QrcodeSupportedFormats.QR_CODE, Html5QrcodeSupportedFormats.DATA_MATRIX] },
+    { fps: 10, qrbox: { width: 250, height: 250 }, formatsToSupport: [Html5QrcodeSupportedFormats.QR_CODE, Html5QrcodeSupportedFormats.DATA_MATRIX] },
     (decoded) => { stopScanner(); loadByCode(decoded.trim().toUpperCase()); },
     () => {}
-  ).catch(err => { toast('Camera error: ' + err); stopScanner(); });
+  ).catch(() => {
+    scanner = null;
+    btn.style.display = '';
+  });
 }
 
 function stopScanner() {
   if (scanner) { scanner.stop().catch(() => {}); scanner.clear(); scanner = null; }
-  document.getElementById('scan-btn').style.display = '';
-  document.getElementById('scan-cancel-btn').style.display = 'none';
 }
 
-function cancelScan() { stopScanner(); }
-
-// ── Load panel by code ─────────────────────────────────────────────────────
+// ── Load panel ─────────────────────────────────────────────────────────────
 async function loadByCode(code) {
   if (!code) return;
   code = code.toUpperCase().trim();
   try {
     const panels = await sbFetch(`panels?panel_code=eq.${encodeURIComponent(code)}&select=*`);
 
-    // ── Unknown code at Layout → register new panel ──
     if (!panels.length) {
-      if (station !== 'Layout') {
-        toast('Panel not found — must be registered at Layout first');
-        return;
-      }
-      pendingCode = code;
-      document.getElementById('register-code').textContent = code;
-
-      // Parse QR format: JOB|PANEL|YYYYMMDD-RAND  → auto-fill fields
+      // New panel — parse job/panel from QR and show confirm as Layout
       const parts = code.split('|');
-      document.getElementById('reg-job').value   = parts.length >= 2 ? parts[0] : '';
-      document.getElementById('reg-panel').value = parts.length >= 2 ? parts[1] : '';
-
-      hideCard('scan-card');
-      showCard('register-card');
+      const job   = parts.length >= 2 ? parts[0] : '';
+      const panel = parts.length >= 2 ? parts[1] : '';
+      currentPanel = { panel_code: code, job_number: job, panel_number: panel, is_complete: false, scans: [], _isNew: true };
+      currentStage = 'Layout';
+      showConfirm();
       return;
     }
 
     const p = panels[0];
-
-    if (p.is_complete) { toast('⛔ This panel is complete — QR is void'); return; }
+    if (p.is_complete) { toast('⛔ Panel complete — QR is void'); startScanner(); return; }
 
     const scans = await sbFetch(`scans?panel_code=eq.${encodeURIComponent(code)}&select=*&order=started_at`);
     p.scans = scans;
 
-    // Check this stage not already done
-    if (scans.find(s => s.stage === station && s.stopped_at)) {
-      toast(`${station} already completed for this panel`);
+    const next = nextStageFor(scans);
+    if (!next) { toast('⛔ Panel complete — QR is void'); startScanner(); return; }
+
+    // Check if stage is currently in progress on another device
+    if (scans.find(s => s.stage === next && !s.stopped_at)) {
+      toast(`${next} already in progress`);
+      startScanner();
       return;
     }
 
-    // Enforce stage order
-    const idx = STAGES.indexOf(station);
-    if (idx > 0) {
-      const prev = STAGES[idx - 1];
-      if (!scans.find(s => s.stage === prev && s.stopped_at)) {
-        toast(`${prev} must be completed first`);
-        return;
-      }
-    }
-
     currentPanel = p;
-    updatePanelInfo();
-    hideCard('scan-card');
-
-    if (station === 'Layout') {
-      // Layout re-scanning an existing panel (e.g., restarted app mid-job)
-      showCard('worker-card');
-    } else {
-      showCard('worker-card');
-    }
+    currentStage = next;
+    showConfirm();
   } catch (e) {
     toast('Error: ' + e.message);
+    startScanner();
   }
 }
 
-// ── Register new panel (Layout + unknown code) ─────────────────────────────
-async function registerAndStart() {
-  const job    = document.getElementById('reg-job').value.trim();
-  const panel  = document.getElementById('reg-panel').value.trim();
-  const worker = document.getElementById('reg-worker').value;
-  if (!job || !panel) { toast('Enter Job # and Panel #'); return; }
-  if (!worker)        { toast('Select a worker'); return; }
+// ── Confirm view ───────────────────────────────────────────────────────────
+function showConfirm() {
+  document.getElementById('cf-job').textContent   = currentPanel.job_number   || '—';
+  document.getElementById('cf-panel').textContent = currentPanel.panel_number || '—';
 
-  try {
-    await sbFetch('panels', 'POST', {
-      panel_code:   pendingCode,
-      job_number:   job,
-      panel_number: panel,
-      is_complete:  false
-    });
-    currentPanel = { panel_code: pendingCode, job_number: job, panel_number: panel, is_complete: false, scans: [] };
-    hideCard('register-card');
-    updatePanelInfo();
-    // Start the Layout stage immediately with the selected worker
-    await startStageWithWorker(worker);
-  } catch (e) {
-    toast('Error registering panel: ' + e.message);
-  }
+  // Stage progress pills
+  const scans = currentPanel.scans || [];
+  document.getElementById('cf-stage-progress').innerHTML = STAGES.map(s => {
+    const done = scans.find(sc => sc.stage === s && sc.stopped_at);
+    const cls  = done ? 'done' : s === currentStage ? 'next' : '';
+    return `<div class="stage-pill ${cls}">${done ? '✓ ' : ''}${s}</div>`;
+  }).join('');
+
+  // Stage badge
+  const badge = document.getElementById('cf-stage-badge');
+  badge.textContent = currentStage;
+  badge.className = 'stage-badge' + (currentPanel._isNew ? ' new-label' : '');
+
+  // Worker dropdown filtered by stage
+  populateWorkerSelect('cf-worker', currentStage);
+
+  showView('confirm');
 }
 
-function cancelRegister() {
-  pendingCode = '';
-  hideCard('register-card');
-  showCard('scan-card');
+function cancelConfirm() {
+  currentPanel = null;
+  currentStage = '';
+  showView('scan');
+  startScanner();
+}
+
+async function addNewWorker() {
+  const name = document.getElementById('cf-new-worker').value.trim();
+  if (!name) return;
+  const extras = JSON.parse(localStorage.getItem('extraWorkers') || '[]');
+  if (!extras.includes(name)) { extras.push(name); localStorage.setItem('extraWorkers', JSON.stringify(extras)); }
+  try { await sbFetch('workers', 'POST', { name, tech_only: false }); } catch { /* ok */ }
+  populateWorkerSelect('cf-worker', currentStage);
+  document.getElementById('cf-worker').value = name;
+  document.getElementById('cf-new-worker').value = '';
+  toast('Worker added: ' + name);
 }
 
 // ── Stage start / stop ─────────────────────────────────────────────────────
 async function startStage() {
-  const worker = (document.getElementById('scan-worker')?.value || defWorker || '').trim();
+  const worker = document.getElementById('cf-worker').value;
   if (!worker) { toast('Select a worker'); return; }
-  await startStageWithWorker(worker);
-}
 
-async function startStageWithWorker(worker) {
-  if (!currentPanel) { toast('No panel loaded'); return; }
-  const now = new Date().toISOString();
   try {
+    // Register new panel first if needed
+    if (currentPanel._isNew) {
+      await sbFetch('panels', 'POST', {
+        panel_code:   currentPanel.panel_code,
+        job_number:   currentPanel.job_number,
+        panel_number: currentPanel.panel_number,
+        is_complete:  false
+      });
+      currentPanel._isNew = false;
+    }
+
+    const now  = new Date().toISOString();
     const rows = await sbFetch('scans', 'POST', {
       panel_code:  currentPanel.panel_code,
-      stage:       station,
+      stage:       currentStage,
       worker_name: worker,
       started_at:  now
     });
     currentPanel._activeScanId = rows[0].id;
-    hideCard('worker-card');
-    hideCard('scan-card');
-    showCard('timer-card');
-    document.getElementById('timer-stage-label').textContent = `${station} in Progress`;
-    document.getElementById('timer-worker-label').textContent = worker;
+
+    // Show timer
+    document.getElementById('tm-job').textContent   = currentPanel.job_number;
+    document.getElementById('tm-panel').textContent = currentPanel.panel_number;
+    document.getElementById('tm-stage').textContent = `${currentStage} in Progress`;
+    document.getElementById('tm-worker').textContent = worker;
     activeStarted = new Date(now);
     startTimer();
-    toast('Started ' + station);
+    showView('timer');
+    toast('Started ' + currentStage);
   } catch (e) {
     toast('Error: ' + e.message);
   }
@@ -613,15 +491,18 @@ async function stopStage() {
     await sbFetch(`scans?id=eq.${currentPanel._activeScanId}`, 'PATCH',
       { stopped_at: now }, { Prefer: 'return=minimal' });
 
-    if (station === FINAL_STAGE) {
+    if (currentStage === FINAL_STAGE) {
       await sbFetch(`panels?panel_code=eq.${encodeURIComponent(currentPanel.panel_code)}`, 'PATCH',
         { is_complete: true }, { Prefer: 'return=minimal' });
       toast('✅ Panel complete — QR is now void');
     } else {
-      toast('Stage complete!');
+      toast(`${currentStage} complete!`);
     }
     stopTimer();
-    initMainView();
+    currentPanel = null;
+    currentStage = '';
+    showView('scan');
+    startScanner();
   } catch (e) {
     toast('Error: ' + e.message);
   }
@@ -630,71 +511,19 @@ async function stopStage() {
 // ── Timer ──────────────────────────────────────────────────────────────────
 function startTimer() {
   if (timerInterval) clearInterval(timerInterval);
-  timerInterval = setInterval(updateTimerDisplay, 1000);
-  updateTimerDisplay();
+  timerInterval = setInterval(tick, 1000);
+  tick();
 }
 function stopTimer() {
   if (timerInterval) { clearInterval(timerInterval); timerInterval = null; }
   activeStarted = null;
   document.getElementById('timer-display').textContent = '00:00:00';
 }
-function updateTimerDisplay() {
+function tick() {
   if (!activeStarted) return;
   const s = Math.floor((Date.now() - activeStarted.getTime()) / 1000);
   document.getElementById('timer-display').textContent =
     `${String(Math.floor(s/3600)).padStart(2,'0')}:${String(Math.floor((s%3600)/60)).padStart(2,'0')}:${String(s%60).padStart(2,'0')}`;
-}
-
-// ── Panel info display ─────────────────────────────────────────────────────
-function updatePanelInfo() {
-  if (!currentPanel) return;
-  document.getElementById('pi-job').textContent   = currentPanel.job_number;
-  document.getElementById('pi-panel').textContent = currentPanel.panel_number;
-  document.getElementById('pi-code').textContent  = currentPanel.panel_code;
-  const scans = currentPanel.scans || [];
-  document.getElementById('stage-progress').innerHTML = STAGES.map(s => {
-    const done   = scans.find(sc => sc.stage === s && sc.stopped_at);
-    const active = scans.find(sc => sc.stage === s && !sc.stopped_at);
-    const cls  = done ? 'done' : active ? 'active' : s === station ? 'current' : '';
-    const icon = done ? '✓ ' : active ? '▶ ' : '';
-    return `<div class="stage-pill ${cls}">${icon}${s}</div>`;
-  }).join('');
-  showCard('panel-info-card');
-}
-
-// ── History ────────────────────────────────────────────────────────────────
-async function loadHistory() {
-  showView('history');
-  try {
-    let rows;
-    try {
-      rows = await sbFetch(
-        'scans?select=panel_code,stage,worker_name,started_at,stopped_at,panels(job_number,panel_number)&order=started_at.desc&limit=50'
-      );
-    } catch {
-      rows = await sbFetch(
-        'scans?select=panel_code,stage,worker_name,started_at,stopped_at&order=started_at.desc&limit=50'
-      );
-    }
-    const tbody = document.getElementById('history-rows');
-    if (!rows.length) {
-      tbody.innerHTML = '<tr><td colspan="5" class="text-center text-sm" style="padding:20px">No records yet</td></tr>';
-      return;
-    }
-    tbody.innerHTML = rows.map(r => {
-      let dur = '—';
-      if (r.started_at && r.stopped_at) {
-        const mins = Math.round((new Date(r.stopped_at) - new Date(r.started_at)) / 60000);
-        dur = mins < 60 ? `${mins}m` : `${Math.floor(mins/60)}h ${mins%60}m`;
-      } else if (r.started_at) { dur = '▶ active'; }
-      const job   = r.panels?.job_number   || '—';
-      const panel = r.panels?.panel_number || r.panel_code;
-      return `<tr>
-        <td>${job}</td><td>${panel}</td><td>${r.stage}</td>
-        <td>${r.worker_name}</td><td>${dur}</td>
-      </tr>`;
-    }).join('');
-  } catch (e) { toast('Error loading history: ' + e.message); }
 }
 
 // ── Toast ──────────────────────────────────────────────────────────────────
@@ -709,11 +538,15 @@ function toast(msg) {
 
 // ── Init ───────────────────────────────────────────────────────────────────
 window.addEventListener('DOMContentLoaded', () => {
-  populateWorkerSelects();
-  document.getElementById('setup-stage').value = station;
-  document.getElementById('header-station').textContent = station || '—';
-  if (station) { showView('main'); initMainView(); }
-  else          { showView('setup'); }
+  // Populate settings worker list
+  const allSorted = ALL_WORKERS.slice().sort((a,b) => a.name.localeCompare(b.name));
+  const sw = document.getElementById('settings-worker');
+  sw.innerHTML = '<option value="">— None —</option>' +
+    allSorted.map(w => `<option value="${w.name}">${w.name}</option>`).join('');
+  if (defWorker) sw.value = defWorker;
+
+  // Auto-start scanner
+  startScanner();
 });
 </script>
 </body>
