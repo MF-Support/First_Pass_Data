@@ -796,21 +796,21 @@ with tab6:
             w for col in ['layout_worker', 'wire_worker', 'final_worker', 'tech_worker']
             for w in tm[col].dropna().unique() if str(w).strip()
         })
-        all_ta_families = ['All'] + sorted(tm['panel_family'].dropna().unique())
+        all_ta_panels = sorted(tm['panel_number'].dropna().unique())
 
         fc1, fc2, fc3 = st.columns([2, 2, 2])
         with fc1:
             sel_workers = st.multiselect("Filter by worker", all_ta_workers, key="ta_workers")
         with fc2:
-            sel_family  = st.selectbox("Panel family", all_ta_families, key="ta_family")
+            sel_panels  = st.multiselect("Panel number", all_ta_panels, key="ta_panels")
         with fc3:
             complete_only = st.checkbox("Completed panels only", value=True, key="ta_complete")
 
         tmf = tm.copy()
         if complete_only:
             tmf = tmf[tmf['tech_stopped_at'].notna()]
-        if sel_family != 'All':
-            tmf = tmf[tmf['panel_family'] == sel_family]
+        if sel_panels:
+            tmf = tmf[tmf['panel_number'].isin(sel_panels)]
         if sel_workers:
             mask = (
                 tmf['layout_worker'].isin(sel_workers) |
@@ -973,6 +973,120 @@ with tab6:
                 st.dataframe(wdf_display, use_container_width=True, hide_index=True)
             else:
                 st.info("No stage-level worker data yet.")
+
+            # ── Time Breakdown ──
+            st.markdown("<div class='section-header'>Time Breakdown</div>",
+                        unsafe_allow_html=True)
+
+            completed = tmf[tmf['actual_total_hours'].notna()].copy()
+
+            if completed.empty:
+                st.info("No completed panels to analyze.")
+            else:
+                def _hms_signed(h):
+                    sign = '▲ ' if h > 0 else ('▼ ' if h < 0 else '')
+                    return sign + _hms(abs(h))
+
+                avg_layout = completed['layout_hrs'].replace(0, pd.NA).mean()
+                avg_wire   = completed['wire_hrs'].replace(0, pd.NA).mean()
+                avg_final  = completed['final_hrs'].replace(0, pd.NA).mean()
+                avg_tech   = completed['tech_hrs'].replace(0, pd.NA).mean()
+                avg_total  = completed['actual_total_hours'].mean()
+
+                unique_targets = completed['routing_hours'].dropna().unique()
+                single_target  = unique_targets[0] if len(unique_targets) == 1 else None
+                target_label   = _hms(single_target) if single_target else '— (mixed)'
+                delta          = avg_total - single_target if single_target else None
+                is_over        = delta is not None and delta > (1 / 60)
+
+                # Metric cards row
+                mc1, mc2, mc3, mc4 = st.columns(4)
+                for _col, _lbl, _val in [
+                    (mc1, 'Avg Layout',  _hms(avg_layout) if pd.notna(avg_layout) else '—'),
+                    (mc2, 'Avg Wire',    _hms(avg_wire)   if pd.notna(avg_wire)   else '—'),
+                    (mc3, 'Avg Final',   _hms(avg_final)  if pd.notna(avg_final)  else '—'),
+                    (mc4, 'Avg Tech',    _hms(avg_tech)   if pd.notna(avg_tech)   else '—'),
+                ]:
+                    _col.markdown(f"""<div class='kpi-box'>
+                        <div class='kpi-label'>{_lbl}</div>
+                        <div class='kpi-value' style='font-size:22px'>{_val}</div>
+                    </div>""", unsafe_allow_html=True)
+
+                st.markdown("<br>", unsafe_allow_html=True)
+
+                # Target / Actual / Delta summary
+                ta1, ta2, ta3 = st.columns(3)
+                ta_color = RED if is_over else GREEN
+                ta_bg    = '#fff0f0' if is_over else '#f0fff4'
+                for _col, _lbl, _val, _color, _bg in [
+                    (ta1, 'Target (routing hours)', target_label, NAVY, TINT),
+                    (ta2, 'Avg Completion',
+                     _hms(avg_total) if pd.notna(avg_total) else '—', ta_color, ta_bg),
+                    (ta3, 'Delta',
+                     _hms_signed(delta) if delta is not None else '—', ta_color, ta_bg),
+                ]:
+                    _col.markdown(f"""<div class='kpi-box' style='background:{_bg};color:{_color}'>
+                        <div class='kpi-label' style='color:{_color}'>{_lbl}</div>
+                        <div class='kpi-value' style='font-size:22px;color:{_color}'>{_val}</div>
+                    </div>""", unsafe_allow_html=True)
+
+                # ── Quickest team ──
+                st.markdown("<br>", unsafe_allow_html=True)
+                team_cols = ['layout_worker', 'wire_worker', 'final_worker', 'tech_worker']
+                team_data = completed.dropna(subset=['actual_total_hours']).copy()
+                team_data['Team'] = (
+                    team_data['layout_worker'].fillna('—') + ' / ' +
+                    team_data['wire_worker'].fillna('—')   + ' / ' +
+                    team_data['final_worker'].fillna('—')  + ' / ' +
+                    team_data['tech_worker'].fillna('—')
+                )
+                team_summary = (
+                    team_data.groupby('Team')
+                    .agg(
+                        Panels=('actual_total_hours', 'count'),
+                        Avg_h=('actual_total_hours', 'mean'),
+                        layout_h=('layout_hrs', 'mean'),
+                        wire_h=('wire_hrs', 'mean'),
+                        final_h=('final_hrs', 'mean'),
+                        tech_h=('tech_hrs', 'mean'),
+                    )
+                    .reset_index()
+                    .sort_values('Avg_h')
+                )
+
+                if len(team_summary) > 0:
+                    st.markdown(
+                        "<div style='font-family:Georgia;font-size:14px;font-weight:bold;"
+                        f"color:{NAVY};margin:8px 0 4px'>Quickest Teams</div>",
+                        unsafe_allow_html=True)
+                    st.caption(
+                        "Layout by / Wire by / Final by / Tech by — sorted by avg completion time. "
+                        "Green = fastest.")
+
+                    ts_display = team_summary.copy()
+                    ts_display['Avg Total'] = ts_display['Avg_h'].map(_hms)
+                    ts_display['Layout']    = ts_display['layout_h'].map(_hms)
+                    ts_display['Wire']      = ts_display['wire_h'].map(_hms)
+                    ts_display['Final']     = ts_display['final_h'].map(_hms)
+                    ts_display['Tech']      = ts_display['tech_h'].map(_hms)
+                    if single_target:
+                        ts_display['vs Target'] = ts_display['Avg_h'].map(
+                            lambda h: _hms_signed(h - single_target))
+                    ts_display.drop(columns=['Avg_h','layout_h','wire_h','final_h','tech_h'],
+                                    inplace=True)
+                    ts_display.rename(columns={'Panels': '# Panels'}, inplace=True)
+
+                    fastest_avg = team_summary['Avg_h'].min()
+
+                    def _hl_team(row):
+                        if row.get('Avg Total') == _hms(fastest_avg):
+                            return ['background-color: #f0fff4'] * len(row)
+                        return [''] * len(row)
+
+                    st.dataframe(
+                        ts_display.style.apply(_hl_team, axis=1),
+                        use_container_width=True, hide_index=True,
+                    )
 
             # ── Panel detail table ──
             st.markdown("<div class='section-header'>Panel Detail</div>",
