@@ -21,6 +21,11 @@ WARMGRAY = "#ABA18B"
 RED      = "#C0392B"
 GREEN    = "#27AE60"
 
+_SB_URL  = 'https://ptbhguthosenkffjhbry.supabase.co'
+_SB_ANON = ('eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9'
+             '.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InB0YmhndXRob3NlbmtmZmpoYnJ5Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODQ5MDkzNzAsImV4cCI6MjEwMDQ4NTM3MH0'
+             '.y71yXWsIUjzFBqC4itzZ36w9ixw_QDej2RaBPh8MLPI')
+
 st.markdown(f"""
 <style>
   .main {{ background-color: {OFFWHITE}; }}
@@ -74,6 +79,20 @@ def extract_all_initials(text, known):
             if init in known:
                 results.append(init)
     return results
+
+
+@st.cache_data(ttl=300, show_spinner=False)
+def load_time_data():
+    import urllib.request as _ur, json as _js
+    url = (_SB_URL + "/rest/v1/panel_time_summary"
+           "?select=*&order=layout_started_at.desc.nullslast&limit=10000")
+    req = _ur.Request(url, headers={
+        'apikey': _SB_ANON,
+        'Authorization': f'Bearer {_SB_ANON}',
+        'Accept': 'application/json',
+    })
+    with _ur.urlopen(req, timeout=20) as r:
+        return pd.DataFrame(_js.loads(r.read()))
 
 
 # ── Load & process data ───────────────────────────────────────────────────────
@@ -247,8 +266,9 @@ for col, label, value, sub in [
 st.markdown("<br>", unsafe_allow_html=True)
 
 # ── Tabs ──────────────────────────────────────────────────────────────────────
-tab1, tab2, tab3, tab4, tab5 = st.tabs(
-    ["📛 Fail Attribution", "🔧 Layout by Person", "🔌 Wire by Person", "✅ Final by Person", "📈 Trends"])
+tab1, tab2, tab3, tab4, tab5, tab6 = st.tabs(
+    ["📛 Fail Attribution", "🔧 Layout by Person", "🔌 Wire by Person",
+     "✅ Final by Person", "📈 Trends", "⏱ Time Analysis"])
 
 
 # ══ TAB 1: Fail Attribution ═══════════════════════════════════════════════════
@@ -694,6 +714,284 @@ with tab5:
         hide_index=True
     )
 
+# ══ TAB 6: Time Analysis ══════════════════════════════════════════════════════
+with tab6:
+    st.markdown(
+        "<div class='section-header'>⏱ Time Analysis — Actual vs Routing Hours</div>",
+        unsafe_allow_html=True)
+
+    c_ref, _ = st.columns([1, 5])
+    with c_ref:
+        if st.button("🔄 Refresh tracker data", key="ta_refresh"):
+            load_time_data.clear()
+            st.rerun()
+
+    try:
+        with st.spinner("Loading tracker data…"):
+            tm = load_time_data()
+        ta_err = None
+    except Exception as _e:
+        tm = pd.DataFrame()
+        ta_err = str(_e)
+
+    if ta_err:
+        st.error(f"Could not reach Supabase: {ta_err}")
+    elif tm.empty:
+        st.info("No tracker data yet — start scanning panels in the tracker app.")
+    else:
+        # ── Type conversions ──
+        for _c in ['layout_secs', 'wire_secs', 'final_secs', 'tech_secs']:
+            tm[_c] = pd.to_numeric(tm[_c], errors='coerce').fillna(0)
+        tm['actual_total_hours'] = pd.to_numeric(tm['actual_total_hours'], errors='coerce')
+        tm['routing_hours']      = pd.to_numeric(tm['routing_hours'],      errors='coerce')
+        tm['layout_started_at']  = pd.to_datetime(tm['layout_started_at'], errors='coerce', utc=True)
+        tm['tech_stopped_at']    = pd.to_datetime(tm['tech_stopped_at'],   errors='coerce', utc=True)
+        tm['layout_hrs'] = tm['layout_secs'] / 3600
+        tm['wire_hrs']   = tm['wire_secs']   / 3600
+        tm['final_hrs']  = tm['final_secs']  / 3600
+        tm['tech_hrs']   = tm['tech_secs']   / 3600
+        try:
+            tm['date_built'] = tm['layout_started_at'].dt.tz_convert('US/Eastern').dt.date
+        except Exception:
+            tm['date_built'] = tm['layout_started_at'].dt.date
+        tm['panel_family'] = tm['panel_number'].astype(str).str.split('-').str[0]
+        tm['is_over_time']  = tm['is_over_time'].fillna(False).astype(bool)
+
+        # ── Join with Excel Pass/Fail ──
+        tm['job_tail'] = tm['job_number'].astype(str).str.strip().str[-4:]
+        fp_join = df[['Panel', 'Sales_Order', 'Pass_Fail', 'Is_Fail']].copy()
+        fp_join['job_tail'] = fp_join['Sales_Order'].astype(str).str.strip().str[-4:]
+        tm = tm.merge(
+            fp_join.drop_duplicates(['Panel', 'job_tail']),
+            left_on=['panel_number', 'job_tail'],
+            right_on=['Panel', 'job_tail'], how='left'
+        )
+
+        # ── Filters ──
+        all_ta_workers = sorted({
+            w for col in ['layout_worker', 'wire_worker', 'final_worker', 'tech_worker']
+            for w in tm[col].dropna().unique() if str(w).strip()
+        })
+        all_ta_families = ['All'] + sorted(tm['panel_family'].dropna().unique())
+
+        fc1, fc2, fc3 = st.columns([2, 2, 2])
+        with fc1:
+            sel_workers = st.multiselect("Filter by worker", all_ta_workers, key="ta_workers")
+        with fc2:
+            sel_family  = st.selectbox("Panel family", all_ta_families, key="ta_family")
+        with fc3:
+            complete_only = st.checkbox("Completed panels only", value=True, key="ta_complete")
+
+        tmf = tm.copy()
+        if complete_only:
+            tmf = tmf[tmf['tech_stopped_at'].notna()]
+        if sel_family != 'All':
+            tmf = tmf[tmf['panel_family'] == sel_family]
+        if sel_workers:
+            mask = (
+                tmf['layout_worker'].isin(sel_workers) |
+                tmf['wire_worker'].isin(sel_workers)   |
+                tmf['final_worker'].isin(sel_workers)  |
+                tmf['tech_worker'].isin(sel_workers)
+            )
+            tmf = tmf[mask]
+
+        if tmf.empty:
+            st.info("No data matches the selected filters.")
+        else:
+            # ── KPIs ──
+            n_panels    = len(tmf)
+            n_with_rh   = int(tmf['routing_hours'].notna().sum())
+            n_over      = int(tmf['is_over_time'].sum())
+            pct_over    = n_over / n_with_rh * 100 if n_with_rh else 0
+            avg_actual  = tmf['actual_total_hours'].mean()
+            avg_routing = tmf['routing_hours'].mean()
+
+            kc1, kc2, kc3, kc4 = st.columns(4)
+            for _col, _lbl, _val, _sub in [
+                (kc1, "Panels Tracked", f"{n_panels:,}",
+                 f"{n_with_rh} with routing target"),
+                (kc2, "Over Time",      f"{n_over:,}",
+                 f"{pct_over:.1f}% of those with target"),
+                (kc3, "Avg Actual",
+                 f"{avg_actual:.2f}h" if pd.notna(avg_actual) else "—",
+                 "wall-clock hours"),
+                (kc4, "Avg Target",
+                 f"{avg_routing:.2f}h" if pd.notna(avg_routing) else "—",
+                 "routing hours"),
+            ]:
+                _col.markdown(f"""<div class='kpi-box'>
+                    <div class='kpi-label'>{_lbl}</div>
+                    <div class='kpi-value'>{_val}</div>
+                    <div class='kpi-sub'>{_sub}</div>
+                </div>""", unsafe_allow_html=True)
+
+            st.markdown("<br>", unsafe_allow_html=True)
+
+            # ── Scatter: actual vs routing ──
+            scatter_df = tmf[
+                tmf['routing_hours'].notna() & tmf['actual_total_hours'].notna()
+            ].copy()
+            scatter_df['Status'] = scatter_df['is_over_time'].map(
+                {True: 'Over Time', False: 'On Time'})
+
+            ch1, ch2 = st.columns([3, 2])
+            with ch1:
+                if not scatter_df.empty:
+                    mx = max(scatter_df['routing_hours'].max(),
+                             scatter_df['actual_total_hours'].max()) * 1.1
+                    fig_sc = px.scatter(
+                        scatter_df,
+                        x='routing_hours', y='actual_total_hours',
+                        color='Status',
+                        color_discrete_map={'Over Time': RED, 'On Time': GREEN},
+                        hover_data={
+                            'panel_number': True, 'job_number': True,
+                            'routing_hours': ':.3f', 'actual_total_hours': ':.3f',
+                            'Status': False,
+                        },
+                        title='Actual vs Routing Hours',
+                        labels={'routing_hours': 'Target (h)',
+                                'actual_total_hours': 'Actual (h)',
+                                'panel_number': 'Panel',
+                                'job_number': 'Job'},
+                    )
+                    fig_sc.add_shape(type='line', x0=0, y0=0, x1=mx, y1=mx,
+                                     line=dict(color=WARMGRAY, dash='dash', width=1))
+                    fig_sc.add_annotation(
+                        x=mx * 0.88, y=mx * 0.88,
+                        text="on target", showarrow=False,
+                        font=dict(color=WARMGRAY, size=10))
+                    fig_sc.update_layout(
+                        plot_bgcolor=OFFWHITE, paper_bgcolor=OFFWHITE,
+                        font=dict(family='Arial', color=NAVY),
+                        title_font=dict(family='Georgia', color=NAVY, size=14),
+                        legend=dict(title=None),
+                        height=400, margin=dict(l=10, r=10, t=40, b=20),
+                    )
+                    st.plotly_chart(fig_sc, use_container_width=True)
+                else:
+                    st.info("No completed panels with both actual and routing hours.")
+
+            with ch2:
+                stage_avgs = []
+                for _s, _col in [('Layout','layout_hrs'),('Wire','wire_hrs'),
+                                  ('Final','final_hrs'),('Tech','tech_hrs')]:
+                    vals = tmf[_col].replace(0, pd.NA).dropna()
+                    if len(vals):
+                        stage_avgs.append({'Stage': _s, 'Avg (h)': vals.mean()})
+                if stage_avgs:
+                    sa_df = pd.DataFrame(stage_avgs)
+                    fig_st = px.bar(
+                        sa_df, x='Avg (h)', y='Stage', orientation='h',
+                        text=sa_df['Avg (h)'].map(lambda v: f"{v:.2f}h"),
+                        color='Stage',
+                        color_discrete_sequence=[BLUE, NAVY, '#4A90D9', '#7FAFD9'],
+                        title='Avg Hours per Stage',
+                    )
+                    fig_st.update_traces(textposition='outside')
+                    fig_st.update_layout(
+                        plot_bgcolor=OFFWHITE, paper_bgcolor=OFFWHITE,
+                        font=dict(family='Arial', color=NAVY),
+                        title_font=dict(family='Georgia', color=NAVY, size=14),
+                        showlegend=False,
+                        height=300, margin=dict(l=10, r=60, t=40, b=20),
+                    )
+                    st.plotly_chart(fig_st, use_container_width=True)
+
+            # ── Worker breakdown ──
+            st.markdown("<div class='section-header'>Worker Time Breakdown</div>",
+                        unsafe_allow_html=True)
+
+            worker_rows = []
+            for _stage, _wc, _hc in [
+                ('Layout', 'layout_worker', 'layout_hrs'),
+                ('Wire',   'wire_worker',   'wire_hrs'),
+                ('Final',  'final_worker',  'final_hrs'),
+                ('Tech',   'tech_worker',   'tech_hrs'),
+            ]:
+                sub = tmf[tmf[_wc].notna() & (tmf[_wc] != '') & (tmf[_hc] > 0)]
+                for worker, grp in sub.groupby(_wc):
+                    hrs = grp[_hc]
+                    worker_rows.append({
+                        'Stage': _stage, 'Worker': worker,
+                        'Panels': len(grp),
+                        'Avg (h)': round(hrs.mean(), 3),
+                        'Min (h)': round(hrs.min(), 3),
+                        'Max (h)': round(hrs.max(), 3),
+                    })
+
+            if worker_rows:
+                wdf = pd.DataFrame(worker_rows).sort_values(['Stage', 'Worker'])
+                fig_w = px.bar(
+                    wdf, x='Worker', y='Avg (h)', color='Stage', barmode='group',
+                    text=wdf['Avg (h)'].map(lambda v: f"{v:.2f}h"),
+                    color_discrete_sequence=[BLUE, NAVY, '#4A90D9', '#7FAFD9'],
+                    title='Avg Stage Hours by Worker',
+                )
+                fig_w.update_traces(textposition='outside')
+                fig_w.update_layout(
+                    plot_bgcolor=OFFWHITE, paper_bgcolor=OFFWHITE,
+                    font=dict(family='Arial', color=NAVY),
+                    title_font=dict(family='Georgia', color=NAVY, size=14),
+                    height=360, margin=dict(l=10, r=10, t=40, b=20),
+                )
+                st.plotly_chart(fig_w, use_container_width=True)
+                st.dataframe(wdf, use_container_width=True, hide_index=True)
+            else:
+                st.info("No stage-level worker data yet.")
+
+            # ── Panel detail table ──
+            st.markdown("<div class='section-header'>Panel Detail</div>",
+                        unsafe_allow_html=True)
+
+            _keep = ['panel_number', 'job_number', 'panel_seq',
+                     'routing_hours', 'actual_total_hours',
+                     'layout_hrs', 'wire_hrs', 'final_hrs', 'tech_hrs',
+                     'layout_worker', 'wire_worker', 'final_worker', 'tech_worker',
+                     'is_over_time', 'Pass_Fail', 'date_built']
+            detail = tmf[[c for c in _keep if c in tmf.columns]].copy()
+            detail['delta_h'] = (
+                detail['actual_total_hours'] - detail['routing_hours']
+            ).round(3)
+            detail = detail.sort_values(
+                ['job_number', 'panel_seq'], na_position='last')
+            detail.rename(columns={
+                'panel_number':  'Panel #',
+                'job_number':    'Job #',
+                'panel_seq':     'Seq',
+                'routing_hours': 'Target (h)',
+                'actual_total_hours': 'Actual (h)',
+                'delta_h':       'Delta (h)',
+                'layout_hrs':    'Layout h',
+                'wire_hrs':      'Wire h',
+                'final_hrs':     'Final h',
+                'tech_hrs':      'Tech h',
+                'layout_worker': 'Layout by',
+                'wire_worker':   'Wire by',
+                'final_worker':  'Final by',
+                'tech_worker':   'Tech by',
+                'is_over_time':  'Over?',
+                'Pass_Fail':     'Q Result',
+                'date_built':    'Date',
+            }, inplace=True)
+
+            def _hl_over(row):
+                bg = 'background-color: #fff0f0' if row.get('Over?') else ''
+                return [bg] * len(row)
+
+            _fmt = {
+                'Target (h)': '{:.3f}', 'Actual (h)': '{:.3f}',
+                'Delta (h)':  '{:.3f}', 'Layout h':   '{:.3f}',
+                'Wire h':     '{:.3f}', 'Final h':    '{:.3f}',
+                'Tech h':     '{:.3f}',
+            }
+            st.dataframe(
+                detail.style.apply(_hl_over, axis=1).format(_fmt, na_rep='—'),
+                use_container_width=True, hide_index=True,
+            )
+
+
 # ── Version history (bottom-left) ─────────────────────────────────────────────
 st.markdown("""
 <style>
@@ -718,7 +1016,8 @@ st.markdown("""
 </style>
 <div class="version-history">
   <details>
-    <summary>v1.11 — changelog</summary>
+    <summary>v1.12 — changelog</summary>
+    <b>v1.12</b> Time Analysis tab: actual vs routing hours, worker breakdown, over-time flag<br>
     <b>v1.11</b> Only attributed fails count against FPY% &amp; fail rates per person<br>
     <b>v1.10</b> Person Summary: own Day/Week/Month/Quarter filter<br>
     <b>v1.9</b> Failure Caused By column in drilldown; attribution bug fix<br>
