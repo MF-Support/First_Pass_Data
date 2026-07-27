@@ -50,8 +50,16 @@
     /* Stage pills */
     .stage-row { display: flex; gap: 8px; flex-wrap: wrap; }
     .stage-pill { flex: 1; min-width: 70px; padding: 10px 6px; border-radius: 8px; text-align: center; font-size: 12px; font-weight: bold; background: #f0f0f0; color: #999; border: 2px solid transparent; }
-    .stage-pill.done    { background: var(--tint); color: var(--navy); border-color: var(--blue); }
-    .stage-pill.next    { background: var(--blue); color: white; border-color: var(--navy); }
+    .stage-pill.done    { background: var(--tint);   color: var(--navy);   border-color: var(--blue);   }
+    .stage-pill.next    { background: var(--blue);   color: white;          border-color: var(--navy);   }
+    .stage-pill.paused  { background: #fff3e0;       color: var(--orange);  border-color: var(--orange); }
+
+    /* Pause overlay */
+    #pause-overlay { display:none; position:fixed; inset:0; background:rgba(0,0,0,0.55); z-index:1000; align-items:flex-end; }
+    #pause-overlay.show { display:flex; }
+    #pause-sheet { background:white; width:100%; border-radius:18px 18px 0 0; padding:24px 18px 36px; }
+    #pause-sheet h2 { font-family:Georgia,serif; font-size:17px; color:var(--navy); margin-bottom:18px; text-align:center; }
+    .pause-grid { display:grid; grid-template-columns:1fr 1fr; gap:12px; }
 
     /* Stage badge on confirm card */
     .stage-badge { display: inline-block; background: var(--blue); color: white; border-radius: 20px; padding: 6px 18px; font-size: 15px; font-weight: bold; letter-spacing: 0.5px; margin-top: 4px; }
@@ -165,8 +173,9 @@
     <div class="card-title text-center" id="tm-stage">Layout in Progress</div>
     <div class="timer-label" id="tm-worker">Worker</div>
     <div class="timer-display" id="timer-display">00:00:00</div>
-    <div class="mt-16">
-      <button class="btn btn-red" onclick="stopStage()">⬛ Stop &amp; Complete Stage</button>
+    <div class="mt-16" style="display:flex;gap:10px">
+      <button class="btn btn-red" style="flex:1" onclick="stopStage()">✅ Complete</button>
+      <button class="btn" style="flex:1;background:var(--orange);color:white" onclick="showPauseOverlay()">⏸ Pause</button>
     </div>
   </div>
 </div>
@@ -187,8 +196,9 @@
       <div class="card-title text-center" id="cj-stage">Stage in Progress</div>
       <div class="timer-label" id="cj-worker">—</div>
       <div class="timer-display" id="cj-timer-display">00:00:00</div>
-      <div class="mt-16">
-        <button class="btn btn-red" onclick="stopStage()">⬛ Stop &amp; Complete Stage</button>
+      <div class="mt-16" style="display:flex;gap:10px">
+        <button class="btn btn-red" style="flex:1" onclick="stopStage()">✅ Complete</button>
+        <button class="btn" style="flex:1;background:var(--orange);color:white" onclick="showPauseOverlay()">⏸ Pause</button>
       </div>
     </div>
   </div>
@@ -227,6 +237,20 @@
   <button onclick="goCurrentJob()" id="nav-current" style="flex:1;padding:14px;background:none;border:none;color:white;font-size:12px;cursor:pointer">⏱ Current</button>
   <button onclick="goHistory()" style="flex:1;padding:14px;background:none;border:none;color:white;font-size:12px;cursor:pointer">📋 History</button>
   <button onclick="showView('settings')" style="flex:1;padding:14px;background:none;border:none;color:white;font-size:12px;cursor:pointer">⚙ Settings</button>
+</div>
+
+<!-- Pause overlay -->
+<div id="pause-overlay" onclick="hidePauseOverlay()">
+  <div id="pause-sheet" onclick="event.stopPropagation()">
+    <h2>Pause Reason</h2>
+    <div class="pause-grid">
+      <button class="btn btn-navy" onclick="confirmPause('EOD')">🌙 End of Day</button>
+      <button class="btn btn-navy" onclick="confirmPause('Break')">☕ Break</button>
+      <button class="btn btn-navy" onclick="confirmPause('Lunch')">🍽 Lunch</button>
+      <button class="btn btn-navy" onclick="confirmPause('Lack of Parts')">📦 Lack of Parts</button>
+    </div>
+    <button class="btn btn-gray" style="margin-top:14px" onclick="hidePauseOverlay()">Cancel</button>
+  </div>
 </div>
 
 <div id="toast"></div>
@@ -295,7 +319,7 @@ async function sbFetch(path, method = 'GET', body = null, extra = {}) {
 // ── Helpers ────────────────────────────────────────────────────────────────
 function nextStageFor(scans) {
   for (const s of STAGES) {
-    if (!scans.find(sc => sc.stage === s && sc.stopped_at)) return s;
+    if (!scans.find(sc => sc.stage === s && sc.stopped_at && !sc.pause_reason)) return s;
   }
   return null;
 }
@@ -363,7 +387,9 @@ async function goHistory() {
       } else if (r.started_at) { dur = '▶ active'; }
       const job   = r.panels?.job_number   || '—';
       const panel = r.panels?.panel_number || r.panel_code;
-      return `<tr><td>${job}</td><td>${panel}</td><td>${r.stage}</td><td>${r.worker_name}</td><td>${dur}</td></tr>`;
+      const stage = r.pause_reason ? `${r.stage} ⏸` : r.stage;
+      const durCell = r.pause_reason ? `${dur}<br><span style="font-size:10px;color:var(--orange)">${r.pause_reason}</span>` : dur;
+      return `<tr><td>${job}</td><td>${panel}</td><td>${stage}</td><td>${r.worker_name}</td><td>${durCell}</td></tr>`;
     }).join('');
   } catch (e) { toast('Error loading history: ' + e.message); }
 }
@@ -432,9 +458,11 @@ function showConfirm() {
   // Stage progress pills
   const scans = currentPanel.scans || [];
   document.getElementById('cf-stage-progress').innerHTML = STAGES.map(s => {
-    const done = scans.find(sc => sc.stage === s && sc.stopped_at);
-    const cls  = done ? 'done' : s === currentStage ? 'next' : '';
-    return `<div class="stage-pill ${cls}">${done ? '✓ ' : ''}${s}</div>`;
+    const done   = scans.find(sc => sc.stage === s && sc.stopped_at && !sc.pause_reason);
+    const paused = scans.find(sc => sc.stage === s && sc.stopped_at && sc.pause_reason);
+    const cls    = done ? 'done' : paused ? 'paused' : s === currentStage ? 'next' : '';
+    const icon   = done ? '✓ ' : paused ? '⏸ ' : '';
+    return `<div class="stage-pill ${cls}">${icon}${s}</div>`;
   }).join('');
 
   // Stage badge
@@ -521,17 +549,21 @@ async function startStage() {
   }
 }
 
-async function stopStage() {
+async function stopStage(pauseReason = null) {
   if (!currentPanel?._activeScanId) return;
   const now = new Date().toISOString();
   try {
+    const patch = { stopped_at: now };
+    if (pauseReason) patch.pause_reason = pauseReason;
     await sbFetch(`scans?id=eq.${currentPanel._activeScanId}`, 'PATCH',
-      { stopped_at: now }, { Prefer: 'return=minimal' });
+      patch, { Prefer: 'return=minimal' });
 
-    if (currentStage === FINAL_STAGE) {
+    if (!pauseReason && currentStage === FINAL_STAGE) {
       await sbFetch(`panels?panel_code=eq.${encodeURIComponent(currentPanel.panel_code)}`, 'PATCH',
         { is_complete: true }, { Prefer: 'return=minimal' });
       toast('✅ Panel complete — QR is now void');
+    } else if (pauseReason) {
+      toast(`⏸ Paused: ${pauseReason}`);
     } else {
       toast(`${currentStage} complete!`);
     }
@@ -544,6 +576,19 @@ async function stopStage() {
   } catch (e) {
     toast('Error: ' + e.message);
   }
+}
+
+function showPauseOverlay() {
+  document.getElementById('pause-overlay').classList.add('show');
+}
+
+function hidePauseOverlay() {
+  document.getElementById('pause-overlay').classList.remove('show');
+}
+
+async function confirmPause(reason) {
+  hidePauseOverlay();
+  await stopStage(reason);
 }
 
 // ── Timer ──────────────────────────────────────────────────────────────────
