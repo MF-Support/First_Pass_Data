@@ -791,24 +791,56 @@ with tab6:
             right_on=['Panel', 'job_tail'], how='left'
         )
 
-        # ── Filters ──
+        # ── Date filter ──
+        ta_max_date = tm['date_built'].max()
+        ta_min_date = tm['date_built'].min()
+
+        dp1, dp2, dp3 = st.columns([2, 2, 2])
+        with dp1:
+            ta_period = st.selectbox("Time period", [
+                "Last 7 Days", "Last 30 Days", "Last 90 Days",
+                "Last 6 Months", "Last Year", "By Month", "All Time",
+            ], index=2, key="ta_period")
+        with dp2:
+            if ta_period == "By Month":
+                ta_months = tm.dropna(subset=['date_built'])
+                ta_months['_m'] = pd.to_datetime(ta_months['date_built']).dt.to_period('M')
+                ta_month_opts = sorted(ta_months['_m'].unique().astype(str), reverse=True)
+                ta_sel_month = st.selectbox("Month", ta_month_opts, key="ta_month")
+            else:
+                st.empty()
+        with dp3:
+            complete_only = st.checkbox("Completed panels only", value=True, key="ta_complete")
+
+        _ta_period_days = {
+            "Last 7 Days": 7, "Last 30 Days": 30, "Last 90 Days": 90,
+            "Last 6 Months": 182, "Last Year": 365,
+        }
+        tmf = tm.copy()
+        if ta_period in _ta_period_days:
+            _ta_cutoff = ta_max_date - pd.Timedelta(days=_ta_period_days[ta_period])
+            tmf = tmf[pd.to_datetime(tmf['date_built']) >= pd.to_datetime(_ta_cutoff)]
+        elif ta_period == "By Month":
+            tmf = tmf[
+                pd.to_datetime(tmf['date_built']).dt.to_period('M').astype(str) == ta_sel_month
+            ]
+
+        if complete_only:
+            tmf = tmf[tmf['tech_stopped_at'].notna()]
+
+        # ── Content filters ──
         all_ta_workers = sorted({
             w for col in ['layout_worker', 'wire_worker', 'final_worker', 'tech_worker']
-            for w in tm[col].dropna().unique() if str(w).strip()
+            for w in tmf[col].dropna().unique() if str(w).strip()
         })
-        all_ta_panels = sorted(tm['panel_number'].dropna().unique())
+        all_ta_panels = sorted(tmf['panel_number'].dropna().unique())
 
-        fc1, fc2, fc3 = st.columns([2, 2, 2])
+        fc1, fc2 = st.columns([2, 2])
         with fc1:
             sel_workers = st.multiselect("Filter by worker", all_ta_workers, key="ta_workers")
         with fc2:
             sel_panels  = st.multiselect("Panel number", all_ta_panels, key="ta_panels")
-        with fc3:
-            complete_only = st.checkbox("Completed panels only", value=True, key="ta_complete")
 
-        tmf = tm.copy()
-        if complete_only:
-            tmf = tmf[tmf['tech_stopped_at'].notna()]
         if sel_panels:
             tmf = tmf[tmf['panel_number'].isin(sel_panels)]
         if sel_workers:
@@ -824,25 +856,25 @@ with tab6:
             st.info("No data matches the selected filters.")
         else:
             # ── KPIs ──
-            n_panels    = len(tmf)
-            n_with_rh   = int(tmf['routing_hours'].notna().sum())
-            n_over      = int(tmf['is_over_time'].sum())
-            pct_over    = n_over / n_with_rh * 100 if n_with_rh else 0
-            avg_actual  = tmf['actual_total_hours'].mean()
-            avg_routing = tmf['routing_hours'].mean()
+            n_panels      = len(tmf)
+            n_with_rh     = int(tmf['routing_hours'].notna().sum())
+            n_over        = int(tmf['is_over_time'].sum())
+            pct_over      = n_over / n_with_rh * 100 if n_with_rh else 0
+            sum_actual    = tmf['actual_total_hours'].sum()
+            sum_routing   = tmf['routing_hours'].sum()
 
             kc1, kc2, kc3, kc4 = st.columns(4)
             for _col, _lbl, _val, _sub in [
-                (kc1, "Panels Tracked", f"{n_panels:,}",
+                (kc1, "Panels Tracked",      f"{n_panels:,}",
                  f"{n_with_rh} with routing target"),
-                (kc2, "Over Time",      f"{n_over:,}",
+                (kc2, "Over Time",           f"{n_over:,}",
                  f"{pct_over:.1f}% of those with target"),
-                (kc3, "Avg Actual",
-                 f"{avg_actual:.2f}h" if pd.notna(avg_actual) else "—",
-                 "wall-clock hours"),
-                (kc4, "Avg Target",
-                 f"{avg_routing:.2f}h" if pd.notna(avg_routing) else "—",
-                 "routing hours"),
+                (kc3, "Actual Working Time",
+                 f"{int(sum_actual)}h {int((sum_actual % 1)*60)}m" if sum_actual else "—",
+                 "summed wall-clock across panels"),
+                (kc4, "Target Time",
+                 f"{int(sum_routing)}h {int((sum_routing % 1)*60)}m" if sum_routing else "—",
+                 "summed routing hours across panels"),
             ]:
                 _col.markdown(f"""<div class='kpi-box'>
                     <div class='kpi-label'>{_lbl}</div>
