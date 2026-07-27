@@ -102,9 +102,47 @@
     .text-sm { font-size: 12px; color: var(--gray); }
     .mt-8 { margin-top: 8px; }
     .mt-16 { margin-top: 16px; }
+
+    /* ── Responsive shell ── */
+    #app {
+      display: flex;
+      flex-direction: column;
+      flex: 1;
+      width: 100%;
+    }
+    body {
+      align-items: center;
+    }
+    .view {
+      width: 100%;
+    }
+
+    @media (min-width: 640px) {
+      body {
+        background: #1a1f3c;
+      }
+      #app {
+        max-width: 640px;
+        min-height: 100vh;
+        background: var(--offwhite);
+        box-shadow: 0 0 60px rgba(0,0,0,0.4);
+      }
+      #scanner-container { min-height: 340px; }
+      .timer-display { font-size: 64px; }
+      .card { padding: 22px; }
+      .history-table { font-size: 14px; }
+      .history-table th, .history-table td { padding: 10px 12px; }
+    }
+
+    @media (min-width: 1024px) {
+      #app { max-width: 720px; }
+      #scanner-container { min-height: 400px; }
+      .btn { font-size: 18px; padding: 18px; }
+    }
   </style>
 </head>
 <body>
+<div id="app">
 
 <header>
   <h1>⚡ Panel Tracker</h1>
@@ -272,6 +310,8 @@
   <button onclick="showView('settings')" style="flex:1;padding:14px;background:none;border:none;color:white;font-size:12px;cursor:pointer">⚙ Settings</button>
 </div>
 
+
+</div><!-- /#app -->
 
 <!-- ══ NEW WORKER OVERLAY ══ -->
 <div id="new-worker-overlay" onclick="hideNewWorkerOverlay(event)">
