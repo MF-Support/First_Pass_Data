@@ -171,6 +171,29 @@
   </div>
 </div>
 
+<!-- ══ CURRENT JOB VIEW ══ -->
+<div class="view" id="view-current">
+  <div class="card" id="cj-empty" style="display:none">
+    <div class="text-center text-sm" style="padding:30px;font-size:15px">No active job</div>
+  </div>
+  <div id="cj-job-card" style="display:none">
+    <div class="card">
+      <div class="info-strip">
+        <div class="info-item"><div class="ilabel">Job #</div><div class="ivalue" id="cj-job">—</div></div>
+        <div class="info-item"><div class="ilabel">Panel #</div><div class="ivalue" id="cj-panel">—</div></div>
+      </div>
+    </div>
+    <div class="card">
+      <div class="card-title text-center" id="cj-stage">Stage in Progress</div>
+      <div class="timer-label" id="cj-worker">—</div>
+      <div class="timer-display" id="cj-timer-display">00:00:00</div>
+      <div class="mt-16">
+        <button class="btn btn-red" onclick="stopStage()">⬛ Stop &amp; Complete Stage</button>
+      </div>
+    </div>
+  </div>
+</div>
+
 <!-- ══ HISTORY VIEW ══ -->
 <div class="view" id="view-history">
   <div class="card">
@@ -201,6 +224,7 @@
 <!-- Bottom nav -->
 <div style="background:var(--navy);display:flex;border-top:2px solid var(--blue);position:sticky;bottom:0">
   <button onclick="goScan()" style="flex:1;padding:14px;background:none;border:none;color:white;font-size:12px;cursor:pointer">🏠 Scan</button>
+  <button onclick="goCurrentJob()" id="nav-current" style="flex:1;padding:14px;background:none;border:none;color:white;font-size:12px;cursor:pointer">⏱ Current</button>
   <button onclick="goHistory()" style="flex:1;padding:14px;background:none;border:none;color:white;font-size:12px;cursor:pointer">📋 History</button>
   <button onclick="showView('settings')" style="flex:1;padding:14px;background:none;border:none;color:white;font-size:12px;cursor:pointer">⚙ Settings</button>
 </div>
@@ -246,6 +270,7 @@ let defWorker    = localStorage.getItem('defWorker') || '';
 let currentPanel = null;   // loaded panel object
 let currentStage = '';     // auto-detected next stage
 let activeStarted= null;
+let activeWorker = '';
 let timerInterval= null;
 const qrDecoder  = new Html5Qrcode('qr-reader');
 
@@ -300,6 +325,23 @@ function showView(name) {
 
 function goScan() {
   showView('scan');
+}
+
+function goCurrentJob() {
+  updateCurrentJobView();
+  showView('current');
+}
+
+function updateCurrentJobView() {
+  const hasJob = !!(currentPanel && currentPanel._activeScanId);
+  document.getElementById('cj-empty').style.display    = hasJob ? 'none'  : 'block';
+  document.getElementById('cj-job-card').style.display = hasJob ? 'block' : 'none';
+  if (hasJob) {
+    document.getElementById('cj-job').textContent   = currentPanel.job_number   || '—';
+    document.getElementById('cj-panel').textContent = currentPanel.panel_number || '—';
+    document.getElementById('cj-stage').textContent = `${currentStage} in Progress`;
+    document.getElementById('cj-worker').textContent = activeWorker;
+  }
 }
 
 async function goHistory() {
@@ -429,6 +471,19 @@ async function startStage() {
   const worker = document.getElementById('cf-worker').value;
   if (!worker) { toast('Select a worker'); return; }
 
+  // Block line workers from starting if they already have an active scan
+  const workerObj  = ALL_WORKERS.find(w => w.name === worker);
+  const isTechWorker = workerObj && workerObj.techOnly;
+  if (!isTechWorker) {
+    try {
+      const active = await sbFetch(`scans?worker_name=eq.${encodeURIComponent(worker)}&stopped_at=is.null&limit=1`);
+      if (active.length > 0) {
+        toast(`${worker} already has an active job — stop it first`);
+        return;
+      }
+    } catch { /* allow start if check fails */ }
+  }
+
   try {
     // Register new panel first if needed
     if (currentPanel._isNew) {
@@ -449,6 +504,7 @@ async function startStage() {
       started_at:  now
     });
     currentPanel._activeScanId = rows[0].id;
+    activeWorker = worker;
 
     // Show timer
     document.getElementById('tm-job').textContent   = currentPanel.job_number;
@@ -457,6 +513,7 @@ async function startStage() {
     document.getElementById('tm-worker').textContent = worker;
     activeStarted = new Date(now);
     startTimer();
+    updateCurrentJobView();
     showView('timer');
     toast('Started ' + currentStage);
   } catch (e) {
@@ -479,8 +536,10 @@ async function stopStage() {
       toast(`${currentStage} complete!`);
     }
     stopTimer();
-    currentPanel = null;
-    currentStage = '';
+    activeWorker  = '';
+    currentPanel  = null;
+    currentStage  = '';
+    updateCurrentJobView();
     showView('scan');
   } catch (e) {
     toast('Error: ' + e.message);
@@ -500,9 +559,10 @@ function stopTimer() {
 }
 function tick() {
   if (!activeStarted) return;
-  const s = Math.floor((Date.now() - activeStarted.getTime()) / 1000);
-  document.getElementById('timer-display').textContent =
-    `${String(Math.floor(s/3600)).padStart(2,'0')}:${String(Math.floor((s%3600)/60)).padStart(2,'0')}:${String(s%60).padStart(2,'0')}`;
+  const s   = Math.floor((Date.now() - activeStarted.getTime()) / 1000);
+  const str = `${String(Math.floor(s/3600)).padStart(2,'0')}:${String(Math.floor((s%3600)/60)).padStart(2,'0')}:${String(s%60).padStart(2,'0')}`;
+  document.getElementById('timer-display').textContent    = str;
+  document.getElementById('cj-timer-display').textContent = str;
 }
 
 // ── Toast ──────────────────────────────────────────────────────────────────
