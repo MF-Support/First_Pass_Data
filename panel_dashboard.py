@@ -916,18 +916,19 @@ with tab6:
                     worker_rows.append({
                         'Stage': _stage, 'Worker': worker,
                         'Panels': len(grp),
-                        'Avg (h)': round(hrs.mean(), 3),
-                        'Min (h)': round(hrs.min(), 3),
-                        'Max (h)': round(hrs.max(), 3),
+                        'Avg': hrs.mean(),
+                        'Min': hrs.min(),
+                        'Max': hrs.max(),
                     })
 
             if worker_rows:
                 wdf = pd.DataFrame(worker_rows).sort_values(['Stage', 'Worker'])
                 fig_w = px.bar(
-                    wdf, x='Worker', y='Avg (h)', color='Stage', barmode='group',
-                    text=wdf['Avg (h)'].map(lambda v: f"{v:.2f}h"),
+                    wdf, x='Worker', y='Avg', color='Stage', barmode='group',
+                    text=wdf['Avg'].map(lambda v: f"{int(v*60)}m"),
                     color_discrete_sequence=[BLUE, NAVY, '#4A90D9', '#7FAFD9'],
-                    title='Avg Stage Hours by Worker',
+                    title='Avg Stage Time by Worker',
+                    labels={'Avg': 'Avg Hours'},
                 )
                 fig_w.update_traces(textposition='outside')
                 fig_w.update_layout(
@@ -937,7 +938,15 @@ with tab6:
                     height=360, margin=dict(l=10, r=10, t=40, b=20),
                 )
                 st.plotly_chart(fig_w, use_container_width=True)
-                st.dataframe(wdf, use_container_width=True, hide_index=True)
+                # Format table columns as H:M:S
+                wdf_display = wdf.copy()
+                for _c in ['Avg', 'Min', 'Max']:
+                    wdf_display[_c] = wdf_display[_c].map(
+                        lambda h: f"{int(h*3600)//3600}:{(int(h*3600)%3600)//60:02d}:{int(h*3600)%60:02d}"
+                    )
+                wdf_display.rename(columns={'Avg':'Avg H:M:S','Min':'Min H:M:S','Max':'Max H:M:S'},
+                                   inplace=True)
+                st.dataframe(wdf_display, use_container_width=True, hide_index=True)
             else:
                 st.info("No stage-level worker data yet.")
 
@@ -945,28 +954,52 @@ with tab6:
             st.markdown("<div class='section-header'>Panel Detail</div>",
                         unsafe_allow_html=True)
 
-            _keep = ['panel_number', 'job_number', 'panel_seq',
-                     'routing_hours', 'actual_total_hours',
-                     'layout_hrs', 'wire_hrs', 'final_hrs', 'tech_hrs',
-                     'layout_worker', 'wire_worker', 'final_worker', 'tech_worker',
-                     'is_over_time', 'Pass_Fail', 'date_built']
-            detail = tmf[[c for c in _keep if c in tmf.columns]].copy()
+            def _hms(h):
+                if pd.isna(h) or h == 0:
+                    return '—'
+                s = int(round(h * 3600))
+                return f"{s//3600}:{(s%3600)//60:02d}:{s%60:02d}"
+
+            detail = tmf[[c for c in [
+                'panel_number', 'job_number', 'panel_seq',
+                'routing_hours', 'actual_total_hours',
+                'layout_hrs', 'layout_worker',
+                'wire_hrs',   'wire_worker',
+                'final_hrs',  'final_worker',
+                'tech_hrs',   'tech_worker',
+                'is_over_time', 'Pass_Fail', 'date_built',
+            ] if c in tmf.columns]].copy()
+
             detail['delta_h'] = (
                 detail['actual_total_hours'] - detail['routing_hours']
-            ).round(3)
+            )
             detail = detail.sort_values(
                 ['job_number', 'panel_seq'], na_position='last')
+
+            for _hcol, _label in [
+                ('layout_hrs', 'Layout H:M:S'),
+                ('wire_hrs',   'Wire H:M:S'),
+                ('final_hrs',  'Final H:M:S'),
+                ('tech_hrs',   'Tech H:M:S'),
+            ]:
+                if _hcol in detail.columns:
+                    detail[_label] = detail[_hcol].map(_hms)
+                    detail.drop(columns=[_hcol], inplace=True)
+
+            detail['Target'] = detail['routing_hours'].map(
+                lambda h: _hms(h) if pd.notna(h) else '—')
+            detail['Actual'] = detail['actual_total_hours'].map(
+                lambda h: _hms(h) if pd.notna(h) else '—')
+            detail['Delta'] = detail['delta_h'].map(
+                lambda h: ('▲ ' if h > 0 else '') + _hms(abs(h))
+                if pd.notna(h) else '—')
+
+            detail.drop(columns=['routing_hours', 'actual_total_hours', 'delta_h'],
+                        inplace=True)
             detail.rename(columns={
                 'panel_number':  'Panel #',
                 'job_number':    'Job #',
                 'panel_seq':     'Seq',
-                'routing_hours': 'Target (h)',
-                'actual_total_hours': 'Actual (h)',
-                'delta_h':       'Delta (h)',
-                'layout_hrs':    'Layout h',
-                'wire_hrs':      'Wire h',
-                'final_hrs':     'Final h',
-                'tech_hrs':      'Tech h',
                 'layout_worker': 'Layout by',
                 'wire_worker':   'Wire by',
                 'final_worker':  'Final by',
@@ -976,18 +1009,24 @@ with tab6:
                 'date_built':    'Date',
             }, inplace=True)
 
+            # Column order: identity cols, then paired stage cols, then summary
+            _id_cols    = [c for c in ['Panel #','Job #','Seq','Date','Q Result','Over?']
+                           if c in detail.columns]
+            _stage_cols = ['Layout H:M:S','Layout by',
+                           'Wire H:M:S',  'Wire by',
+                           'Final H:M:S', 'Final by',
+                           'Tech H:M:S',  'Tech by']
+            _stage_cols = [c for c in _stage_cols if c in detail.columns]
+            _sum_cols   = [c for c in ['Target','Actual','Delta']
+                           if c in detail.columns]
+            detail = detail[_id_cols + _stage_cols + _sum_cols]
+
             def _hl_over(row):
                 bg = 'background-color: #fff0f0' if row.get('Over?') else ''
                 return [bg] * len(row)
 
-            _fmt = {
-                'Target (h)': '{:.3f}', 'Actual (h)': '{:.3f}',
-                'Delta (h)':  '{:.3f}', 'Layout h':   '{:.3f}',
-                'Wire h':     '{:.3f}', 'Final h':    '{:.3f}',
-                'Tech h':     '{:.3f}',
-            }
             st.dataframe(
-                detail.style.apply(_hl_over, axis=1).format(_fmt, na_rep='—'),
+                detail.style.apply(_hl_over, axis=1),
                 use_container_width=True, hide_index=True,
             )
 
