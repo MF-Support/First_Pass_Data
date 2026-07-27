@@ -110,10 +110,6 @@
     <button id="scan-btn" onclick="openCamera()">📷 Scan QR Code</button>
     <input type="file" id="camera-input" accept="image/*" capture="environment" style="display:none">
     <canvas id="qr-canvas" style="display:none"></canvas>
-    <div class="mt-8" style="display:flex;gap:8px">
-      <input type="text" id="manual-code" placeholder="Enter code manually" style="text-transform:uppercase;flex:1" autocomplete="off">
-      <button class="btn btn-navy btn-sm" onclick="loadByCode(document.getElementById('manual-code').value)">Go</button>
-    </div>
   </div>
 
 </div>
