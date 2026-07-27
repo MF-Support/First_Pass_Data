@@ -826,7 +826,7 @@ with tab6:
             ]
 
         if complete_only:
-            tmf = tmf[tmf['tech_stopped_at'].notna()]
+            tmf = tmf[tmf['is_complete'].fillna(False).astype(bool)]
 
         # ── Content filters ──
         all_ta_workers = sorted({

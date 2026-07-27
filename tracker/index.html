@@ -842,6 +842,12 @@ async function stopStage(pauseReason = null) {
     if (pauseReason) {
       toast(`⏸ Paused`);
     } else {
+      if (currentStage === FINAL_STAGE) {
+        await sbFetch(
+          `panels?panel_code=eq.${encodeURIComponent(currentPanel.panel_code)}`,
+          'PATCH', { is_complete: true }, { Prefer: 'return=minimal' }
+        );
+      }
       toast(`${currentStage} complete!`);
     }
     stopTimer();
