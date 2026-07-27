@@ -792,8 +792,8 @@ with tab6:
         )
 
         # ── Date filter ──
-        ta_max_date = tm['date_built'].max()
-        ta_min_date = tm['date_built'].min()
+        ta_max_date = pd.to_datetime(tm['date_built']).max()
+        ta_min_date = pd.to_datetime(tm['date_built']).min()
 
         dp1, dp2, dp3 = st.columns([2, 2, 2])
         with dp1:
@@ -1196,27 +1196,12 @@ with tab6:
                            if c in detail.columns]
             detail = detail[_id_cols + _stage_cols + _sum_cols]
 
-            # Column-group background colors for readability
-            _stage_colors = {
-                'Layout by': '#EEF4FF', 'Layout H:M:S': '#EEF4FF',
-                'Wire by':   '#FFF8EE', 'Wire H:M:S':   '#FFF8EE',
-                'Final by':  '#EEFFF4', 'Final H:M:S':  '#EEFFF4',
-                'Tech by':   '#F8EEFF', 'Tech H:M:S':   '#F8EEFF',
-            }
-
-            def _style_detail(df):
-                styles = pd.DataFrame('', index=df.index, columns=df.columns)
-                for col, bg in _stage_colors.items():
-                    if col in styles.columns:
-                        styles[col] = f'background-color: {bg}'
-                # Over-time rows override to red tint
-                if 'Over?' in df.columns:
-                    over_mask = df['Over?'].fillna(False).astype(bool)
-                    styles[over_mask] = 'background-color: #fff0f0'
-                return styles
+            def _hl_over(row):
+                bg = 'background-color: #fff0f0' if row.get('Over?') else ''
+                return [bg] * len(row)
 
             st.dataframe(
-                detail.style.apply(_style_detail, axis=None),
+                detail.style.apply(_hl_over, axis=1),
                 use_container_width=True, hide_index=True,
             )
 
