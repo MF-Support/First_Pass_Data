@@ -235,6 +235,18 @@
     <div class="card-title text-center" id="tm-stage">Layout in Progress</div>
     <div class="timer-label" id="tm-worker">Worker</div>
     <div class="timer-display" id="timer-display">00:00:00</div>
+    <div id="tm-target-row" style="display:none;margin-top:12px;padding:10px 14px;border-radius:10px;background:#f5f5f5">
+      <div style="display:flex;justify-content:space-between;align-items:center">
+        <div>
+          <div style="font-size:10px;color:var(--gray);text-transform:uppercase;letter-spacing:0.5px">Target</div>
+          <div style="font-size:15px;font-weight:bold;color:var(--navy)" id="tm-target-val">—</div>
+        </div>
+        <div style="text-align:right">
+          <div style="font-size:10px;color:var(--gray);text-transform:uppercase;letter-spacing:0.5px">Total Elapsed</div>
+          <div style="font-size:15px;font-weight:bold;color:var(--navy)" id="tm-total-val">—</div>
+        </div>
+      </div>
+    </div>
     <div class="mt-16" style="display:flex;gap:10px">
       <button class="btn btn-green" style="flex:1" onclick="stopStage()">✅ Complete</button>
       <button class="btn" style="flex:1;background:var(--orange);color:white" onclick="stopStage('Paused')">⏸ Pause</button>
@@ -258,6 +270,18 @@
       <div class="card-title text-center" id="cj-stage">Stage in Progress</div>
       <div class="timer-label" id="cj-worker">—</div>
       <div class="timer-display" id="cj-timer-display">00:00:00</div>
+      <div id="cj-target-row" style="display:none;margin-top:12px;padding:10px 14px;border-radius:10px;background:#f5f5f5">
+        <div style="display:flex;justify-content:space-between;align-items:center">
+          <div>
+            <div style="font-size:10px;color:var(--gray);text-transform:uppercase;letter-spacing:0.5px">Target</div>
+            <div style="font-size:15px;font-weight:bold;color:var(--navy)" id="cj-target-val">—</div>
+          </div>
+          <div style="text-align:right">
+            <div style="font-size:10px;color:var(--gray);text-transform:uppercase;letter-spacing:0.5px">Total Elapsed</div>
+            <div style="font-size:15px;font-weight:bold;color:var(--navy)" id="cj-total-val">—</div>
+          </div>
+        </div>
+      </div>
       <div class="mt-16" style="display:flex;gap:10px">
         <button class="btn btn-green" style="flex:1" onclick="stopStage()">✅ Complete</button>
         <button class="btn" style="flex:1;background:var(--orange);color:white" onclick="stopStage('Paused')">⏸ Pause</button>
@@ -374,13 +398,15 @@ const ALL_WORKERS = [
 ];
 
 // ── State ──────────────────────────────────────────────────────────────────
-let defWorker    = localStorage.getItem('defWorker') || '';
-let currentPanel = null;
-let currentStage = '';
-let activeStarted= null;
-let activeWorker = '';
-let timerInterval= null;
-let selectedLine = '';
+let defWorker      = localStorage.getItem('defWorker') || '';
+let currentPanel   = null;
+let currentStage   = '';
+let activeStarted  = null;
+let activeWorker   = '';
+let timerInterval  = null;
+let selectedLine   = '';
+let routingHours   = null;   // target hours (Layout start → Tech complete)
+let layoutStartedAt= null;   // wall-clock start of Layout for this panel
 
 // ── Supabase ───────────────────────────────────────────────────────────────
 async function sbFetch(path, method = 'GET', body = null, extra = {}) {
@@ -565,6 +591,15 @@ async function loadByCode(code) {
           panel_seq:     1
         };
       }
+      // Fetch routing hours target for this panel number
+      routingHours = null;
+      layoutStartedAt = null;
+      if (panel) {
+        try {
+          const rh = await sbFetch(`routing_hours?panel_number=eq.${encodeURIComponent(panel)}&select=hours`);
+          routingHours = rh.length ? parseFloat(rh[0].hours) : null;
+        } catch { routingHours = null; }
+      }
       currentStage = 'Layout';
       showConfirm();
       return;
@@ -573,6 +608,17 @@ async function loadByCode(code) {
     const p = panels[0];
     const scans = await sbFetch(`scans?panel_code=eq.${encodeURIComponent(code)}&select=*&order=started_at`);
     p.scans = scans;
+    // Fetch routing hours target
+    routingHours = null;
+    if (p.panel_number) {
+      try {
+        const rh = await sbFetch(`routing_hours?panel_number=eq.${encodeURIComponent(p.panel_number)}&select=hours`);
+        routingHours = rh.length ? parseFloat(rh[0].hours) : null;
+      } catch { routingHours = null; }
+    }
+    // Layout wall-clock start for total-time tracking
+    const layoutScan = scans.find(sc => sc.stage === 'Layout' && sc.started_at);
+    layoutStartedAt = layoutScan ? new Date(layoutScan.started_at) : null;
 
     const next = nextStageFor(scans);
     if (!next) {
@@ -766,6 +812,9 @@ async function startStage() {
     currentPanel._activeScanId = rows[0].id;
     activeWorker = worker;
 
+    // Track Layout start for total-time calc
+    if (currentStage === 'Layout') layoutStartedAt = new Date(now);
+
     // Show timer
     document.getElementById('tm-job').textContent   = currentPanel.job_number;
     document.getElementById('tm-panel').textContent = currentPanel.panel_number;
@@ -810,6 +859,13 @@ async function stopStage(pauseReason = null) {
 
 
 // ── Timer ──────────────────────────────────────────────────────────────────
+function secsToHMS(s) {
+  return `${String(Math.floor(s/3600)).padStart(2,'0')}:${String(Math.floor((s%3600)/60)).padStart(2,'0')}:${String(s%60).padStart(2,'0')}`;
+}
+function hoursToHMS(h) {
+  return secsToHMS(Math.round(h * 3600));
+}
+
 function startTimer() {
   if (timerInterval) clearInterval(timerInterval);
   timerInterval = setInterval(tick, 1000);
@@ -819,13 +875,38 @@ function stopTimer() {
   if (timerInterval) { clearInterval(timerInterval); timerInterval = null; }
   activeStarted = null;
   document.getElementById('timer-display').textContent = '00:00:00';
+  // Reset target rows
+  ['tm-target-row','cj-target-row'].forEach(id => {
+    const el = document.getElementById(id);
+    if (el) el.style.display = 'none';
+  });
 }
 function tick() {
   if (!activeStarted) return;
-  const s   = Math.floor((Date.now() - activeStarted.getTime()) / 1000);
-  const str = `${String(Math.floor(s/3600)).padStart(2,'0')}:${String(Math.floor((s%3600)/60)).padStart(2,'0')}:${String(s%60).padStart(2,'0')}`;
-  document.getElementById('timer-display').textContent    = str;
-  document.getElementById('cj-timer-display').textContent = str;
+  const stageSecs = Math.floor((Date.now() - activeStarted.getTime()) / 1000);
+  const stageStr  = secsToHMS(stageSecs);
+  document.getElementById('timer-display').textContent    = stageStr;
+  document.getElementById('cj-timer-display').textContent = stageStr;
+
+  // Total elapsed (Layout start → now) vs routing hours target
+  if (layoutStartedAt) {
+    const totalSecs = Math.floor((Date.now() - layoutStartedAt.getTime()) / 1000);
+    const totalStr  = secsToHMS(totalSecs);
+    const isOver    = routingHours != null && totalSecs > routingHours * 3600 + 60;
+    const overColor = isOver ? 'var(--red)' : 'var(--navy)';
+    const overBg    = isOver ? '#fff0f0'    : '#f5f5f5';
+
+    ['tm','cj'].forEach(prefix => {
+      const row = document.getElementById(`${prefix}-target-row`);
+      if (!row) return;
+      row.style.display    = '';
+      row.style.background = overBg;
+      const totalEl  = document.getElementById(`${prefix}-total-val`);
+      const targetEl = document.getElementById(`${prefix}-target-val`);
+      if (totalEl)  { totalEl.textContent  = totalStr; totalEl.style.color = overColor; }
+      if (targetEl && routingHours != null) targetEl.textContent = hoursToHMS(routingHours);
+    });
+  }
 }
 
 // ── Toast ──────────────────────────────────────────────────────────────────
