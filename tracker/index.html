@@ -98,6 +98,11 @@
     .history-table td { padding: 8px 10px; border-bottom: 1px solid #eee; }
     .history-table tr:nth-child(even) td { background: var(--tint); }
 
+    .who-row { display:flex; align-items:center; justify-content:space-between; padding:9px 0; border-bottom:1px solid #f0f0f0; }
+    .who-row:last-child { border-bottom:none; }
+    .who-stage { font-size:12px; font-weight:bold; text-transform:uppercase; letter-spacing:0.5px; color:var(--gray); }
+    .who-name  { font-size:15px; font-weight:bold; color:var(--navy); }
+
     .text-center { text-align: center; }
     .text-sm { font-size: 12px; color: var(--gray); }
     .mt-8 { margin-top: 8px; }
@@ -189,6 +194,12 @@
     </div>
     <label>How many panels on this job?</label>
     <input type="number" id="cf-job-qty" min="1" placeholder="e.g. 5" inputmode="numeric">
+  </div>
+
+  <!-- Prior stage workers (shown when stages already completed) -->
+  <div class="card" id="cf-who-card" style="display:none">
+    <div class="card-title">Completed By</div>
+    <div id="cf-who-rows"></div>
   </div>
 
   <!-- Stage + Worker -->
@@ -651,6 +662,21 @@ function showConfirm() {
   const badge = document.getElementById('cf-stage-badge');
   badge.textContent = currentStage;
   badge.className = 'stage-badge' + (currentPanel._isNew ? ' new-label' : '');
+
+  // Completed-by summary (show whenever at least one prior stage is done)
+  const whoCard = document.getElementById('cf-who-card');
+  const completedScans = STAGES
+    .filter(s => s !== currentStage)
+    .map(s => ({ stage: s, scan: scans.find(sc => sc.stage === s && sc.stopped_at && !sc.pause_reason) }))
+    .filter(x => x.scan);
+  if (completedScans.length > 0) {
+    document.getElementById('cf-who-rows').innerHTML = completedScans.map(x =>
+      `<div class="who-row"><span class="who-stage">${x.stage}</span><span class="who-name">${x.scan.worker_name}</span></div>`
+    ).join('');
+    whoCard.style.display = '';
+  } else {
+    whoCard.style.display = 'none';
+  }
 
   populateWorkerSelect('cf-worker', currentStage);
   showView('confirm');
