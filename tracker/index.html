@@ -68,15 +68,8 @@
     .info-item .ivalue { font-size: 16px; font-weight: bold; color: var(--navy); margin-top: 2px; }
 
     /* Scanner */
-    #scanner-container { width: 100%; border-radius: 10px; overflow: hidden; background: #111; min-height: 200px; display: flex; align-items: center; justify-content: center; }
-    #qr-reader { width: 100%; }
-    .scan-prompt { color: #fff; font-size: 14px; text-align: center; padding: 40px 20px; }
-
-    /* Zoom controls */
-    #zoom-controls { display: none; align-items: center; justify-content: center; gap: 16px; margin-top: 10px; }
-    .zoom-btn { width: 48px; height: 48px; font-size: 24px; font-weight: bold; border: none; border-radius: 50%; background: var(--navy); color: white; cursor: pointer; display: flex; align-items: center; justify-content: center; }
-    .zoom-btn:active { opacity: 0.7; }
-    #zoom-label { font-size: 14px; font-weight: bold; color: var(--navy); min-width: 36px; text-align: center; }
+    #scan-btn { width: 100%; padding: 28px; font-size: 22px; font-weight: bold; border: none; border-radius: 12px; cursor: pointer; background: var(--blue); color: white; letter-spacing: 0.5px; }
+    #scan-btn:active { opacity: 0.8; }
 
     /* Tap-to-scan button overlay */
     #tap-to-scan { width: 100%; padding: 20px; font-size: 18px; font-weight: bold; border: none; border-radius: 10px; cursor: pointer; background: var(--blue); color: white; margin-top: 12px; }
@@ -112,15 +105,9 @@
   <!-- Scanner card -->
   <div class="card" id="scan-card">
     <div class="card-title">Scan Panel Label</div>
-    <div id="scanner-container">
-      <div id="qr-reader"></div>
-    </div>
-    <button id="tap-to-scan" onclick="startScanner()" style="display:none">📷 Tap to Open Camera</button>
-    <div id="zoom-controls">
-      <button class="zoom-btn" onclick="zoomOut()">−</button>
-      <span id="zoom-label">1×</span>
-      <button class="zoom-btn" onclick="zoomIn()">+</button>
-    </div>
+    <button id="scan-btn" onclick="openCamera()">📷 Scan QR Code</button>
+    <input type="file" id="camera-input" accept="image/*" capture="environment" style="display:none">
+    <div id="qr-reader" style="display:none"></div>
     <div class="mt-8" style="display:flex;gap:8px">
       <input type="text" id="manual-code" placeholder="Enter code manually" style="text-transform:uppercase;flex:1" autocomplete="off">
       <button class="btn btn-navy btn-sm" onclick="loadByCode(document.getElementById('manual-code').value)">Go</button>
@@ -260,7 +247,7 @@ let currentPanel = null;   // loaded panel object
 let currentStage = '';     // auto-detected next stage
 let activeStarted= null;
 let timerInterval= null;
-let scanner      = null;
+const qrDecoder  = new Html5Qrcode('qr-reader');
 
 // ── Supabase ───────────────────────────────────────────────────────────────
 async function sbFetch(path, method = 'GET', body = null, extra = {}) {
@@ -276,7 +263,8 @@ async function sbFetch(path, method = 'GET', body = null, extra = {}) {
     body: body ? JSON.stringify(body) : null
   });
   if (!res.ok) throw new Error(await res.text());
-  return method === 'DELETE' ? null : res.json();
+  if (res.status === 204 || method === 'DELETE') return null;
+  return res.json();
 }
 
 // ── Helpers ────────────────────────────────────────────────────────────────
@@ -312,7 +300,6 @@ function showView(name) {
 
 function goScan() {
   showView('scan');
-  startScanner();
 }
 
 async function goHistory() {
@@ -347,68 +334,11 @@ function saveSettings() {
   goScan();
 }
 
-// ── Zoom ───────────────────────────────────────────────────────────────────
-let currentZoom = 1;
-const ZOOM_STEP = 0.5;
-const ZOOM_MAX  = 5;
-
-function applyZoom(level) {
-  currentZoom = Math.max(1, Math.min(ZOOM_MAX, level));
-  document.getElementById('zoom-label').textContent =
-    (currentZoom % 1 === 0 ? currentZoom : currentZoom.toFixed(1)) + '×';
-
-  const video = document.querySelector('#qr-reader video');
-  if (!video) return;
-
-  // Try native camera zoom (Android/some browsers)
-  if (video.srcObject) {
-    const track = video.srcObject.getVideoTracks()[0];
-    if (track) {
-      const caps = track.getCapabilities ? track.getCapabilities() : {};
-      if (caps.zoom) {
-        const z = caps.zoom.min + (caps.zoom.max - caps.zoom.min) * ((currentZoom - 1) / (ZOOM_MAX - 1));
-        track.applyConstraints({ advanced: [{ zoom: z }] }).catch(() => {});
-        return;
-      }
-    }
-  }
-  // CSS transform fallback (iOS)
-  video.style.transform       = `scale(${currentZoom})`;
-  video.style.transformOrigin = 'center center';
-}
-
-function zoomIn()  { applyZoom(currentZoom + ZOOM_STEP); }
-function zoomOut() { applyZoom(currentZoom - ZOOM_STEP); }
-
 // ── Scanner ────────────────────────────────────────────────────────────────
-function startScanner() {
-  if (scanner) return;
-  const btn = document.getElementById('tap-to-scan');
-  btn.style.display = 'none';
-  currentZoom = 1;
-  document.getElementById('zoom-label').textContent = '1×';
-
-  scanner = new Html5Qrcode('qr-reader');
-  scanner.start(
-    { facingMode: 'environment' },
-    { fps: 10, qrbox: { width: 250, height: 250 }, formatsToSupport: [Html5QrcodeSupportedFormats.QR_CODE, Html5QrcodeSupportedFormats.DATA_MATRIX] },
-    (decoded) => { stopScanner().then(() => loadByCode(decoded.trim().toUpperCase())); },
-    () => {}
-  ).then(() => {
-    document.getElementById('zoom-controls').style.display = 'flex';
-  }).catch(() => {
-    scanner = null;
-    btn.style.display = '';
-  });
-}
-
-async function stopScanner() {
-  if (!scanner) return;
-  const s = scanner;
-  scanner = null;
-  document.getElementById('zoom-controls').style.display = 'none';
-  try { await s.stop(); } catch {}
-  try { s.clear(); } catch {}
+function openCamera() {
+  const input = document.getElementById('camera-input');
+  input.value = '';
+  input.click();
 }
 
 // ── Load panel ─────────────────────────────────────────────────────────────
@@ -430,18 +360,17 @@ async function loadByCode(code) {
     }
 
     const p = panels[0];
-    if (p.is_complete) { toast('⛔ Panel complete — QR is void'); startScanner(); return; }
+    if (p.is_complete) { toast('⛔ Panel complete — QR is void'); return; }
 
     const scans = await sbFetch(`scans?panel_code=eq.${encodeURIComponent(code)}&select=*&order=started_at`);
     p.scans = scans;
 
     const next = nextStageFor(scans);
-    if (!next) { toast('⛔ Panel complete — QR is void'); startScanner(); return; }
+    if (!next) { toast('⛔ Panel complete — QR is void'); return; }
 
     // Check if stage is currently in progress on another device
     if (scans.find(s => s.stage === next && !s.stopped_at)) {
       toast(`${next} already in progress`);
-      startScanner();
       return;
     }
 
@@ -450,7 +379,6 @@ async function loadByCode(code) {
     showConfirm();
   } catch (e) {
     toast('Error: ' + e.message);
-    startScanner();
   }
 }
 
@@ -478,12 +406,10 @@ function showConfirm() {
   showView('confirm');
 }
 
-async function cancelConfirm() {
+function cancelConfirm() {
   currentPanel = null;
   currentStage = '';
   showView('scan');
-  await stopScanner();
-  startScanner();
 }
 
 async function addNewWorker() {
@@ -556,7 +482,6 @@ async function stopStage() {
     currentPanel = null;
     currentStage = '';
     showView('scan');
-    startScanner();
   } catch (e) {
     toast('Error: ' + e.message);
   }
@@ -599,8 +524,18 @@ window.addEventListener('DOMContentLoaded', () => {
     allSorted.map(w => `<option value="${w.name}">${w.name}</option>`).join('');
   if (defWorker) sw.value = defWorker;
 
-  // Auto-start scanner
-  startScanner();
+  // Native camera file input handler
+  document.getElementById('camera-input').addEventListener('change', async (e) => {
+    const file = e.target.files[0];
+    e.target.value = '';
+    if (!file) return;
+    try {
+      const decoded = await qrDecoder.scanFile(file, false);
+      loadByCode(decoded.trim().toUpperCase());
+    } catch {
+      toast('No QR code found — try again');
+    }
+  });
 });
 </script>
 </body>
