@@ -7,7 +7,7 @@
   <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
   <meta name="apple-mobile-web-app-title" content="Panel Tracker">
   <title>Panel Tracker</title>
-  <script src="https://cdn.jsdelivr.net/npm/jsqr@1.4.0/dist/jsQR.js"></script>
+  <script src="https://unpkg.com/html5-qrcode@2.3.8/html5-qrcode.min.js"></script>
   <style>
     :root {
       --navy:    #000E57;
@@ -70,11 +70,10 @@
     .info-item .ivalue { font-size: 16px; font-weight: bold; color: var(--navy); margin-top: 2px; }
 
     /* Scanner */
-    #scan-btn { width: 100%; padding: 28px; font-size: 22px; font-weight: bold; border: none; border-radius: 12px; cursor: pointer; background: var(--blue); color: white; letter-spacing: 0.5px; }
-    #scan-btn:active { opacity: 0.8; }
-
-    /* Tap-to-scan button overlay */
-    #tap-to-scan { width: 100%; padding: 20px; font-size: 18px; font-weight: bold; border: none; border-radius: 10px; cursor: pointer; background: var(--blue); color: white; margin-top: 12px; }
+    #scanner-container { width: 100%; border-radius: 10px; overflow: hidden; background: #111; min-height: 260px; position: relative; }
+    #qr-reader { width: 100%; }
+    #qr-reader video { width: 100% !important; height: auto !important; }
+    #tap-to-scan { width: 100%; padding: 22px; font-size: 18px; font-weight: bold; border: none; border-radius: 10px; cursor: pointer; background: var(--blue); color: white; margin-top: 12px; }
 
     /* Toast */
     #toast { position: fixed; bottom: 80px; left: 50%; transform: translateX(-50%) translateY(100px); background: var(--navy); color: white; padding: 12px 24px; border-radius: 24px; font-size: 14px; font-weight: bold; transition: transform 0.3s ease; z-index: 9999; white-space: nowrap; }
@@ -107,9 +106,10 @@
   <!-- Scanner card -->
   <div class="card" id="scan-card">
     <div class="card-title">Scan Panel Label</div>
-    <button id="scan-btn" onclick="openCamera()">📷 Scan QR Code</button>
-    <input type="file" id="camera-input" accept="image/*" capture="environment" style="display:none">
-    <canvas id="qr-canvas" style="display:none"></canvas>
+    <div id="scanner-container">
+      <div id="qr-reader"></div>
+    </div>
+    <button id="tap-to-scan" onclick="startScanner()" style="display:none">📷 Tap to Open Camera</button>
   </div>
 
 </div>
@@ -325,6 +325,7 @@ function showView(name) {
 
 function goScan() {
   showView('scan');
+  startScanner();
 }
 
 function goCurrentJob() {
@@ -378,34 +379,30 @@ function saveSettings() {
 }
 
 // ── Scanner ────────────────────────────────────────────────────────────────
-function openCamera() {
-  const input = document.getElementById('camera-input');
-  input.value = '';
-  input.click();
+let scanner = null;
+
+function startScanner() {
+  if (scanner) return;
+  document.getElementById('tap-to-scan').style.display = 'none';
+  scanner = new Html5Qrcode('qr-reader');
+  scanner.start(
+    { facingMode: 'environment' },
+    { fps: 10, qrbox: { width: 220, height: 220 },
+      formatsToSupport: [Html5QrcodeSupportedFormats.QR_CODE, Html5QrcodeSupportedFormats.DATA_MATRIX] },
+    (decoded) => { stopScanner().then(() => loadByCode(decoded.trim().toUpperCase())); },
+    () => {}
+  ).catch(() => {
+    scanner = null;
+    document.getElementById('tap-to-scan').style.display = '';
+  });
 }
 
-function decodeQR(file) {
-  return new Promise((resolve, reject) => {
-    const img = new Image();
-    const url = URL.createObjectURL(file);
-    img.onload = () => {
-      URL.revokeObjectURL(url);
-      const canvas = document.getElementById('qr-canvas');
-      // Scale to max 1500px — large enough to find the QR, small enough to be fast
-      const MAX    = 1500;
-      const scale  = Math.min(1, MAX / Math.max(img.naturalWidth, img.naturalHeight));
-      canvas.width  = Math.round(img.naturalWidth  * scale);
-      canvas.height = Math.round(img.naturalHeight * scale);
-      const ctx = canvas.getContext('2d');
-      ctx.drawImage(img, 0, 0, canvas.width, canvas.height);
-      const imageData = ctx.getImageData(0, 0, canvas.width, canvas.height);
-      const result = jsQR(imageData.data, canvas.width, canvas.height, { inversionAttempts: 'attemptBoth' });
-      if (result) resolve(result.data);
-      else reject(new Error('No QR found'));
-    };
-    img.onerror = () => { URL.revokeObjectURL(url); reject(new Error('Load failed')); };
-    img.src = url;
-  });
+async function stopScanner() {
+  if (!scanner) return;
+  const s = scanner;
+  scanner = null;
+  try { await s.stop(); } catch {}
+  try { s.clear(); } catch {}
 }
 
 // ── Load panel ─────────────────────────────────────────────────────────────
@@ -475,10 +472,12 @@ function showConfirm() {
   showView('confirm');
 }
 
-function cancelConfirm() {
+async function cancelConfirm() {
   currentPanel = null;
   currentStage = '';
   showView('scan');
+  await stopScanner();
+  startScanner();
 }
 
 async function addNewWorker() {
@@ -572,6 +571,8 @@ async function stopStage(pauseReason = null) {
     currentStage  = '';
     updateCurrentJobView();
     showView('scan');
+    await stopScanner();
+    startScanner();
   } catch (e) {
     toast('Error: ' + e.message);
   }
@@ -616,18 +617,7 @@ window.addEventListener('DOMContentLoaded', () => {
     allSorted.map(w => `<option value="${w.name}">${w.name}</option>`).join('');
   if (defWorker) sw.value = defWorker;
 
-  // Native camera file input handler
-  document.getElementById('camera-input').addEventListener('change', async (e) => {
-    const file = e.target.files[0];
-    e.target.value = '';
-    if (!file) return;
-    try {
-      const code = await decodeQR(file);
-      loadByCode(code.trim().toUpperCase());
-    } catch {
-      toast('No QR code found — try again');
-    }
-  });
+  startScanner();
 });
 </script>
 </body>
