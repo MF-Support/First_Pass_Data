@@ -466,7 +466,7 @@ function startScanner() {
   scanner = new Html5Qrcode('qr-reader');
   scanner.start(
     { facingMode: 'environment' },
-    { fps: 10, qrbox: { width: 240, height: 240 } },
+    { fps: 10, qrbox: { width: 240, height: 240 }, formatsToSupport: [Html5QrcodeSupportedFormats.QR_CODE, Html5QrcodeSupportedFormats.DATA_MATRIX] },
     (decoded) => { stopScanner(); loadByCode(decoded.trim().toUpperCase()); },
     () => {}
   ).catch(err => { toast('Camera error: ' + err); stopScanner(); });
