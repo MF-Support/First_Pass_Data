@@ -495,8 +495,12 @@ async function loadByCode(code) {
       }
       pendingCode = code;
       document.getElementById('register-code').textContent = code;
-      document.getElementById('reg-job').value   = '';
-      document.getElementById('reg-panel').value = '';
+
+      // Parse QR format: JOB|PANEL|YYYYMMDD-RAND  → auto-fill fields
+      const parts = code.split('|');
+      document.getElementById('reg-job').value   = parts.length >= 2 ? parts[0] : '';
+      document.getElementById('reg-panel').value = parts.length >= 2 ? parts[1] : '';
+
       hideCard('scan-card');
       showCard('register-card');
       return;
