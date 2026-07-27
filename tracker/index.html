@@ -72,6 +72,12 @@
     #qr-reader { width: 100%; }
     .scan-prompt { color: #fff; font-size: 14px; text-align: center; padding: 40px 20px; }
 
+    /* Zoom controls */
+    #zoom-controls { display: none; align-items: center; justify-content: center; gap: 16px; margin-top: 10px; }
+    .zoom-btn { width: 48px; height: 48px; font-size: 24px; font-weight: bold; border: none; border-radius: 50%; background: var(--navy); color: white; cursor: pointer; display: flex; align-items: center; justify-content: center; }
+    .zoom-btn:active { opacity: 0.7; }
+    #zoom-label { font-size: 14px; font-weight: bold; color: var(--navy); min-width: 36px; text-align: center; }
+
     /* Tap-to-scan button overlay */
     #tap-to-scan { width: 100%; padding: 20px; font-size: 18px; font-weight: bold; border: none; border-radius: 10px; cursor: pointer; background: var(--blue); color: white; margin-top: 12px; }
 
@@ -110,6 +116,11 @@
       <div id="qr-reader"></div>
     </div>
     <button id="tap-to-scan" onclick="startScanner()" style="display:none">📷 Tap to Open Camera</button>
+    <div id="zoom-controls">
+      <button class="zoom-btn" onclick="zoomOut()">−</button>
+      <span id="zoom-label">1×</span>
+      <button class="zoom-btn" onclick="zoomIn()">+</button>
+    </div>
     <div class="mt-8" style="display:flex;gap:8px">
       <input type="text" id="manual-code" placeholder="Enter code manually" style="text-transform:uppercase;flex:1" autocomplete="off">
       <button class="btn btn-navy btn-sm" onclick="loadByCode(document.getElementById('manual-code').value)">Go</button>
@@ -336,26 +347,68 @@ function saveSettings() {
   goScan();
 }
 
+// ── Zoom ───────────────────────────────────────────────────────────────────
+let currentZoom = 1;
+const ZOOM_STEP = 0.5;
+const ZOOM_MAX  = 5;
+
+function applyZoom(level) {
+  currentZoom = Math.max(1, Math.min(ZOOM_MAX, level));
+  document.getElementById('zoom-label').textContent =
+    (currentZoom % 1 === 0 ? currentZoom : currentZoom.toFixed(1)) + '×';
+
+  const video = document.querySelector('#qr-reader video');
+  if (!video) return;
+
+  // Try native camera zoom (Android/some browsers)
+  if (video.srcObject) {
+    const track = video.srcObject.getVideoTracks()[0];
+    if (track) {
+      const caps = track.getCapabilities ? track.getCapabilities() : {};
+      if (caps.zoom) {
+        const z = caps.zoom.min + (caps.zoom.max - caps.zoom.min) * ((currentZoom - 1) / (ZOOM_MAX - 1));
+        track.applyConstraints({ advanced: [{ zoom: z }] }).catch(() => {});
+        return;
+      }
+    }
+  }
+  // CSS transform fallback (iOS)
+  video.style.transform       = `scale(${currentZoom})`;
+  video.style.transformOrigin = 'center center';
+}
+
+function zoomIn()  { applyZoom(currentZoom + ZOOM_STEP); }
+function zoomOut() { applyZoom(currentZoom - ZOOM_STEP); }
+
 // ── Scanner ────────────────────────────────────────────────────────────────
 function startScanner() {
   if (scanner) return;
   const btn = document.getElementById('tap-to-scan');
   btn.style.display = 'none';
+  currentZoom = 1;
+  document.getElementById('zoom-label').textContent = '1×';
 
   scanner = new Html5Qrcode('qr-reader');
   scanner.start(
     { facingMode: 'environment' },
     { fps: 10, qrbox: { width: 250, height: 250 }, formatsToSupport: [Html5QrcodeSupportedFormats.QR_CODE, Html5QrcodeSupportedFormats.DATA_MATRIX] },
-    (decoded) => { stopScanner(); loadByCode(decoded.trim().toUpperCase()); },
+    (decoded) => { stopScanner().then(() => loadByCode(decoded.trim().toUpperCase())); },
     () => {}
-  ).catch(() => {
+  ).then(() => {
+    document.getElementById('zoom-controls').style.display = 'flex';
+  }).catch(() => {
     scanner = null;
     btn.style.display = '';
   });
 }
 
-function stopScanner() {
-  if (scanner) { scanner.stop().catch(() => {}); scanner.clear(); scanner = null; }
+async function stopScanner() {
+  if (!scanner) return;
+  const s = scanner;
+  scanner = null;
+  document.getElementById('zoom-controls').style.display = 'none';
+  try { await s.stop(); } catch {}
+  try { s.clear(); } catch {}
 }
 
 // ── Load panel ─────────────────────────────────────────────────────────────
@@ -425,10 +478,11 @@ function showConfirm() {
   showView('confirm');
 }
 
-function cancelConfirm() {
+async function cancelConfirm() {
   currentPanel = null;
   currentStage = '';
   showView('scan');
+  await stopScanner();
   startScanner();
 }
 
