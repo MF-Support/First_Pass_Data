@@ -1076,12 +1076,17 @@ with tab6:
                                     inplace=True)
                     ts_display.rename(columns={'Panels': '# Panels'}, inplace=True)
 
-                    fastest_avg = team_summary['Avg_h'].min()
+                    n_teams = len(team_summary)
+                    # Rank-based colors: green (fastest) → red (slowest)
+                    rank_colors = ['#f0fff4','#f7fff0','#fffde7','#fff3e0','#fff0f0']
 
                     def _hl_team(row):
-                        if row.get('Avg Total') == _hms(fastest_avg):
-                            return ['background-color: #f0fff4'] * len(row)
-                        return [''] * len(row)
+                        rank = ts_display.index.get_loc(row.name)
+                        idx  = min(rank, len(rank_colors) - 1) if n_teams > 1 else 0
+                        if n_teams > 1:
+                            idx = round(rank / (n_teams - 1) * (len(rank_colors) - 1))
+                        bg = rank_colors[idx]
+                        return [f'background-color: {bg}'] * len(row)
 
                     st.dataframe(
                         ts_display.style.apply(_hl_team, axis=1),
@@ -1150,21 +1155,36 @@ with tab6:
             # Column order: identity cols, then paired stage cols, then summary
             _id_cols    = [c for c in ['Panel #','Job #','Seq','Date','Q Result','Over?']
                            if c in detail.columns]
-            _stage_cols = ['Layout H:M:S','Layout by',
-                           'Wire H:M:S',  'Wire by',
-                           'Final H:M:S', 'Final by',
-                           'Tech H:M:S',  'Tech by']
+            _stage_cols = ['Layout by', 'Layout H:M:S',
+                           'Wire by',   'Wire H:M:S',
+                           'Final by',  'Final H:M:S',
+                           'Tech by',   'Tech H:M:S']
             _stage_cols = [c for c in _stage_cols if c in detail.columns]
             _sum_cols   = [c for c in ['Target','Actual','Delta']
                            if c in detail.columns]
             detail = detail[_id_cols + _stage_cols + _sum_cols]
 
-            def _hl_over(row):
-                bg = 'background-color: #fff0f0' if row.get('Over?') else ''
-                return [bg] * len(row)
+            # Column-group background colors for readability
+            _stage_colors = {
+                'Layout by': '#EEF4FF', 'Layout H:M:S': '#EEF4FF',
+                'Wire by':   '#FFF8EE', 'Wire H:M:S':   '#FFF8EE',
+                'Final by':  '#EEFFF4', 'Final H:M:S':  '#EEFFF4',
+                'Tech by':   '#F8EEFF', 'Tech H:M:S':   '#F8EEFF',
+            }
+
+            def _style_detail(df):
+                styles = pd.DataFrame('', index=df.index, columns=df.columns)
+                for col, bg in _stage_colors.items():
+                    if col in styles.columns:
+                        styles[col] = f'background-color: {bg}'
+                # Over-time rows override to red tint
+                if 'Over?' in df.columns:
+                    over_mask = df['Over?'].fillna(False).astype(bool)
+                    styles[over_mask] = 'background-color: #fff0f0'
+                return styles
 
             st.dataframe(
-                detail.style.apply(_hl_over, axis=1),
+                detail.style.apply(_style_detail, axis=None),
                 use_container_width=True, hide_index=True,
             )
 
