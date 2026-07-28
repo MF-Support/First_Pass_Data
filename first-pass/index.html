@@ -1,0 +1,1106 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>First Pass Quality Dashboard</title>
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/css/bootstrap.min.css">
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.css">
+<style>
+:root {
+  --navy:#000E57; --blue:#0F3CFF; --tint:#E7ECFF;
+  --offwhite:#FFFEF5; --warmgray:#ABA18B; --red:#C0392B; --green:#27AE60;
+}
+body { background:var(--offwhite); font-family:Arial,sans-serif; min-height:100vh; }
+.navbar-brand { font-family:Georgia,serif; font-size:1.25rem; font-weight:bold; }
+.kpi-box { background:var(--navy); color:#fff; border-radius:8px; padding:16px 12px; text-align:center; }
+.kpi-label { font-size:10px; opacity:.75; letter-spacing:1px; text-transform:uppercase; }
+.kpi-value { font-size:28px; font-weight:bold; font-family:Georgia,serif; line-height:1.2; }
+.kpi-sub   { font-size:10px; opacity:.65; }
+.section-header {
+  background:var(--navy); color:#fff; padding:8px 16px;
+  border-radius:4px; font-family:Georgia; font-size:14px; font-weight:bold;
+  margin:20px 0 10px;
+}
+.period-badge { color:var(--blue); font-weight:bold; font-size:13px; }
+.upload-zone {
+  border:2px dashed var(--blue); border-radius:12px;
+  background:var(--tint); text-align:center; padding:60px 20px;
+  cursor:pointer; transition:background .2s;
+}
+.upload-zone:hover { background:#d0dcff; }
+.nav-tabs .nav-link { color:var(--navy); }
+.nav-tabs .nav-link.active { color:var(--blue); font-weight:bold; }
+.table-hover tbody tr:hover { background:#f0f4ff; }
+.fail-row { background:#fff0f0 !important; }
+.btn-navy { background:var(--navy); color:#fff; border:none; }
+.btn-navy:hover { background:#001a8c; color:#fff; }
+.person-row { cursor:pointer; }
+.person-row:hover td { background:#eef1ff; }
+.drilldown { border-left:4px solid var(--blue); padding-left:12px; }
+#page-spinner { display:flex; align-items:center; justify-content:center; gap:10px;
+  padding:20px; color:var(--navy); font-family:Georgia; }
+.badge-over { background:var(--red); color:#fff; }
+.badge-ok   { background:var(--green); color:#fff; }
+.fail-pct-high { color:var(--red); font-weight:bold; }
+.fail-pct-med  { color:darkorange; font-weight:bold; }
+.fail-pct-ok   { color:var(--green); }
+.tab-content { padding-top:16px; }
+canvas { max-height:400px; }
+</style>
+</head>
+<body>
+
+<!-- Navbar -->
+<nav class="navbar px-3 py-2" style="background:var(--navy)">
+  <span class="navbar-brand text-white">🏭 First Pass Quality Dashboard</span>
+  <span class="text-white opacity-75 small">Kennesaw Panel Assembly · First Pass Yield & Technician Performance</span>
+</nav>
+
+<!-- Upload section -->
+<div id="upload-section" class="container py-5">
+  <div class="row justify-content-center">
+    <div class="col-md-6">
+      <div class="upload-zone" onclick="document.getElementById('file-input').click()">
+        <div style="font-size:48px">📂</div>
+        <h3 style="color:var(--navy);font-family:Georgia">Upload your report to get started</h3>
+        <p class="text-muted">Download the <b>First Pass Q Report</b> from Excel Online,<br>then drag it here or click to browse.</p>
+        <p class="text-muted small">Supports .xlsx files</p>
+      </div>
+      <input type="file" id="file-input" accept=".xlsx" style="display:none">
+      <div id="upload-error" class="alert alert-danger mt-3 d-none"></div>
+    </div>
+  </div>
+</div>
+
+<!-- Main dashboard (hidden until file loaded) -->
+<div id="dashboard" class="d-none">
+  <!-- Controls bar -->
+  <div class="border-bottom py-2 px-3 d-flex flex-wrap gap-2 align-items-center"
+       style="background:#fff;position:sticky;top:0;z-index:100">
+    <label class="fw-bold small me-1" style="color:var(--navy)">Period:</label>
+    <select id="period-select" class="form-select form-select-sm" style="width:160px">
+      <option>Last 7 Days</option>
+      <option>Last 30 Days</option>
+      <option selected>Last 90 Days</option>
+      <option>Last 6 Months</option>
+      <option>Last Year</option>
+      <option>By Quarter</option>
+      <option>All Time</option>
+    </select>
+    <select id="quarter-select" class="form-select form-select-sm d-none" style="width:130px"></select>
+    <span id="period-badge" class="period-badge ms-2"></span>
+    <span class="ms-auto text-muted small" id="data-summary"></span>
+    <button class="btn btn-sm btn-outline-secondary" onclick="resetDashboard()">⬆ Upload new file</button>
+  </div>
+
+  <!-- KPIs -->
+  <div class="container-fluid px-3 py-3">
+    <div class="row g-2 mb-3">
+      <div class="col"><div class="kpi-box">
+        <div class="kpi-label">Total Panels</div>
+        <div class="kpi-value" id="kpi-total">—</div>
+        <div class="kpi-sub" id="kpi-days-sub"></div>
+      </div></div>
+      <div class="col"><div class="kpi-box">
+        <div class="kpi-label">First Pass Yield</div>
+        <div class="kpi-value" id="kpi-fpy">—</div>
+        <div class="kpi-sub" id="kpi-fpy-sub"></div>
+      </div></div>
+      <div class="col"><div class="kpi-box">
+        <div class="kpi-label">Total Fails</div>
+        <div class="kpi-value" id="kpi-fails">—</div>
+        <div class="kpi-sub" id="kpi-fails-sub"></div>
+      </div></div>
+      <div class="col"><div class="kpi-box">
+        <div class="kpi-label">Avg / Day</div>
+        <div class="kpi-value" id="kpi-avg">—</div>
+        <div class="kpi-sub">panels per day</div>
+      </div></div>
+      <div class="col"><div class="kpi-box">
+        <div class="kpi-label">Most Fails From</div>
+        <div class="kpi-value" id="kpi-top" style="font-size:16px;padding-top:6px">—</div>
+        <div class="kpi-sub" id="kpi-top-sub"></div>
+      </div></div>
+    </div>
+
+    <!-- Tabs -->
+    <ul class="nav nav-tabs" id="mainTabs">
+      <li class="nav-item"><button class="nav-link active" data-bs-toggle="tab" data-bs-target="#tab1">📛 Fail Attribution</button></li>
+      <li class="nav-item"><button class="nav-link" data-bs-toggle="tab" data-bs-target="#tab2">🔧 Layout by Person</button></li>
+      <li class="nav-item"><button class="nav-link" data-bs-toggle="tab" data-bs-target="#tab3">🔌 Wire by Person</button></li>
+      <li class="nav-item"><button class="nav-link" data-bs-toggle="tab" data-bs-target="#tab4">✅ Final by Person</button></li>
+      <li class="nav-item"><button class="nav-link" data-bs-toggle="tab" data-bs-target="#tab5">📈 Trends</button></li>
+      <li class="nav-item"><button class="nav-link" data-bs-toggle="tab" data-bs-target="#tab6">⏱ Time Analysis</button></li>
+    </ul>
+
+    <div class="tab-content">
+      <div class="tab-pane fade show active" id="tab1"><div id="tab1-content"></div></div>
+      <div class="tab-pane fade" id="tab2"><div id="tab2-content"></div></div>
+      <div class="tab-pane fade" id="tab3"><div id="tab3-content"></div></div>
+      <div class="tab-pane fade" id="tab4"><div id="tab4-content"></div></div>
+      <div class="tab-pane fade" id="tab5"><div id="tab5-content"></div></div>
+      <div class="tab-pane fade" id="tab6"><div id="tab6-content"></div></div>
+    </div>
+  </div>
+</div>
+
+<script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/js/bootstrap.bundle.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.2/dist/chart.umd.min.js"></script>
+<script>
+// ─── Constants ───────────────────────────────────────────────────────────────
+const NAVY = '#000E57', BLUE = '#0F3CFF', TINT = '#E7ECFF';
+const RED = '#C0392B', GREEN = '#27AE60', WARMGRAY = '#ABA18B';
+const SB_URL  = 'https://ptbhguthosenkffjhbry.supabase.co';
+const SB_ANON = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InB0YmhndXRob3NlbmtmZmpoYnJ5Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODQ5MDkzNzAsImV4cCI6MjEwMDQ4NTM3MH0.y71yXWsIUjzFBqC4itzZ36w9ixw_QDej2RaBPh8MLPI';
+
+// ─── State ────────────────────────────────────────────────────────────────────
+let df = [], initMap = {}, knownInits = new Set(), failExploded = [];
+let timingData = [], timingLoaded = false;
+const charts = {};
+
+// ─── Utility ─────────────────────────────────────────────────────────────────
+const fmtDate = d => !d ? '' : (d instanceof Date ? d : new Date(d)).toISOString().slice(0,10);
+const hms = h => {
+  if (!h || isNaN(h)) return '—';
+  const s = Math.round(h * 3600);
+  return `${Math.floor(s/3600)}:${String(Math.floor(s%3600/60)).padStart(2,'0')}:${String(s%60).padStart(2,'0')}`;
+};
+
+function shortName(full) {
+  full = String(full||'').trim();
+  if (!full || full.toLowerCase()==='nan') return '';
+  let first, last;
+  if (full.includes(',')) {
+    [last, first] = full.split(',',2).map(s=>s.trim());
+  } else {
+    const p = full.trim().split(/\s+/);
+    first = p[0]; last = p.length>1 ? p[p.length-1] : '';
+  }
+  return last ? `${first} ${last[0]}.` : first;
+}
+
+function extractAllInitials(text, knownSet) {
+  if (typeof text !== 'string') return [];
+  const res = [];
+  for (const m of text.matchAll(/\(([^)]+)\)/g))
+    for (const im of m[1].matchAll(/[A-Z]{2,3}/g))
+      if (knownSet.has(im[0])) res.push(im[0]);
+  return res;
+}
+
+function fiscalQ(d) {
+  const m = d.getMonth()+1, y = d.getFullYear();
+  const fy = m>=10 ? y+1 : y;
+  const q  = m>=10 ? 1 : m<=3 ? 2 : m<=6 ? 3 : 4;
+  return `FY${String(fy).slice(2)} Q${q}`;
+}
+
+function weekStart(d) {
+  const w = new Date(d); w.setDate(d.getDate()-d.getDay()); return fmtDate(w);
+}
+
+function destroyChart(id) {
+  if (charts[id]) { charts[id].destroy(); delete charts[id]; }
+}
+
+function mkChart(id, cfg) {
+  destroyChart(id);
+  const el = document.getElementById(id);
+  if (el) charts[id] = new Chart(el.getContext('2d'), cfg);
+}
+
+function groupBy(arr, key) {
+  const m = {};
+  for (const r of arr) {
+    const k = typeof key === 'function' ? key(r) : r[key];
+    if (!m[k]) m[k] = [];
+    m[k].push(r);
+  }
+  return m;
+}
+
+function sumBy(arr, key) { return arr.reduce((s,r) => s + (r[key]||0), 0); }
+
+function makeTable(cols, rows, rowClass) {
+  return `<div class="table-responsive"><table class="table table-sm table-hover mb-0">
+    <thead class="table-light"><tr>${cols.map(c=>`<th>${c}</th>`).join('')}</tr></thead>
+    <tbody>${rows.map((r,i)=>`<tr class="${rowClass?rowClass(r,i):''}">${r.map(c=>`<td>${c??''}</td>`).join('')}</tr>`).join('')}</tbody>
+  </table></div>`;
+}
+
+// ─── Excel parsing ────────────────────────────────────────────────────────────
+function parseExcel(buf) {
+  const wb = XLSX.read(buf, { type:'array', cellDates:true });
+
+  // Names sheet
+  const ns = wb.Sheets['Names'];
+  initMap = {}; knownInits = new Set();
+  if (ns) {
+    for (const r of XLSX.utils.sheet_to_json(ns)) {
+      const init = String(r['Initials']||'').trim();
+      if (init && r['Name']) { initMap[init] = shortName(r['Name']); knownInits.add(init); }
+    }
+  }
+
+  // Daily Results
+  const drName = wb.SheetNames.find(n=>n==='Daily Results') || wb.SheetNames.find(n=>n==='old daily results');
+  if (!drName) throw new Error('Could not find "Daily Results" sheet');
+
+  const COLS = ['Panel','Date','Pass_Fail','Reason','Line','Emp','Routing_Hours','Tech','Layout','Wire','FA','Sales_Order'];
+  const raw  = XLSX.utils.sheet_to_json(wb.Sheets[drName], {header:1});
+
+  df = []; failExploded = [];
+
+  for (let i=1; i<raw.length; i++) {
+    const r = raw[i];
+    if (!r || r.length < 2) continue;
+    const row = {};
+    COLS.forEach((c,j) => row[c] = r[j]);
+
+    // parse date
+    let d = row['Date'];
+    if (!d) continue;
+    if (d instanceof Date) row._date = d;
+    else if (typeof d === 'number') row._date = new Date((d-25569)*86400*1000);
+    else row._date = new Date(d);
+    if (isNaN(row._date)) continue;
+
+    const pf = String(row.Pass_Fail||'').trim().toUpperCase()
+      .replace('FALL','FAIL').replace(/^PAS$/,'PASS');
+    row.Pass_Fail = pf;
+
+    for (const c of ['Layout','Wire','Tech','FA'])
+      row[c] = String(row[c]||'').trim().toUpperCase().replace(/^NAN$/i,'');
+
+    const nameOf = init => { const i=String(init||'').trim().toUpperCase(); return i?(initMap[i]||i):''; };
+    row.Layout_Name = nameOf(row.Layout);
+    row.Wire_Name   = nameOf(row.Wire);
+    row.FA_Name     = nameOf(row.FA);
+    row.Tech_Name   = nameOf(row.Tech);
+    row.Fail_Inits  = extractAllInitials(String(row.Reason||''), knownInits);
+    row.Is_Fail     = pf==='FAIL' ? 1 : 0;
+    row.Is_Pass     = pf==='PASS' ? 1 : 0;
+
+    const dt = row._date;
+    row.Month      = `${dt.getFullYear()}-${String(dt.getMonth()+1).padStart(2,'0')}`;
+    row.MonthLabel = dt.toLocaleDateString('en-US',{month:'short',year:'numeric'});
+    row.Quarter    = fiscalQ(dt);
+    row.Week       = weekStart(dt);
+
+    df.push(row);
+    if (pf==='FAIL')
+      for (const init of row.Fail_Inits)
+        failExploded.push({...row, Fail_Init:init, Fail_Name:initMap[init]||init});
+  }
+
+  if (!df.length) throw new Error('No data rows found in Daily Results sheet');
+  df.sort((a,b) => a._date-b._date);
+}
+
+// ─── Period filtering ─────────────────────────────────────────────────────────
+function getFiltered() {
+  const period = document.getElementById('period-select').value;
+  const selQ   = document.getElementById('quarter-select').value;
+  if (!df.length) return {dff:[],dff_fails:[],maxDate:new Date(),minDate:new Date(),period};
+
+  const maxDate = new Date(Math.max(...df.map(r=>r._date)));
+  const PD = {'Last 7 Days':7,'Last 30 Days':30,'Last 90 Days':90,'Last 6 Months':182,'Last Year':365};
+  let dff, dff_fails;
+  if (PD[period]) {
+    const cut = new Date(maxDate); cut.setDate(cut.getDate()-PD[period]);
+    dff       = df.filter(r=>r._date>=cut);
+    dff_fails = failExploded.filter(r=>r._date>=cut);
+  } else if (period==='By Quarter') {
+    dff       = df.filter(r=>r.Quarter===selQ);
+    dff_fails = failExploded.filter(r=>r.Quarter===selQ);
+  } else {
+    dff=[...df]; dff_fails=[...failExploded];
+  }
+  const minDate = dff.length ? new Date(Math.min(...dff.map(r=>r._date))) : maxDate;
+  return {dff, dff_fails, maxDate, minDate, period};
+}
+
+// ─── KPIs ─────────────────────────────────────────────────────────────────────
+function renderKPIs({dff, dff_fails, minDate, maxDate, period}) {
+  const total  = dff.length;
+  const passes = dff.filter(r=>r.Is_Pass).length;
+  const fails  = dff.filter(r=>r.Is_Fail).length;
+  const fpy    = total ? (passes/total*100).toFixed(1) : '0.0';
+  const maxD   = dff.length ? new Date(Math.max(...dff.map(r=>r._date))) : maxDate;
+  const minD   = dff.length ? new Date(Math.min(...dff.map(r=>r._date))) : minDate;
+  const days   = Math.max((maxD-minD)/86400000, 1);
+  const avg    = (total/days).toFixed(1);
+
+  const failCnts = {};
+  for (const r of dff_fails) failCnts[r.Fail_Name]=(failCnts[r.Fail_Name]||0)+1;
+  const top = Object.entries(failCnts).sort((a,b)=>b[1]-a[1])[0];
+
+  document.getElementById('kpi-total').textContent    = total.toLocaleString();
+  document.getElementById('kpi-days-sub').textContent = `${Math.round(days)} days`;
+  document.getElementById('kpi-fpy').textContent      = fpy + '%';
+  document.getElementById('kpi-fpy-sub').textContent  = `${passes.toLocaleString()} passed`;
+  document.getElementById('kpi-fails').textContent    = fails.toLocaleString();
+  document.getElementById('kpi-fails-sub').textContent= total ? `${(fails/total*100).toFixed(1)}% rate` : '';
+  document.getElementById('kpi-avg').textContent      = avg;
+  document.getElementById('kpi-top').textContent      = top ? top[0] : '—';
+  document.getElementById('kpi-top-sub').textContent  = top ? `${top[1]} attributed fails` : '';
+
+  const selQ = document.getElementById('quarter-select').value;
+  const PD   = {'Last 7 Days':7,'Last 30 Days':30,'Last 90 Days':90,'Last 6 Months':182,'Last Year':365};
+  let label = period==='By Quarter' ? selQ : period==='All Time' ? 'All Time' : period;
+  if (PD[period]) {
+    const cut = new Date(maxDate); cut.setDate(cut.getDate()-PD[period]);
+    label += ` (${cut.toLocaleDateString('en-US',{month:'short',day:'numeric'})} – ${maxDate.toLocaleDateString('en-US',{month:'short',day:'numeric',year:'numeric'})})`;
+  }
+  document.getElementById('period-badge').textContent = 'Period: ' + label;
+  document.getElementById('data-summary').textContent =
+    `${fmtDate(new Date(Math.min(...df.map(r=>r._date))))} – ${fmtDate(new Date(Math.max(...df.map(r=>r._date))))} · ${df.length.toLocaleString()} records`;
+}
+
+// ─── TAB 1: Fail Attribution ──────────────────────────────────────────────────
+function renderTab1({dff, dff_fails}) {
+  const el = document.getElementById('tab1-content');
+  const totalFails = sumBy(dff,'Is_Fail');
+
+  if (!dff_fails.length) {
+    el.innerHTML = '<div class="alert alert-info mt-3">No attributed fails in this period.</div>'; return;
+  }
+
+  const byPerson = groupBy(dff_fails, 'Fail_Name');
+  const sorted = Object.entries(byPerson)
+    .map(([name,rows])=>({name,count:rows.length,pct:(rows.length/totalFails*100).toFixed(1)}))
+    .sort((a,b)=>b.count-a.count);
+
+  el.innerHTML = `
+    <div class="section-header">Fail Attribution</div>
+    <p class="text-muted small">Click a bar or row to see that person's full fail list.</p>
+    <div class="row g-3">
+      <div class="col-lg-7">
+        <canvas id="chart-fail-attr"></canvas>
+      </div>
+      <div class="col-lg-5">
+        <div class="table-responsive">
+          <table class="table table-sm table-hover">
+            <thead class="table-light"><tr><th>Person</th><th>Fails</th><th>% of Fails</th></tr></thead>
+            <tbody id="fail-attr-table">
+              ${sorted.map((r,i)=>`<tr class="person-row" data-idx="${i}">
+                <td>${r.name}</td><td>${r.count}</td><td>${r.pct}%</td>
+              </tr>`).join('')}
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+    <div id="tab1-drilldown"></div>
+    <div id="tab1-unattr"></div>`;
+
+  mkChart('chart-fail-attr', {
+    type:'bar',
+    data: { labels:sorted.map(r=>r.name), datasets:[{
+      data:sorted.map(r=>r.count), backgroundColor:BLUE, borderColor:NAVY, borderWidth:1,
+    }]},
+    options: {
+      indexAxis:'y', responsive:true,
+      plugins:{ legend:{display:false}, tooltip:{callbacks:{label:c=>` ${c.parsed.x} fails`}} },
+      scales:{ x:{beginAtZero:true, title:{display:true,text:'Fails Attributed'}} },
+      onClick:(_,elems)=>{
+        if (!elems.length) return;
+        showTab1Drilldown(sorted[elems[0].index].name, dff_fails);
+      }
+    }
+  });
+
+  el.querySelectorAll('#fail-attr-table .person-row').forEach(row=>{
+    row.addEventListener('click',()=>showTab1Drilldown(sorted[+row.dataset.idx].name, dff_fails));
+  });
+
+  // Unattributed
+  const unattr = dff.filter(r=>r.Is_Fail && r.Fail_Inits.length===0);
+  if (unattr.length) {
+    document.getElementById('tab1-unattr').innerHTML = `
+      <div class="mt-3">
+        <button class="btn btn-outline-warning btn-sm" type="button"
+          data-bs-toggle="collapse" data-bs-target="#unattr-collapse">
+          ⚠️ ${unattr.length} fails with no initials found in reason
+        </button>
+        <div class="collapse mt-2" id="unattr-collapse">
+          ${makeTable(['Date','Job #','Panel','Line','Reason'],
+            unattr.sort((a,b)=>b._date-a._date)
+              .map(r=>[fmtDate(r._date),r.Sales_Order,r.Panel,r.Line,r.Reason]))}
+        </div>
+      </div>`;
+  }
+}
+
+function showTab1Drilldown(person, dff_fails) {
+  const rows = dff_fails.filter(r=>r.Fail_Name===person).sort((a,b)=>b._date-a._date);
+  document.getElementById('tab1-drilldown').innerHTML = `
+    <div class="section-header mt-3 drilldown">📋 ${person} — All Attributed Fails</div>
+    ${makeTable(['Date','Job #','Panel','Line','Reason'],
+      rows.map(r=>[fmtDate(r._date),r.Sales_Order,r.Panel,r.Line,r.Reason]))}`;
+}
+
+// ─── TABS 2/3/4: Person Panels ────────────────────────────────────────────────
+function renderPersonTab(tabNum, roleCol, roleName) {
+  const el = document.getElementById(`tab${tabNum}-content`);
+  const {dff, dff_fails} = getFiltered();
+  const nameCol = `${roleCol}_Name`;
+
+  const sub = dff.filter(r=>r[roleCol]);
+  if (!sub.length) { el.innerHTML='<div class="alert alert-info mt-2">No data.</div>'; return; }
+
+  // Aggregate per person
+  const people = [...new Set(sub.map(r=>r[nameCol]))].filter(Boolean).sort();
+  const rows = people.map(person => {
+    const psub = sub.filter(r=>r[nameCol]===person);
+    const initials = [...new Set(psub.map(r=>r[roleCol]).filter(Boolean))];
+    const total = psub.length;
+    const myFails = psub.filter(r=>r.Is_Fail && r.Fail_Inits.some(i=>initials.includes(i))).length;
+    const failPct = total ? (myFails/total*100).toFixed(1) : null;
+    return {person, total, myFails, failPct, initials};
+  }).sort((a,b)=>b.total-a.total);
+
+  el.innerHTML = `
+    <div class="section-header">${roleName} Panels by Person</div>
+    <div class="table-responsive">
+      <table class="table table-sm table-hover">
+        <thead class="table-light"><tr>
+          <th>Person</th><th>Panels</th><th>My Fails</th><th>Fail %</th>
+        </tr></thead>
+        <tbody id="person-table-${tabNum}">
+          ${rows.map((r,i)=>`<tr class="person-row" data-idx="${i}">
+            <td>${r.person}</td>
+            <td>${r.total}</td>
+            <td>${r.myFails}</td>
+            <td class="${pctClass(r.failPct)}">${r.failPct!==null?r.failPct+'%':'—'}</td>
+          </tr>`).join('')}
+        </tbody>
+      </table>
+    </div>
+    <div class="row g-3 mt-1">
+      <div class="col-lg-8"><canvas id="chart-person-${tabNum}"></canvas></div>
+    </div>
+    <div id="person-drilldown-${tabNum}"></div>`;
+
+  // Bar chart: panels per person
+  mkChart(`chart-person-${tabNum}`, {
+    type:'bar',
+    data:{ labels:rows.map(r=>r.person), datasets:[
+      {label:'Total Panels', data:rows.map(r=>r.total), backgroundColor:BLUE},
+      {label:'My Fails',     data:rows.map(r=>r.myFails), backgroundColor:RED},
+    ]},
+    options:{ responsive:true, plugins:{legend:{position:'top'}},
+      scales:{y:{beginAtZero:true}},
+      onClick:(_,elems)=>{
+        if (!elems.length) return;
+        showPersonDrilldown(tabNum, rows[elems[0].index], dff, dff_fails, roleCol, roleName);
+      }
+    }
+  });
+
+  el.querySelectorAll(`#person-table-${tabNum} .person-row`).forEach(row=>{
+    row.addEventListener('click',()=>{
+      showPersonDrilldown(tabNum, rows[+row.dataset.idx], dff, dff_fails, roleCol, roleName);
+    });
+  });
+}
+
+function pctClass(v) {
+  if (v===null) return '';
+  v = parseFloat(v);
+  if (v>=15) return 'fail-pct-high';
+  if (v>=8)  return 'fail-pct-med';
+  return 'fail-pct-ok';
+}
+
+function showPersonDrilldown(tabNum, personRow, dff, dff_fails, roleCol, roleName) {
+  const {person, initials} = personRow;
+  const nameCol = `${roleCol}_Name`;
+  const init = initials[0];
+
+  const raw = dff.filter(r=>r[nameCol]===person).sort((a,b)=>b._date-a._date);
+
+  const tableRows = raw.map(r => {
+    const isFail = r.Is_Fail;
+    const myFail = isFail && r.Fail_Inits.includes(init);
+
+    // which role(s) did the attributed initials hold?
+    const roles = [];
+    if (r.Fail_Inits.length) {
+      for (const fi of r.Fail_Inits) {
+        if (r.Layout===fi) roles.push('Layout');
+        if (r.Wire===fi)   roles.push('Wire');
+        if (r.FA===fi)     roles.push('Final');
+      }
+    }
+
+    const attrPeople = !isFail ? '' :
+      r.Fail_Inits.length ? r.Fail_Inits.map(i=>initMap[i]||i).join(', ') : '— unattributed';
+
+    return {
+      cells:[fmtDate(r._date), r.Sales_Order||'', r.Pass_Fail, r.Panel||'',
+             r.Line||'', r.Reason||'', [...new Set(roles)].join(', '), attrPeople],
+      myFail
+    };
+  });
+
+  const ddEl = document.getElementById(`person-drilldown-${tabNum}`);
+  ddEl.innerHTML = `
+    <div class="section-header mt-3 drilldown">📋 ${person} — ${roleName} Panels</div>
+    <p class="small text-muted">
+      <span style="background:#fff0f0;padding:2px 6px;border-radius:3px">Red rows</span>
+      = fail attributed to ${person} in the ${roleName} role. Role column = which role caused each fail.
+    </p>
+    <div class="table-responsive">
+      <table class="table table-sm">
+        <thead class="table-light"><tr>
+          <th>Date</th><th>Job #</th><th>Pass/Fail</th><th>Panel</th>
+          <th>Line</th><th>Reason</th><th>Role</th><th>Failure Caused By</th>
+        </tr></thead>
+        <tbody>
+          ${tableRows.map(r=>`<tr class="${r.myFail?'fail-row':''}">
+            ${r.cells.map(c=>`<td>${c}</td>`).join('')}
+          </tr>`).join('')}
+        </tbody>
+      </table>
+    </div>`;
+}
+
+// ─── TAB 5: Trends ────────────────────────────────────────────────────────────
+function renderTab5({dff}) {
+  const el = document.getElementById('tab5-content');
+  el.innerHTML = `
+    <div class="section-header">Panels Built Over Time</div>
+    <div class="mb-2">
+      <div class="btn-group btn-group-sm" id="trend-grp-btns">
+        <button class="btn btn-outline-secondary" data-g="Day">Day</button>
+        <button class="btn btn-outline-secondary active" data-g="Week">Week</button>
+        <button class="btn btn-outline-secondary" data-g="Month">Month</button>
+      </div>
+    </div>
+    <canvas id="chart-trend" style="max-height:320px"></canvas>
+
+    <div class="section-header mt-4">Period Comparison</div>
+    <div class="mb-2">
+      <div class="btn-group btn-group-sm" id="compare-btns">
+        <button class="btn btn-outline-secondary active" data-c="Quarter">Quarter</button>
+        <button class="btn btn-outline-secondary" data-c="Month">Month</button>
+      </div>
+    </div>
+    <div class="row g-3">
+      <div class="col-lg-6"><canvas id="chart-comp-panels" style="max-height:280px"></canvas></div>
+      <div class="col-lg-6"><canvas id="chart-comp-fails"  style="max-height:280px"></canvas></div>
+    </div>
+    <div id="comp-table" class="mt-3"></div>
+
+    <div class="section-header mt-4">Person Summary</div>
+    <div id="person-summary-table"></div>`;
+
+  const grpState = {g:'Week', c:'Quarter'};
+
+  function drawTrend(g) {
+    const keyOf = r => g==='Month' ? r.MonthLabel : g==='Week' ? 'Wk '+r.Week : fmtDate(r._date);
+    const groups = {};
+    for (const r of dff) {
+      const k = keyOf(r);
+      if (!groups[k]) groups[k] = {panels:0, fails:0, sort:r._date};
+      groups[k].panels++; groups[k].fails+=r.Is_Fail;
+    }
+    const sorted = Object.entries(groups).sort((a,b)=>a[1].sort-b[1].sort);
+    mkChart('chart-trend',{type:'bar',
+      data:{labels:sorted.map(e=>e[0]),datasets:[
+        {label:'Panels',data:sorted.map(e=>e[1].panels),backgroundColor:BLUE},
+        {label:'Fails', data:sorted.map(e=>e[1].fails), backgroundColor:RED,  type:'line',
+         borderColor:RED, pointRadius:3, tension:.3, yAxisID:'y2'},
+      ]},
+      options:{responsive:true,scales:{y:{beginAtZero:true,title:{display:true,text:'Panels'}},
+        y2:{beginAtZero:true,position:'right',title:{display:true,text:'Fails'},grid:{drawOnChartArea:false}}}}
+    });
+  }
+
+  function drawComparison(c) {
+    const keyOf = r => c==='Quarter' ? r.Quarter : r.Month;
+    const groups = {};
+    for (const r of df) { // use full df for comparison
+      const k = keyOf(r); const lbl = c==='Quarter' ? r.Quarter : r.MonthLabel;
+      if (!groups[k]) groups[k] = {panels:0,fails:0,label:lbl,sort:r._date};
+      groups[k].panels++; groups[k].fails+=r.Is_Fail;
+    }
+    const sorted = Object.entries(groups).sort((a,b)=>a[0].localeCompare(b[0]));
+    const labels = sorted.map(e=>e[1].label);
+    const panels = sorted.map(e=>e[1].panels);
+    const failPcts = sorted.map(e=>(e[1].fails/e[1].panels*100).toFixed(1));
+
+    mkChart('chart-comp-panels',{type:'bar',
+      data:{labels,datasets:[{label:'Panels',data:panels,backgroundColor:BLUE}]},
+      options:{responsive:true,plugins:{legend:{display:false}},scales:{y:{beginAtZero:true}}}});
+
+    mkChart('chart-comp-fails',{type:'line',
+      data:{labels,datasets:[{label:'Fail %',data:failPcts,borderColor:RED,
+        backgroundColor:'rgba(192,57,43,.08)',fill:true,tension:.3,pointRadius:4,pointBackgroundColor:RED}]},
+      options:{responsive:true,plugins:{legend:{display:false}},
+        scales:{y:{beginAtZero:true,ticks:{callback:v=>v+'%'}}}}});
+
+    document.getElementById('comp-table').innerHTML = makeTable(
+      ['Period','Panels','Fails','Pass Rate%','Fail Rate%'],
+      sorted.map(([,v])=>[v.label,v.panels,v.fails,
+        ((v.panels-v.fails)/v.panels*100).toFixed(1)+'%',
+        (v.fails/v.panels*100).toFixed(1)+'%'])
+    );
+  }
+
+  // Person summary (all time)
+  function drawPersonSummary() {
+    const allInits = new Set();
+    for (const r of df) for (const col of ['Layout','Wire','FA'])
+      if (r[col]) allInits.add(r[col]);
+
+    const pRows = [...allInits].sort().map(init=>{
+      const disp = initMap[init]||init;
+      const cols = {};
+      for (const [col,lbl] of [['Layout','Layout'],['Wire','Wire'],['FA','Final']]) {
+        const sub = df.filter(r=>r[col]===init);
+        const n = sub.length;
+        const myFails = sub.filter(r=>r.Is_Fail && r.Fail_Inits.includes(init)).length;
+        cols[lbl+'P'] = n; cols[lbl+'F'] = n ? (myFails/n*100).toFixed(1) : null;
+      }
+      return {disp, ...cols};
+    }).filter(r=>r.LayoutP+r.WireP+r.FinalP>0)
+      .sort((a,b)=>b.LayoutP-a.LayoutP);
+
+    const fmtPct = v => v===null ? '<td>—</td>' : `<td class="${pctClass(v)}">${v}%</td>`;
+    document.getElementById('person-summary-table').innerHTML = `
+      <div class="table-responsive"><table class="table table-sm">
+        <thead class="table-light"><tr>
+          <th>Person</th>
+          <th>Layout Panels</th><th>Layout Fail%</th>
+          <th>Wire Panels</th><th>Wire Fail%</th>
+          <th>Final Panels</th><th>Final Fail%</th>
+        </tr></thead>
+        <tbody>${pRows.map(r=>`<tr>
+          <td>${r.disp}</td>
+          <td>${r.LayoutP}</td>${fmtPct(r.LayoutF)}
+          <td>${r.WireP}</td>${fmtPct(r.WireF)}
+          <td>${r.FinalP}</td>${fmtPct(r.FinalF)}
+        </tr>`).join('')}
+        </tbody>
+      </table></div>`;
+  }
+
+  drawTrend(grpState.g); drawComparison(grpState.c); drawPersonSummary();
+
+  el.querySelectorAll('#trend-grp-btns button').forEach(b=>{
+    b.addEventListener('click',()=>{
+      el.querySelectorAll('#trend-grp-btns button').forEach(x=>x.classList.remove('active'));
+      b.classList.add('active'); grpState.g=b.dataset.g; drawTrend(grpState.g);
+    });
+  });
+  el.querySelectorAll('#compare-btns button').forEach(b=>{
+    b.addEventListener('click',()=>{
+      el.querySelectorAll('#compare-btns button').forEach(x=>x.classList.remove('active'));
+      b.classList.add('active'); grpState.c=b.dataset.c; drawComparison(grpState.c);
+    });
+  });
+}
+
+// ─── TAB 6: Time Analysis (Supabase) ─────────────────────────────────────────
+async function renderTab6() {
+  const el = document.getElementById('tab6-content');
+  el.innerHTML = `<div class="section-header">⏱ Time Analysis — Actual vs Routing Hours</div>
+    <div id="page-spinner"><div class="spinner-border text-primary" style="width:1.5rem;height:1.5rem"></div> Loading tracker data…</div>`;
+
+  if (!timingLoaded) {
+    try {
+      const res = await fetch(
+        `${SB_URL}/rest/v1/panel_time_summary?select=*&order=layout_started_at.desc.nullslast&limit=10000`,
+        { headers:{ 'apikey':SB_ANON, 'Authorization':`Bearer ${SB_ANON}`, 'Accept':'application/json' } }
+      );
+      if (!res.ok) throw new Error(`HTTP ${res.status}`);
+      timingData = await res.json();
+      timingLoaded = true;
+    } catch(e) {
+      el.innerHTML = `<div class="alert alert-danger mt-3">Could not reach Supabase: ${e.message}</div>`;
+      return;
+    }
+  }
+
+  if (!timingData.length) {
+    el.innerHTML = '<div class="alert alert-info mt-3">No tracker data yet — start scanning panels.</div>';
+    return;
+  }
+
+  buildTimeAnalysis(el);
+}
+
+function buildTimeAnalysis(el) {
+  el.innerHTML = `
+    <div class="section-header">⏱ Time Analysis — Actual vs Routing Hours</div>
+    <div class="d-flex gap-2 align-items-center mb-2 flex-wrap">
+      <button class="btn btn-navy btn-sm" onclick="timingLoaded=false;renderTab6()">🔄 Refresh</button>
+      <span class="text-muted small">📊 ${timingData.length} panels loaded from Supabase</span>
+    </div>
+
+    <div class="row g-2 mb-3">
+      <div class="col-auto">
+        <label class="form-label small mb-0">Time Period</label>
+        <select id="ta-period" class="form-select form-select-sm">
+          <option>Last 7 Days</option><option>Last 30 Days</option>
+          <option selected>Last 90 Days</option><option>Last 6 Months</option>
+          <option>Last Year</option><option>By Month</option><option>All Time</option>
+        </select>
+      </div>
+      <div class="col-auto" id="ta-month-col" style="display:none">
+        <label class="form-label small mb-0">Month</label>
+        <select id="ta-month" class="form-select form-select-sm"></select>
+      </div>
+      <div class="col-auto d-flex align-items-end">
+        <div class="form-check">
+          <input class="form-check-input" type="checkbox" id="ta-complete" checked>
+          <label class="form-check-label small" for="ta-complete">Completed panels only</label>
+        </div>
+      </div>
+      <div class="col-auto">
+        <label class="form-label small mb-0">Worker</label>
+        <select id="ta-workers" class="form-select form-select-sm" multiple style="height:60px"></select>
+      </div>
+      <div class="col-auto">
+        <label class="form-label small mb-0">Panel #</label>
+        <select id="ta-panels" class="form-select form-select-sm" multiple style="height:60px"></select>
+      </div>
+    </div>
+
+    <div id="ta-kpis" class="row g-2 mb-3"></div>
+    <div id="ta-charts" class="row g-3"></div>
+    <div id="ta-worker-section"></div>
+    <div id="ta-breakdown"></div>`;
+
+  // Parse timing rows
+  const tm = timingData.map(r => {
+    const toNum = v => parseFloat(v)||0;
+    const layoutSecs = toNum(r.layout_secs);
+    const wireSecs   = toNum(r.wire_secs);
+    const finalSecs  = toNum(r.final_secs);
+    const techSecs   = toNum(r.tech_secs);
+    const actualH    = parseFloat(r.actual_total_hours)||null;
+    const routingH   = parseFloat(r.routing_hours)||null;
+
+    let dateBuilt = null;
+    if (r.layout_started_at) {
+      const d = new Date(r.layout_started_at);
+      if (!isNaN(d)) dateBuilt = d;
+    }
+
+    const isComplete = r.is_complete===true || r.is_complete==='true' || r.is_complete===1;
+    const isOver = r.is_over_time===true || r.is_over_time==='true' || r.is_over_time===1;
+
+    return {
+      ...r,
+      layoutH: layoutSecs/3600, wireH:wireSecs/3600,
+      finalH: finalSecs/3600,   techH: techSecs/3600,
+      actualH, routingH, dateBuilt, isComplete, isOver,
+    };
+  });
+
+  // Populate month dropdown
+  const months = [...new Set(tm.filter(r=>r.dateBuilt)
+    .map(r=>`${r.dateBuilt.getFullYear()}-${String(r.dateBuilt.getMonth()+1).padStart(2,'0')}`))]
+    .sort().reverse();
+  const mSel = document.getElementById('ta-month');
+  months.forEach(m=>{ const o=document.createElement('option'); o.value=o.textContent=m; mSel.append(o); });
+
+  // Populate worker & panel filters
+  const allWorkers = [...new Set(['layout_worker','wire_worker','final_worker','tech_worker']
+    .flatMap(c=>tm.map(r=>r[c]).filter(Boolean)))].sort();
+  const allPanels = [...new Set(tm.map(r=>r.panel_number).filter(Boolean))].sort();
+  const wSel = document.getElementById('ta-workers');
+  const pSel = document.getElementById('ta-panels');
+  allWorkers.forEach(w=>{ const o=document.createElement('option');o.value=o.textContent=w;wSel.append(o); });
+  allPanels.forEach(p=>{ const o=document.createElement('option');o.value=o.textContent=p;pSel.append(o); });
+
+  function drawTA() {
+    const period   = document.getElementById('ta-period').value;
+    const selMonth = document.getElementById('ta-month').value;
+    const complete = document.getElementById('ta-complete').checked;
+    const selW     = [...wSel.selectedOptions].map(o=>o.value);
+    const selP     = [...pSel.selectedOptions].map(o=>o.value);
+
+    // Period filter
+    const maxDate = new Date(Math.max(...tm.filter(r=>r.dateBuilt).map(r=>r.dateBuilt)));
+    const PD = {'Last 7 Days':7,'Last 30 Days':30,'Last 90 Days':90,'Last 6 Months':182,'Last Year':365};
+    let tmf = tm.filter(r=>r.dateBuilt);
+    if (PD[period]) {
+      const cut=new Date(maxDate); cut.setDate(cut.getDate()-PD[period]);
+      tmf=tmf.filter(r=>r.dateBuilt>=cut);
+    } else if (period==='By Month') {
+      tmf=tmf.filter(r=>{
+        const m=`${r.dateBuilt.getFullYear()}-${String(r.dateBuilt.getMonth()+1).padStart(2,'0')}`;
+        return m===selMonth;
+      });
+    }
+
+    if (complete) tmf=tmf.filter(r=>r.isComplete);
+    if (selP.length) tmf=tmf.filter(r=>selP.includes(r.panel_number));
+    if (selW.length) tmf=tmf.filter(r=>
+      selW.some(w=>[r.layout_worker,r.wire_worker,r.final_worker,r.tech_worker].includes(w)));
+
+    // KPIs
+    const nPanels   = tmf.length;
+    const withRH    = tmf.filter(r=>r.routingH).length;
+    const nOver     = tmf.filter(r=>r.isOver).length;
+    const pctOver   = withRH ? (nOver/withRH*100).toFixed(1) : '0.0';
+    const sumActual = tmf.reduce((s,r)=>s+(r.actualH||0),0);
+    const sumRoute  = tmf.reduce((s,r)=>s+(r.routingH||0),0);
+
+    const kpisEl = document.getElementById('ta-kpis');
+    const kpiData = [
+      ['Panels Tracked',  `${nPanels.toLocaleString()}`, `${withRH} with routing target`],
+      ['Over Time',       `${nOver}`, `${pctOver}% of those with target`],
+      ['Actual Work Time',sumActual?`${Math.floor(sumActual)}h ${Math.round((sumActual%1)*60)}m`:'—','summed across panels'],
+      ['Target Time',     sumRoute ?`${Math.floor(sumRoute)}h ${Math.round((sumRoute%1)*60)}m`:'—','summed routing hours'],
+    ];
+    kpisEl.innerHTML = kpiData.map(([lbl,val,sub])=>`
+      <div class="col"><div class="kpi-box">
+        <div class="kpi-label">${lbl}</div>
+        <div class="kpi-value">${val}</div>
+        <div class="kpi-sub">${sub}</div>
+      </div></div>`).join('');
+
+    if (!tmf.length) {
+      document.getElementById('ta-charts').innerHTML='<div class="col"><div class="alert alert-info">No data matches the selected filters.</div></div>';
+      document.getElementById('ta-worker-section').innerHTML='';
+      document.getElementById('ta-breakdown').innerHTML='';
+      return;
+    }
+
+    // Scatter: actual vs routing
+    const scatter = tmf.filter(r=>r.routingH&&r.actualH);
+    const scatterCfg = {
+      type:'scatter',
+      data:{ datasets:[
+        {label:'Over Time', data:scatter.filter(r=>r.isOver).map(r=>({x:r.routingH,y:r.actualH,panel:r.panel_number,job:r.job_number})),
+         backgroundColor:RED, pointRadius:5},
+        {label:'On Time',   data:scatter.filter(r=>!r.isOver).map(r=>({x:r.routingH,y:r.actualH,panel:r.panel_number,job:r.job_number})),
+         backgroundColor:GREEN, pointRadius:5},
+      ]},
+      options:{responsive:true,
+        plugins:{
+          legend:{position:'top'},
+          tooltip:{callbacks:{label:c=>`${c.dataset.label}: Panel ${c.raw.panel}, Job ${c.raw.job} — ${c.parsed.x.toFixed(2)}h target, ${c.parsed.y.toFixed(2)}h actual`}},
+        },
+        scales:{
+          x:{title:{display:true,text:'Target Hours (routing)'}},
+          y:{title:{display:true,text:'Actual Hours'}},
+        }
+      }
+    };
+
+    // Stage avg bar
+    const stageAvgs = ['Layout','Wire','Final','Tech'].map(s=>{
+      const col = s.toLowerCase()+'H';
+      const vals = tmf.map(r=>r[col]).filter(v=>v>0);
+      return {stage:s, avg:vals.length ? vals.reduce((a,b)=>a+b,0)/vals.length : null};
+    }).filter(s=>s.avg!==null);
+
+    document.getElementById('ta-charts').innerHTML=`
+      <div class="col-lg-7"><canvas id="chart-ta-scatter"></canvas></div>
+      <div class="col-lg-5"><canvas id="chart-ta-stages"></canvas></div>`;
+
+    mkChart('chart-ta-scatter', scatterCfg);
+    mkChart('chart-ta-stages',{type:'bar',
+      data:{labels:stageAvgs.map(s=>s.stage),datasets:[{
+        data:stageAvgs.map(s=>+s.avg.toFixed(3)),
+        backgroundColor:[BLUE,NAVY,'#4A90D9','#7FAFD9'],
+        label:'Avg Hours',
+      }]},
+      options:{indexAxis:'y',responsive:true,
+        plugins:{legend:{display:false},tooltip:{callbacks:{label:c=>` ${c.parsed.x.toFixed(2)}h`}}},
+        scales:{x:{beginAtZero:true,title:{display:true,text:'Avg Hours'}}}}
+    });
+
+    // Worker breakdown
+    const workerRows = [];
+    for (const [stage,wc,hc] of [['Layout','layout_worker','layoutH'],['Wire','wire_worker','wireH'],
+                                   ['Final','final_worker','finalH'],['Tech','tech_worker','techH']]) {
+      const grp = {};
+      for (const r of tmf) {
+        if (!r[wc]||!r[hc]) continue;
+        if (!grp[r[wc]]) grp[r[wc]]={panels:0,sum:0,min:Infinity,max:-Infinity};
+        grp[r[wc]].panels++; grp[r[wc]].sum+=r[hc];
+        grp[r[wc]].min=Math.min(grp[r[wc]].min,r[hc]);
+        grp[r[wc]].max=Math.max(grp[r[wc]].max,r[hc]);
+      }
+      for (const [worker,g] of Object.entries(grp))
+        workerRows.push({stage,worker,panels:g.panels,avg:g.sum/g.panels,min:g.min,max:g.max});
+    }
+
+    const wSec = document.getElementById('ta-worker-section');
+    if (workerRows.length) {
+      wSec.innerHTML=`<div class="section-header mt-3">Worker Time Breakdown</div>
+        <canvas id="chart-ta-workers" style="max-height:300px"></canvas>
+        <div id="worker-table" class="mt-3"></div>`;
+
+      const stages = [...new Set(workerRows.map(r=>r.stage))];
+      const workers = [...new Set(workerRows.map(r=>r.worker))].sort();
+      const stageColors = {Layout:BLUE, Wire:NAVY, Final:'#4A90D9', Tech:'#7FAFD9'};
+
+      mkChart('chart-ta-workers',{type:'bar',
+        data:{labels:workers,datasets:stages.map(s=>({
+          label:s,
+          data:workers.map(w=>{const r=workerRows.find(x=>x.stage===s&&x.worker===w);return r?+r.avg.toFixed(3):0;}),
+          backgroundColor:stageColors[s],
+        }))},
+        options:{responsive:true,scales:{y:{beginAtZero:true,title:{display:true,text:'Avg Hours'}}}}
+      });
+
+      document.getElementById('worker-table').innerHTML = makeTable(
+        ['Stage','Worker','Panels','Avg H:M:S','Min H:M:S','Max H:M:S'],
+        workerRows.sort((a,b)=>a.stage.localeCompare(b.stage)||a.worker.localeCompare(b.worker))
+          .map(r=>[r.stage,r.worker,r.panels,hms(r.avg),hms(r.min),hms(r.max)])
+      );
+    } else { wSec.innerHTML=''; }
+
+    // Time breakdown
+    const completed = tmf.filter(r=>r.actualH!==null);
+    const bdEl = document.getElementById('ta-breakdown');
+    if (!completed.length) { bdEl.innerHTML=''; return; }
+
+    const mean = (arr,k) => { const v=arr.map(r=>r[k]).filter(v=>v>0); return v.length?v.reduce((a,b)=>a+b,0)/v.length:null; };
+    const avgLayout=mean(completed,'layoutH'), avgWire=mean(completed,'wireH');
+    const avgFinal=mean(completed,'finalH'),   avgTech=mean(completed,'techH');
+    const avgTotal=mean(completed,'actualH');
+
+    const targets=[...new Set(completed.map(r=>r.routingH).filter(Boolean))];
+    const singleTarget = targets.length===1 ? targets[0] : null;
+    const isOver = singleTarget && avgTotal && avgTotal-singleTarget > 1/60;
+
+    bdEl.innerHTML=`
+      <div class="section-header mt-3">Time Breakdown</div>
+      <div class="row g-2 mb-3">
+        ${[['Avg Layout',avgLayout],['Avg Wire',avgWire],['Avg Final',avgFinal],['Avg Tech',avgTech]]
+          .map(([l,v])=>`<div class="col"><div class="kpi-box">
+            <div class="kpi-label">${l}</div>
+            <div class="kpi-value" style="font-size:20px">${hms(v)}</div>
+          </div></div>`).join('')}
+      </div>
+      <div class="row g-2 mb-3">
+        <div class="col"><div class="kpi-box" style="background:var(--tint);color:var(--navy)">
+          <div class="kpi-label">Target (routing)</div>
+          <div class="kpi-value" style="font-size:18px">${singleTarget?hms(singleTarget):'— (mixed)'}</div>
+        </div></div>
+        <div class="col"><div class="kpi-box" style="background:var(--tint);color:var(--navy)">
+          <div class="kpi-label">Avg Actual Total</div>
+          <div class="kpi-value" style="font-size:18px">${hms(avgTotal)}</div>
+        </div></div>
+        <div class="col"><div class="kpi-box" style="background:${isOver?'#fff0f0':'#f0fff4'};color:var(--navy)">
+          <div class="kpi-label">Delta</div>
+          <div class="kpi-value" style="font-size:18px;color:${isOver?RED:GREEN}">
+            ${singleTarget&&avgTotal?(isOver?'▲ ':'▼ ')+hms(Math.abs(avgTotal-singleTarget)):'—'}
+          </div>
+        </div></div>
+      </div>
+
+      <div class="section-header">Panel Detail</div>
+      ${makeTable(['Panel','Job','Date Built','Routing H','Actual H','Layout','Wire','Final','Tech','Status'],
+        completed.sort((a,b)=>(b.dateBuilt||0)-(a.dateBuilt||0)).map(r=>[
+          r.panel_number, r.job_number,
+          r.dateBuilt?fmtDate(r.dateBuilt):'—',
+          r.routingH?r.routingH.toFixed(2):'—',
+          r.actualH?r.actualH.toFixed(2):'—',
+          hms(r.layoutH), hms(r.wireH), hms(r.finalH), hms(r.techH),
+          `<span class="badge ${r.isOver?'badge-over':'badge-ok'}">${r.isOver?'Over':'On Time'}</span>`,
+        ]), (r,i)=>completed[i]?.isOver?'table-danger':'')}`;
+  }
+
+  document.getElementById('ta-period').addEventListener('change', function() {
+    document.getElementById('ta-month-col').style.display = this.value==='By Month'?'':'none';
+    drawTA();
+  });
+  ['ta-month','ta-complete','ta-workers','ta-panels'].forEach(id=>{
+    document.getElementById(id)?.addEventListener('change', drawTA);
+  });
+
+  drawTA();
+}
+
+// ─── Master render ────────────────────────────────────────────────────────────
+function render() {
+  const data = getFiltered();
+  renderKPIs(data);
+  renderTab1(data);
+  renderPersonTab(2,'Layout','Layout');
+  renderPersonTab(3,'Wire','Wire');
+  renderPersonTab(4,'FA','Final');
+  renderTab5(data);
+  // Tab6 renders on first click
+}
+
+// ─── File upload ──────────────────────────────────────────────────────────────
+function handleFile(file) {
+  if (!file) return;
+  const reader = new FileReader();
+  reader.onload = e => {
+    try {
+      parseExcel(e.target.result);
+      document.getElementById('upload-section').classList.add('d-none');
+      document.getElementById('dashboard').classList.remove('d-none');
+
+      // Populate quarter dropdown
+      const quarters = [...new Set(df.map(r=>r.Quarter))].sort();
+      const qSel = document.getElementById('quarter-select');
+      qSel.innerHTML = quarters.reverse().map(q=>`<option>${q}</option>`).join('');
+
+      render();
+    } catch(err) {
+      const errEl = document.getElementById('upload-error');
+      errEl.textContent = 'Error processing file: ' + err.message;
+      errEl.classList.remove('d-none');
+    }
+  };
+  reader.readAsArrayBuffer(file);
+}
+
+function resetDashboard() {
+  df=[]; failExploded=[]; timingLoaded=false; timingData=[];
+  Object.keys(charts).forEach(id=>destroyChart(id));
+  document.getElementById('upload-section').classList.remove('d-none');
+  document.getElementById('dashboard').classList.add('d-none');
+  document.getElementById('upload-error').classList.add('d-none');
+  document.getElementById('file-input').value='';
+}
+
+// ─── Event wiring ─────────────────────────────────────────────────────────────
+document.getElementById('file-input').addEventListener('change', e=>handleFile(e.target.files[0]));
+
+const uploadZone = document.querySelector('.upload-zone');
+uploadZone.addEventListener('dragover', e=>{ e.preventDefault(); uploadZone.style.background='#c0ccff'; });
+uploadZone.addEventListener('dragleave', ()=>{ uploadZone.style.background=''; });
+uploadZone.addEventListener('drop', e=>{ e.preventDefault(); uploadZone.style.background=''; handleFile(e.dataTransfer.files[0]); });
+
+document.getElementById('period-select').addEventListener('change', function() {
+  const qSel = document.getElementById('quarter-select');
+  qSel.classList.toggle('d-none', this.value!=='By Quarter');
+  render();
+});
+document.getElementById('quarter-select').addEventListener('change', render);
+
+// Lazy-load Tab 6 on first click
+document.querySelector('[data-bs-target="#tab6"]').addEventListener('click', ()=>{
+  if (!timingLoaded) renderTab6();
+});
+
+// Re-render role tabs when switching to them
+['#tab2','#tab3','#tab4'].forEach((sel,i)=>{
+  document.querySelector(`[data-bs-target="${sel}"]`).addEventListener('click', ()=>{
+    const {dff,dff_fails}=getFiltered();
+    const cfgs=[[2,'Layout','Layout'],[3,'Wire','Wire'],[4,'FA','Final']];
+    renderPersonTab(...cfgs[i]);
+  });
+});
+document.querySelector('[data-bs-target="#tab5"]').addEventListener('click', ()=>{
+  renderTab5(getFiltered());
+});
+</script>
+</body>
+</html>
