@@ -4,1103 +4,899 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>First Pass Quality Dashboard</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&family=Georgia&display=swap" rel="stylesheet">
 <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/css/bootstrap.min.css">
-<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.css">
 <style>
 :root {
   --navy:#000E57; --blue:#0F3CFF; --tint:#E7ECFF;
   --offwhite:#FFFEF5; --warmgray:#ABA18B; --red:#C0392B; --green:#27AE60;
 }
-body { background:var(--offwhite); font-family:Arial,sans-serif; min-height:100vh; }
-.navbar-brand { font-family:Georgia,serif; font-size:1.25rem; font-weight:bold; }
-.kpi-box { background:var(--navy); color:#fff; border-radius:8px; padding:16px 12px; text-align:center; }
-.kpi-label { font-size:10px; opacity:.75; letter-spacing:1px; text-transform:uppercase; }
-.kpi-value { font-size:28px; font-weight:bold; font-family:Georgia,serif; line-height:1.2; }
-.kpi-sub   { font-size:10px; opacity:.65; }
-.section-header {
-  background:var(--navy); color:#fff; padding:8px 16px;
-  border-radius:4px; font-family:Georgia; font-size:14px; font-weight:bold;
-  margin:20px 0 10px;
+* { box-sizing: border-box; }
+body { background:var(--offwhite); font-family:'Inter',Arial,sans-serif; font-size:14px; margin:0; }
+
+/* ── Navbar ── */
+.top-nav { background:var(--navy); padding:10px 20px; display:flex; align-items:center; justify-content:space-between; }
+.top-nav h1 { color:#fff; font-family:Georgia; font-size:1.2rem; margin:0; font-weight:normal; }
+.top-nav small { color:rgba(255,255,255,.6); font-size:11px; }
+
+/* ── Upload ── */
+#upload-section { max-width:640px; margin:80px auto; padding:0 20px; }
+.upload-card { background:#fff; border-radius:16px; box-shadow:0 4px 24px rgba(0,14,87,.10); padding:48px; text-align:center; border:2px dashed var(--blue); cursor:pointer; transition:background .2s,transform .15s; }
+.upload-card:hover { background:var(--tint); transform:translateY(-2px); }
+.upload-card h2 { font-family:Georgia; color:var(--navy); margin:12px 0 8px; }
+.upload-card p { color:var(--warmgray); font-size:13px; }
+.upload-icon { font-size:52px; }
+#upload-error { margin-top:16px; }
+
+/* ── Controls bar ── */
+#controls-bar {
+  position:sticky; top:0; z-index:200; background:#fff;
+  border-bottom:1px solid #e0e4f0; padding:8px 20px;
+  display:flex; gap:10px; align-items:center; flex-wrap:wrap;
+  box-shadow:0 2px 8px rgba(0,14,87,.06);
 }
-.period-badge { color:var(--blue); font-weight:bold; font-size:13px; }
-.upload-zone {
-  border:2px dashed var(--blue); border-radius:12px;
-  background:var(--tint); text-align:center; padding:60px 20px;
-  cursor:pointer; transition:background .2s;
+#controls-bar label { font-size:12px; color:var(--navy); font-weight:600; margin:0; }
+#controls-bar select { font-size:13px; padding:4px 8px; border:1px solid #c8d0e7; border-radius:6px; color:var(--navy); background:#fff; }
+#period-badge { color:var(--blue); font-size:12px; font-weight:600; }
+#data-summary { margin-left:auto; color:var(--warmgray); font-size:11px; }
+.reset-btn { margin-left:8px; background:transparent; border:1px solid #c8d0e7; color:var(--navy); border-radius:6px; padding:4px 10px; font-size:12px; cursor:pointer; }
+.reset-btn:hover { background:var(--tint); }
+
+/* ── KPI row ── */
+#kpi-row { display:grid; grid-template-columns:repeat(5,1fr); gap:12px; padding:16px 20px 0; }
+.kpi-card { background:var(--navy); color:#fff; border-radius:10px; padding:14px 16px; text-align:center; box-shadow:0 2px 8px rgba(0,14,87,.18); }
+.kpi-label { font-size:10px; opacity:.7; letter-spacing:.8px; text-transform:uppercase; }
+.kpi-value { font-size:26px; font-weight:700; font-family:Georgia; line-height:1.2; margin:2px 0; }
+.kpi-sub   { font-size:10px; opacity:.6; }
+
+/* ── Tabs ── */
+#tab-nav { display:flex; gap:0; padding:16px 20px 0; border-bottom:2px solid #e0e4f0; overflow-x:auto; }
+.tab-btn { background:none; border:none; border-bottom:3px solid transparent; padding:8px 14px; font-size:13px; font-weight:500; color:var(--warmgray); cursor:pointer; white-space:nowrap; transition:color .15s,border-color .15s; }
+.tab-btn:hover { color:var(--navy); }
+.tab-btn.active { color:var(--blue); border-bottom-color:var(--blue); font-weight:600; }
+
+/* ── Tab content ── */
+.tab-pane { display:none; padding:16px 20px 40px; }
+.tab-pane.active { display:block; }
+
+/* ── Section header ── */
+.section-hdr { background:var(--navy); color:#fff; padding:7px 14px; border-radius:5px; font-family:Georgia; font-size:14px; font-weight:bold; margin:20px 0 10px; }
+
+/* ── Group-by buttons ── */
+.grp-btns { display:flex; gap:6px; margin-bottom:12px; }
+.grp-btn { background:#fff; border:1px solid #c8d0e7; border-radius:6px; padding:4px 12px; font-size:12px; font-weight:500; color:var(--navy); cursor:pointer; transition:background .15s; }
+.grp-btn.active { background:var(--blue); color:#fff; border-color:var(--blue); }
+
+/* ── Tables ── */
+.tbl-wrap { overflow-x:auto; border-radius:8px; box-shadow:0 1px 4px rgba(0,0,0,.07); }
+table.dash-table { width:100%; border-collapse:collapse; font-size:12.5px; }
+table.dash-table thead tr { background:var(--navy); color:#fff; }
+table.dash-table thead th { padding:8px 10px; font-weight:500; white-space:nowrap; }
+table.dash-table tbody tr { border-bottom:1px solid #eef0f7; transition:background .1s; }
+table.dash-table tbody tr:hover { background:#f4f6ff; }
+table.dash-table tbody td { padding:6px 10px; vertical-align:middle; }
+table.dash-table tbody tr.row-fail { background:#fff0f0; }
+table.dash-table tbody tr.row-fail:hover { background:#ffe0e0; }
+.badge-over { background:var(--red); color:#fff; border-radius:4px; padding:2px 6px; font-size:11px; }
+.badge-ok   { background:var(--green); color:#fff; border-radius:4px; padding:2px 6px; font-size:11px; }
+.pct-high { color:var(--red); font-weight:700; }
+.pct-med  { color:darkorange; font-weight:700; }
+.pct-ok   { color:var(--green); font-weight:600; }
+
+/* ── Collapse / expander ── */
+.expander-btn { background:#fff8e1; border:1px solid #f0c040; border-radius:6px; padding:5px 12px; font-size:12px; color:#7a5c00; cursor:pointer; }
+.expander-btn:hover { background:#fff0a0; }
+.collapse-body { display:none; margin-top:8px; }
+.collapse-body.open { display:block; }
+
+/* ── Drilldown ── */
+.drilldown-box { border-left:4px solid var(--blue); padding-left:14px; margin-top:16px; }
+
+/* ── Charts ── */
+.chart-box { background:#fff; border-radius:10px; box-shadow:0 1px 6px rgba(0,0,0,.08); padding:4px; margin-bottom:16px; }
+.plot-div { min-height:300px; }
+
+/* ── Time Analysis filters ── */
+.ta-filters { display:flex; gap:10px; align-items:flex-end; flex-wrap:wrap; background:#fff; border-radius:10px; padding:12px 16px; margin-bottom:16px; box-shadow:0 1px 6px rgba(0,0,0,.07); }
+.ta-filters label { font-size:11px; font-weight:600; color:var(--navy); display:block; margin-bottom:2px; }
+.ta-filters select, .ta-filters input[type=checkbox] { font-size:13px; border:1px solid #c8d0e7; border-radius:6px; padding:4px 8px; }
+.ta-kpis { display:grid; grid-template-columns:repeat(4,1fr); gap:10px; margin-bottom:16px; }
+
+/* ── Spinner ── */
+.spinner-wrap { display:flex; align-items:center; gap:10px; padding:40px 0; color:var(--navy); font-family:Georgia; }
+.spinner { width:22px; height:22px; border:3px solid var(--tint); border-top-color:var(--blue); border-radius:50%; animation:spin .8s linear infinite; }
+@keyframes spin { to { transform:rotate(360deg); } }
+
+/* ── Responsive ── */
+@media(max-width:768px) {
+  #kpi-row { grid-template-columns:repeat(2,1fr); }
+  .kpi-value { font-size:20px; }
+  .ta-kpis { grid-template-columns:repeat(2,1fr); }
 }
-.upload-zone:hover { background:#d0dcff; }
-.nav-tabs .nav-link { color:var(--navy); }
-.nav-tabs .nav-link.active { color:var(--blue); font-weight:bold; }
-.table-hover tbody tr:hover { background:#f0f4ff; }
-.fail-row { background:#fff0f0 !important; }
-.btn-navy { background:var(--navy); color:#fff; border:none; }
-.btn-navy:hover { background:#001a8c; color:#fff; }
-.person-row { cursor:pointer; }
-.person-row:hover td { background:#eef1ff; }
-.drilldown { border-left:4px solid var(--blue); padding-left:12px; }
-#page-spinner { display:flex; align-items:center; justify-content:center; gap:10px;
-  padding:20px; color:var(--navy); font-family:Georgia; }
-.badge-over { background:var(--red); color:#fff; }
-.badge-ok   { background:var(--green); color:#fff; }
-.fail-pct-high { color:var(--red); font-weight:bold; }
-.fail-pct-med  { color:darkorange; font-weight:bold; }
-.fail-pct-ok   { color:var(--green); }
-.tab-content { padding-top:16px; }
-canvas { max-height:400px; }
 </style>
 </head>
 <body>
 
-<!-- Navbar -->
-<nav class="navbar px-3 py-2" style="background:var(--navy)">
-  <span class="navbar-brand text-white">🏭 First Pass Quality Dashboard</span>
-  <span class="text-white opacity-75 small">Kennesaw Panel Assembly · First Pass Yield & Technician Performance</span>
-</nav>
-
-<!-- Upload section -->
-<div id="upload-section" class="container py-5">
-  <div class="row justify-content-center">
-    <div class="col-md-6">
-      <div class="upload-zone" onclick="document.getElementById('file-input').click()">
-        <div style="font-size:48px">📂</div>
-        <h3 style="color:var(--navy);font-family:Georgia">Upload your report to get started</h3>
-        <p class="text-muted">Download the <b>First Pass Q Report</b> from Excel Online,<br>then drag it here or click to browse.</p>
-        <p class="text-muted small">Supports .xlsx files</p>
-      </div>
-      <input type="file" id="file-input" accept=".xlsx" style="display:none">
-      <div id="upload-error" class="alert alert-danger mt-3 d-none"></div>
-    </div>
-  </div>
+<div class="top-nav">
+  <h1>🏭 First Pass Quality Dashboard</h1>
+  <small>Kennesaw Panel Assembly · First Pass Yield & Technician Performance</small>
 </div>
 
-<!-- Main dashboard (hidden until file loaded) -->
-<div id="dashboard" class="d-none">
-  <!-- Controls bar -->
-  <div class="border-bottom py-2 px-3 d-flex flex-wrap gap-2 align-items-center"
-       style="background:#fff;position:sticky;top:0;z-index:100">
-    <label class="fw-bold small me-1" style="color:var(--navy)">Period:</label>
-    <select id="period-select" class="form-select form-select-sm" style="width:160px">
-      <option>Last 7 Days</option>
-      <option>Last 30 Days</option>
-      <option selected>Last 90 Days</option>
-      <option>Last 6 Months</option>
-      <option>Last Year</option>
-      <option>By Quarter</option>
-      <option>All Time</option>
+<!-- Upload -->
+<div id="upload-section">
+  <div class="upload-card" onclick="document.getElementById('file-input').click()"
+       ondragover="event.preventDefault();this.style.background='#d0dcff'"
+       ondragleave="this.style.background=''"
+       ondrop="event.preventDefault();this.style.background='';handleFile(event.dataTransfer.files[0])">
+    <div class="upload-icon">📂</div>
+    <h2>Upload your report to get started</h2>
+    <p>Download the <b>First Pass Q Report</b> from Excel Online,<br>then drag it here or click to browse.</p>
+    <p style="color:#aaa;font-size:11px">Supports .xlsx files</p>
+  </div>
+  <input type="file" id="file-input" accept=".xlsx" style="display:none" onchange="handleFile(this.files[0])">
+  <div id="upload-error" style="display:none" class="alert alert-danger mt-3"></div>
+</div>
+
+<!-- Dashboard -->
+<div id="dashboard" style="display:none">
+  <div id="controls-bar">
+    <label>Period:</label>
+    <select id="period-select" onchange="onPeriodChange()">
+      <option>Last 7 Days</option><option>Last 30 Days</option>
+      <option selected>Last 90 Days</option><option>Last 6 Months</option>
+      <option>Last Year</option><option>By Quarter</option><option>All Time</option>
     </select>
-    <select id="quarter-select" class="form-select form-select-sm d-none" style="width:130px"></select>
-    <span id="period-badge" class="period-badge ms-2"></span>
-    <span class="ms-auto text-muted small" id="data-summary"></span>
-    <button class="btn btn-sm btn-outline-secondary" onclick="resetDashboard()">⬆ Upload new file</button>
+    <select id="quarter-select" style="display:none" onchange="render()"></select>
+    <span id="period-badge"></span>
+    <span id="data-summary"></span>
+    <button class="reset-btn" onclick="resetDashboard()">⬆ New file</button>
   </div>
 
-  <!-- KPIs -->
-  <div class="container-fluid px-3 py-3">
-    <div class="row g-2 mb-3">
-      <div class="col"><div class="kpi-box">
-        <div class="kpi-label">Total Panels</div>
-        <div class="kpi-value" id="kpi-total">—</div>
-        <div class="kpi-sub" id="kpi-days-sub"></div>
-      </div></div>
-      <div class="col"><div class="kpi-box">
-        <div class="kpi-label">First Pass Yield</div>
-        <div class="kpi-value" id="kpi-fpy">—</div>
-        <div class="kpi-sub" id="kpi-fpy-sub"></div>
-      </div></div>
-      <div class="col"><div class="kpi-box">
-        <div class="kpi-label">Total Fails</div>
-        <div class="kpi-value" id="kpi-fails">—</div>
-        <div class="kpi-sub" id="kpi-fails-sub"></div>
-      </div></div>
-      <div class="col"><div class="kpi-box">
-        <div class="kpi-label">Avg / Day</div>
-        <div class="kpi-value" id="kpi-avg">—</div>
-        <div class="kpi-sub">panels per day</div>
-      </div></div>
-      <div class="col"><div class="kpi-box">
-        <div class="kpi-label">Most Fails From</div>
-        <div class="kpi-value" id="kpi-top" style="font-size:16px;padding-top:6px">—</div>
-        <div class="kpi-sub" id="kpi-top-sub"></div>
-      </div></div>
-    </div>
-
-    <!-- Tabs -->
-    <ul class="nav nav-tabs" id="mainTabs">
-      <li class="nav-item"><button class="nav-link active" data-bs-toggle="tab" data-bs-target="#tab1">📛 Fail Attribution</button></li>
-      <li class="nav-item"><button class="nav-link" data-bs-toggle="tab" data-bs-target="#tab2">🔧 Layout by Person</button></li>
-      <li class="nav-item"><button class="nav-link" data-bs-toggle="tab" data-bs-target="#tab3">🔌 Wire by Person</button></li>
-      <li class="nav-item"><button class="nav-link" data-bs-toggle="tab" data-bs-target="#tab4">✅ Final by Person</button></li>
-      <li class="nav-item"><button class="nav-link" data-bs-toggle="tab" data-bs-target="#tab5">📈 Trends</button></li>
-      <li class="nav-item"><button class="nav-link" data-bs-toggle="tab" data-bs-target="#tab6">⏱ Time Analysis</button></li>
-    </ul>
-
-    <div class="tab-content">
-      <div class="tab-pane fade show active" id="tab1"><div id="tab1-content"></div></div>
-      <div class="tab-pane fade" id="tab2"><div id="tab2-content"></div></div>
-      <div class="tab-pane fade" id="tab3"><div id="tab3-content"></div></div>
-      <div class="tab-pane fade" id="tab4"><div id="tab4-content"></div></div>
-      <div class="tab-pane fade" id="tab5"><div id="tab5-content"></div></div>
-      <div class="tab-pane fade" id="tab6"><div id="tab6-content"></div></div>
-    </div>
+  <div id="kpi-row">
+    <div class="kpi-card"><div class="kpi-label">Total Panels</div><div class="kpi-value" id="kv-total">—</div><div class="kpi-sub" id="ks-days"></div></div>
+    <div class="kpi-card"><div class="kpi-label">First Pass Yield</div><div class="kpi-value" id="kv-fpy">—</div><div class="kpi-sub" id="ks-fpy"></div></div>
+    <div class="kpi-card"><div class="kpi-label">Total Fails</div><div class="kpi-value" id="kv-fails">—</div><div class="kpi-sub" id="ks-fails"></div></div>
+    <div class="kpi-card"><div class="kpi-label">Avg / Day</div><div class="kpi-value" id="kv-avg">—</div><div class="kpi-sub">panels per day</div></div>
+    <div class="kpi-card"><div class="kpi-label">Most Fails From</div><div class="kpi-value" id="kv-top" style="font-size:15px;padding-top:4px">—</div><div class="kpi-sub" id="ks-top"></div></div>
   </div>
+
+  <div id="tab-nav">
+    <button class="tab-btn active" data-tab="t1">📛 Fail Attribution</button>
+    <button class="tab-btn" data-tab="t2">🔧 Layout by Person</button>
+    <button class="tab-btn" data-tab="t3">🔌 Wire by Person</button>
+    <button class="tab-btn" data-tab="t4">✅ Final by Person</button>
+    <button class="tab-btn" data-tab="t5">📈 Trends</button>
+    <button class="tab-btn" data-tab="t6">⏱ Time Analysis</button>
+  </div>
+
+  <div id="t1" class="tab-pane active"></div>
+  <div id="t2" class="tab-pane"></div>
+  <div id="t3" class="tab-pane"></div>
+  <div id="t4" class="tab-pane"></div>
+  <div id="t5" class="tab-pane"></div>
+  <div id="t6" class="tab-pane"></div>
 </div>
 
-<script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/js/bootstrap.bundle.min.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
-<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.2/dist/chart.umd.min.js"></script>
+<script src="https://cdn.plot.ly/plotly-2.35.2.min.js"></script>
 <script>
-// ─── Constants ───────────────────────────────────────────────────────────────
-const NAVY = '#000E57', BLUE = '#0F3CFF', TINT = '#E7ECFF';
-const RED = '#C0392B', GREEN = '#27AE60', WARMGRAY = '#ABA18B';
-const SB_URL  = 'https://ptbhguthosenkffjhbry.supabase.co';
-const SB_ANON = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InB0YmhndXRob3NlbmtmZmpoYnJ5Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODQ5MDkzNzAsImV4cCI6MjEwMDQ4NTM3MH0.y71yXWsIUjzFBqC4itzZ36w9ixw_QDej2RaBPh8MLPI';
+// ─── Constants ────────────────────────────────────────────────────────────────
+const NAVY='#000E57',BLUE='#0F3CFF',TINT='#E7ECFF',OFFWHITE='#FFFEF5';
+const WARMGRAY='#ABA18B',RED='#C0392B',GREEN='#27AE60';
+const QUALITATIVE=['#636EFA','#EF553B','#00CC96','#AB63FA','#FFA15A','#19D3F3','#FF6692','#B6E880','#FF97FF','#FECB52'];
+const SB_URL='https://ptbhguthosenkffjhbry.supabase.co';
+const SB_ANON='eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InB0YmhndXRob3NlbmtmZmpoYnJ5Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODQ5MDkzNzAsImV4cCI6MjEwMDQ4NTM3MH0.y71yXWsIUjzFBqC4itzZ36w9ixw_QDej2RaBPh8MLPI';
 
 // ─── State ────────────────────────────────────────────────────────────────────
-let df = [], initMap = {}, knownInits = new Set(), failExploded = [];
-let timingData = [], timingLoaded = false;
-const charts = {};
+let df=[], initMap={}, knownInits=new Set(), failExploded=[];
+let timingData=[], timingLoaded=false;
+const grpState={t2:'Month',t3:'Month',t4:'Month'};
+let activeTab='t1';
 
-// ─── Utility ─────────────────────────────────────────────────────────────────
-const fmtDate = d => !d ? '' : (d instanceof Date ? d : new Date(d)).toISOString().slice(0,10);
-const hms = h => {
-  if (!h || isNaN(h)) return '—';
-  const s = Math.round(h * 3600);
-  return `${Math.floor(s/3600)}:${String(Math.floor(s%3600/60)).padStart(2,'0')}:${String(s%60).padStart(2,'0')}`;
-};
+// ─── Plotly default layout ────────────────────────────────────────────────────
+const baseLayout = (extra={}) => Object.assign({
+  plot_bgcolor:OFFWHITE, paper_bgcolor:'rgba(0,0,0,0)',
+  font:{family:'Inter,Arial',color:NAVY,size:12},
+  margin:{l:10,r:20,t:40,b:30},
+  hoverlabel:{bgcolor:NAVY,font:{color:'#fff',family:'Inter',size:12}},
+  legend:{font:{size:11}},
+  xaxis:{gridcolor:'#e8ebf5',zerolinecolor:'#e8ebf5'},
+  yaxis:{gridcolor:'#e8ebf5',zerolinecolor:'#e8ebf5'},
+}, extra);
+
+const pCfg = {responsive:true, displayModeBar:true,
+  modeBarButtonsToRemove:['select2d','lasso2d','autoScale2d'],
+  displaylogo:false};
+
+function newPlot(id, data, layout) { Plotly.newPlot(id, data, Object.assign(baseLayout(), layout), pCfg); }
+
+// ─── Utilities ────────────────────────────────────────────────────────────────
+const fmtDate = d => d instanceof Date ? d.toISOString().slice(0,10) : '';
+const hms = h => { if(!h||isNaN(h))return'—'; const s=Math.round(h*3600); return `${Math.floor(s/3600)}:${String(Math.floor(s%3600/60)).padStart(2,'0')}:${String(s%60).padStart(2,'0')}`; };
+const pctCls = v => { v=parseFloat(v); if(isNaN(v))return''; return v>=15?'pct-high':v>=8?'pct-med':'pct-ok'; };
 
 function shortName(full) {
-  full = String(full||'').trim();
-  if (!full || full.toLowerCase()==='nan') return '';
-  let first, last;
-  if (full.includes(',')) {
-    [last, first] = full.split(',',2).map(s=>s.trim());
-  } else {
-    const p = full.trim().split(/\s+/);
-    first = p[0]; last = p.length>1 ? p[p.length-1] : '';
-  }
-  return last ? `${first} ${last[0]}.` : first;
+  full=String(full||'').trim();
+  if(!full||full.toLowerCase()==='nan')return'';
+  let first,last;
+  if(full.includes(',')){ [last,first]=full.split(',',2).map(s=>s.trim()); }
+  else { const p=full.trim().split(/\s+/); first=p[0]; last=p.length>1?p[p.length-1]:''; }
+  return last?`${first} ${last[0]}.`:first;
 }
 
-function extractAllInitials(text, knownSet) {
-  if (typeof text !== 'string') return [];
-  const res = [];
-  for (const m of text.matchAll(/\(([^)]+)\)/g))
-    for (const im of m[1].matchAll(/[A-Z]{2,3}/g))
-      if (knownSet.has(im[0])) res.push(im[0]);
-  return res;
+function extractAllInitials(text,ks) {
+  if(typeof text!=='string')return[];
+  const r=[];
+  for(const m of text.matchAll(/\(([^)]+)\)/g))
+    for(const im of m[1].matchAll(/[A-Z]{2,3}/g))
+      if(ks.has(im[0]))r.push(im[0]);
+  return r;
 }
 
 function fiscalQ(d) {
-  const m = d.getMonth()+1, y = d.getFullYear();
-  const fy = m>=10 ? y+1 : y;
-  const q  = m>=10 ? 1 : m<=3 ? 2 : m<=6 ? 3 : 4;
+  const m=d.getMonth()+1,y=d.getFullYear();
+  const fy=m>=10?y+1:y;
+  const q=m>=10?1:m<=3?2:m<=6?3:4;
   return `FY${String(fy).slice(2)} Q${q}`;
 }
 
-function weekStart(d) {
-  const w = new Date(d); w.setDate(d.getDate()-d.getDay()); return fmtDate(w);
+function weekStart(d) { const w=new Date(d); w.setDate(d.getDate()-d.getDay()); return fmtDate(w); }
+
+function groupBy(arr,fn) { const m={}; for(const r of arr){ const k=typeof fn==='function'?fn(r):r[fn]; if(!m[k])m[k]=[]; m[k].push(r); } return m; }
+
+function tbl(cols, rows, rowCls) {
+  return `<div class="tbl-wrap"><table class="dash-table">
+    <thead><tr>${cols.map(c=>`<th>${c}</th>`).join('')}</tr></thead>
+    <tbody>${rows.map((r,i)=>`<tr class="${rowCls?rowCls(i):''}">${r.map(c=>`<td>${c??''}</td>`).join('')}</tr>`).join('')}
+    </tbody></table></div>`;
 }
 
-function destroyChart(id) {
-  if (charts[id]) { charts[id].destroy(); delete charts[id]; }
-}
-
-function mkChart(id, cfg) {
-  destroyChart(id);
-  const el = document.getElementById(id);
-  if (el) charts[id] = new Chart(el.getContext('2d'), cfg);
-}
-
-function groupBy(arr, key) {
-  const m = {};
-  for (const r of arr) {
-    const k = typeof key === 'function' ? key(r) : r[key];
-    if (!m[k]) m[k] = [];
-    m[k].push(r);
-  }
-  return m;
-}
-
-function sumBy(arr, key) { return arr.reduce((s,r) => s + (r[key]||0), 0); }
-
-function makeTable(cols, rows, rowClass) {
-  return `<div class="table-responsive"><table class="table table-sm table-hover mb-0">
-    <thead class="table-light"><tr>${cols.map(c=>`<th>${c}</th>`).join('')}</tr></thead>
-    <tbody>${rows.map((r,i)=>`<tr class="${rowClass?rowClass(r,i):''}">${r.map(c=>`<td>${c??''}</td>`).join('')}</tr>`).join('')}</tbody>
-  </table></div>`;
-}
-
-// ─── Excel parsing ────────────────────────────────────────────────────────────
+// ─── Excel Parse ──────────────────────────────────────────────────────────────
 function parseExcel(buf) {
-  const wb = XLSX.read(buf, { type:'array', cellDates:true });
-
-  // Names sheet
-  const ns = wb.Sheets['Names'];
-  initMap = {}; knownInits = new Set();
-  if (ns) {
-    for (const r of XLSX.utils.sheet_to_json(ns)) {
-      const init = String(r['Initials']||'').trim();
-      if (init && r['Name']) { initMap[init] = shortName(r['Name']); knownInits.add(init); }
-    }
+  const wb=XLSX.read(buf,{type:'array',cellDates:true});
+  initMap={}; knownInits=new Set();
+  const ns=wb.Sheets['Names'];
+  if(ns) for(const r of XLSX.utils.sheet_to_json(ns)) {
+    const i=String(r['Initials']||'').trim();
+    if(i&&r['Name']){ initMap[i]=shortName(r['Name']); knownInits.add(i); }
   }
-
-  // Daily Results
-  const drName = wb.SheetNames.find(n=>n==='Daily Results') || wb.SheetNames.find(n=>n==='old daily results');
-  if (!drName) throw new Error('Could not find "Daily Results" sheet');
-
-  const COLS = ['Panel','Date','Pass_Fail','Reason','Line','Emp','Routing_Hours','Tech','Layout','Wire','FA','Sales_Order'];
-  const raw  = XLSX.utils.sheet_to_json(wb.Sheets[drName], {header:1});
-
-  df = []; failExploded = [];
-
-  for (let i=1; i<raw.length; i++) {
-    const r = raw[i];
-    if (!r || r.length < 2) continue;
-    const row = {};
-    COLS.forEach((c,j) => row[c] = r[j]);
-
-    // parse date
-    let d = row['Date'];
-    if (!d) continue;
-    if (d instanceof Date) row._date = d;
-    else if (typeof d === 'number') row._date = new Date((d-25569)*86400*1000);
-    else row._date = new Date(d);
-    if (isNaN(row._date)) continue;
-
-    const pf = String(row.Pass_Fail||'').trim().toUpperCase()
-      .replace('FALL','FAIL').replace(/^PAS$/,'PASS');
-    row.Pass_Fail = pf;
-
-    for (const c of ['Layout','Wire','Tech','FA'])
-      row[c] = String(row[c]||'').trim().toUpperCase().replace(/^NAN$/i,'');
-
-    const nameOf = init => { const i=String(init||'').trim().toUpperCase(); return i?(initMap[i]||i):''; };
-    row.Layout_Name = nameOf(row.Layout);
-    row.Wire_Name   = nameOf(row.Wire);
-    row.FA_Name     = nameOf(row.FA);
-    row.Tech_Name   = nameOf(row.Tech);
-    row.Fail_Inits  = extractAllInitials(String(row.Reason||''), knownInits);
-    row.Is_Fail     = pf==='FAIL' ? 1 : 0;
-    row.Is_Pass     = pf==='PASS' ? 1 : 0;
-
-    const dt = row._date;
-    row.Month      = `${dt.getFullYear()}-${String(dt.getMonth()+1).padStart(2,'0')}`;
-    row.MonthLabel = dt.toLocaleDateString('en-US',{month:'short',year:'numeric'});
-    row.Quarter    = fiscalQ(dt);
-    row.Week       = weekStart(dt);
-
+  const drName=wb.SheetNames.find(n=>n==='Daily Results')||wb.SheetNames.find(n=>n==='old daily results');
+  if(!drName) throw new Error('Could not find "Daily Results" sheet');
+  const COLS=['Panel','Date','Pass_Fail','Reason','Line','Emp','Routing_Hours','Tech','Layout','Wire','FA','Sales_Order'];
+  const raw=XLSX.utils.sheet_to_json(wb.Sheets[drName],{header:1});
+  df=[]; failExploded=[];
+  for(let i=1;i<raw.length;i++){
+    const r=raw[i]; if(!r||r.length<2)continue;
+    const row={}; COLS.forEach((c,j)=>row[c]=r[j]);
+    let d=row['Date']; if(!d)continue;
+    if(d instanceof Date) row._date=d;
+    else if(typeof d==='number') row._date=new Date((d-25569)*86400*1000);
+    else row._date=new Date(d);
+    if(isNaN(row._date))continue;
+    const pf=String(row.Pass_Fail||'').trim().toUpperCase().replace('FALL','FAIL').replace(/^PAS$/,'PASS');
+    row.Pass_Fail=pf;
+    for(const c of['Layout','Wire','Tech','FA'])
+      row[c]=String(row[c]||'').trim().toUpperCase().replace(/^NAN$/i,'');
+    const nm=i=>{const x=String(i||'').trim().toUpperCase();return x?(initMap[x]||x):'';};
+    row.Layout_Name=nm(row.Layout); row.Wire_Name=nm(row.Wire);
+    row.FA_Name=nm(row.FA); row.Tech_Name=nm(row.Tech);
+    row.Fail_Inits=extractAllInitials(String(row.Reason||''),knownInits);
+    row.Is_Fail=pf==='FAIL'?1:0; row.Is_Pass=pf==='PASS'?1:0;
+    const dt=row._date;
+    row.Month=`${dt.getFullYear()}-${String(dt.getMonth()+1).padStart(2,'0')}`;
+    row.MonthLabel=dt.toLocaleDateString('en-US',{month:'short',year:'numeric'});
+    row.Quarter=fiscalQ(dt);
+    row.Week=weekStart(dt);
     df.push(row);
-    if (pf==='FAIL')
-      for (const init of row.Fail_Inits)
-        failExploded.push({...row, Fail_Init:init, Fail_Name:initMap[init]||init});
+    if(pf==='FAIL') for(const init of row.Fail_Inits)
+      failExploded.push({...row,Fail_Init:init,Fail_Name:initMap[init]||init});
   }
-
-  if (!df.length) throw new Error('No data rows found in Daily Results sheet');
-  df.sort((a,b) => a._date-b._date);
+  if(!df.length) throw new Error('No data rows in Daily Results');
+  df.sort((a,b)=>a._date-b._date);
 }
 
-// ─── Period filtering ─────────────────────────────────────────────────────────
+// ─── Period filter ────────────────────────────────────────────────────────────
 function getFiltered() {
-  const period = document.getElementById('period-select').value;
-  const selQ   = document.getElementById('quarter-select').value;
-  if (!df.length) return {dff:[],dff_fails:[],maxDate:new Date(),minDate:new Date(),period};
-
-  const maxDate = new Date(Math.max(...df.map(r=>r._date)));
-  const PD = {'Last 7 Days':7,'Last 30 Days':30,'Last 90 Days':90,'Last 6 Months':182,'Last Year':365};
-  let dff, dff_fails;
-  if (PD[period]) {
-    const cut = new Date(maxDate); cut.setDate(cut.getDate()-PD[period]);
-    dff       = df.filter(r=>r._date>=cut);
-    dff_fails = failExploded.filter(r=>r._date>=cut);
-  } else if (period==='By Quarter') {
-    dff       = df.filter(r=>r.Quarter===selQ);
-    dff_fails = failExploded.filter(r=>r.Quarter===selQ);
-  } else {
-    dff=[...df]; dff_fails=[...failExploded];
-  }
-  const minDate = dff.length ? new Date(Math.min(...dff.map(r=>r._date))) : maxDate;
-  return {dff, dff_fails, maxDate, minDate, period};
+  const period=document.getElementById('period-select').value;
+  const selQ=document.getElementById('quarter-select').value;
+  if(!df.length)return{dff:[],dff_fails:[],maxDate:new Date(),period};
+  const maxDate=new Date(Math.max(...df.map(r=>r._date)));
+  const PD={'Last 7 Days':7,'Last 30 Days':30,'Last 90 Days':90,'Last 6 Months':182,'Last Year':365};
+  let dff,dff_fails;
+  if(PD[period]){
+    const cut=new Date(maxDate); cut.setDate(cut.getDate()-PD[period]);
+    dff=df.filter(r=>r._date>=cut); dff_fails=failExploded.filter(r=>r._date>=cut);
+  } else if(period==='By Quarter'){
+    dff=df.filter(r=>r.Quarter===selQ); dff_fails=failExploded.filter(r=>r.Quarter===selQ);
+  } else { dff=[...df]; dff_fails=[...failExploded]; }
+  const minDate=dff.length?new Date(Math.min(...dff.map(r=>r._date))):maxDate;
+  return{dff,dff_fails,maxDate,minDate,period};
 }
 
 // ─── KPIs ─────────────────────────────────────────────────────────────────────
-function renderKPIs({dff, dff_fails, minDate, maxDate, period}) {
-  const total  = dff.length;
-  const passes = dff.filter(r=>r.Is_Pass).length;
-  const fails  = dff.filter(r=>r.Is_Fail).length;
-  const fpy    = total ? (passes/total*100).toFixed(1) : '0.0';
-  const maxD   = dff.length ? new Date(Math.max(...dff.map(r=>r._date))) : maxDate;
-  const minD   = dff.length ? new Date(Math.min(...dff.map(r=>r._date))) : minDate;
-  const days   = Math.max((maxD-minD)/86400000, 1);
-  const avg    = (total/days).toFixed(1);
-
-  const failCnts = {};
-  for (const r of dff_fails) failCnts[r.Fail_Name]=(failCnts[r.Fail_Name]||0)+1;
-  const top = Object.entries(failCnts).sort((a,b)=>b[1]-a[1])[0];
-
-  document.getElementById('kpi-total').textContent    = total.toLocaleString();
-  document.getElementById('kpi-days-sub').textContent = `${Math.round(days)} days`;
-  document.getElementById('kpi-fpy').textContent      = fpy + '%';
-  document.getElementById('kpi-fpy-sub').textContent  = `${passes.toLocaleString()} passed`;
-  document.getElementById('kpi-fails').textContent    = fails.toLocaleString();
-  document.getElementById('kpi-fails-sub').textContent= total ? `${(fails/total*100).toFixed(1)}% rate` : '';
-  document.getElementById('kpi-avg').textContent      = avg;
-  document.getElementById('kpi-top').textContent      = top ? top[0] : '—';
-  document.getElementById('kpi-top-sub').textContent  = top ? `${top[1]} attributed fails` : '';
-
-  const selQ = document.getElementById('quarter-select').value;
-  const PD   = {'Last 7 Days':7,'Last 30 Days':30,'Last 90 Days':90,'Last 6 Months':182,'Last Year':365};
-  let label = period==='By Quarter' ? selQ : period==='All Time' ? 'All Time' : period;
-  if (PD[period]) {
-    const cut = new Date(maxDate); cut.setDate(cut.getDate()-PD[period]);
-    label += ` (${cut.toLocaleDateString('en-US',{month:'short',day:'numeric'})} – ${maxDate.toLocaleDateString('en-US',{month:'short',day:'numeric',year:'numeric'})})`;
+function renderKPIs({dff,dff_fails,minDate,maxDate,period}) {
+  const tot=dff.length,pass=dff.filter(r=>r.Is_Pass).length,fail=dff.filter(r=>r.Is_Fail).length;
+  const fpy=tot?(pass/tot*100).toFixed(1):'0.0';
+  const maxD=dff.length?new Date(Math.max(...dff.map(r=>r._date))):maxDate;
+  const minD=dff.length?new Date(Math.min(...dff.map(r=>r._date))):minDate;
+  const days=Math.max((maxD-minD)/86400000,1);
+  const fc={}; for(const r of dff_fails) fc[r.Fail_Name]=(fc[r.Fail_Name]||0)+1;
+  const top=Object.entries(fc).sort((a,b)=>b[1]-a[1])[0];
+  document.getElementById('kv-total').textContent=tot.toLocaleString();
+  document.getElementById('ks-days').textContent=`${Math.round(days)} days`;
+  document.getElementById('kv-fpy').textContent=fpy+'%';
+  document.getElementById('ks-fpy').textContent=`${pass.toLocaleString()} passed`;
+  document.getElementById('kv-fails').textContent=fail.toLocaleString();
+  document.getElementById('ks-fails').textContent=tot?`${(fail/tot*100).toFixed(1)}% rate`:'';
+  document.getElementById('kv-avg').textContent=(tot/days).toFixed(1);
+  document.getElementById('kv-top').textContent=top?top[0]:'—';
+  document.getElementById('ks-top').textContent=top?`${top[1]} attributed fails`:'';
+  // Period badge
+  const PD={'Last 7 Days':7,'Last 30 Days':30,'Last 90 Days':90,'Last 6 Months':182,'Last Year':365};
+  const selQ=document.getElementById('quarter-select').value;
+  let lbl=period==='By Quarter'?selQ:period==='All Time'?'All Time':period;
+  if(PD[period]){
+    const cut=new Date(maxDate); cut.setDate(cut.getDate()-PD[period]);
+    lbl+=` (${cut.toLocaleDateString('en-US',{month:'short',day:'numeric'})} – ${maxDate.toLocaleDateString('en-US',{month:'short',day:'numeric',year:'numeric'})})`;
   }
-  document.getElementById('period-badge').textContent = 'Period: ' + label;
-  document.getElementById('data-summary').textContent =
+  document.getElementById('period-badge').textContent='Period: '+lbl;
+  document.getElementById('data-summary').textContent=
     `${fmtDate(new Date(Math.min(...df.map(r=>r._date))))} – ${fmtDate(new Date(Math.max(...df.map(r=>r._date))))} · ${df.length.toLocaleString()} records`;
 }
 
 // ─── TAB 1: Fail Attribution ──────────────────────────────────────────────────
-function renderTab1({dff, dff_fails}) {
-  const el = document.getElementById('tab1-content');
-  const totalFails = sumBy(dff,'Is_Fail');
-
-  if (!dff_fails.length) {
-    el.innerHTML = '<div class="alert alert-info mt-3">No attributed fails in this period.</div>'; return;
-  }
-
-  const byPerson = groupBy(dff_fails, 'Fail_Name');
-  const sorted = Object.entries(byPerson)
-    .map(([name,rows])=>({name,count:rows.length,pct:(rows.length/totalFails*100).toFixed(1)}))
-    .sort((a,b)=>b.count-a.count);
-
-  el.innerHTML = `
-    <div class="section-header">Fail Attribution</div>
-    <p class="text-muted small">Click a bar or row to see that person's full fail list.</p>
-    <div class="row g-3">
-      <div class="col-lg-7">
-        <canvas id="chart-fail-attr"></canvas>
-      </div>
-      <div class="col-lg-5">
-        <div class="table-responsive">
-          <table class="table table-sm table-hover">
-            <thead class="table-light"><tr><th>Person</th><th>Fails</th><th>% of Fails</th></tr></thead>
-            <tbody id="fail-attr-table">
-              ${sorted.map((r,i)=>`<tr class="person-row" data-idx="${i}">
-                <td>${r.name}</td><td>${r.count}</td><td>${r.pct}%</td>
-              </tr>`).join('')}
-            </tbody>
-          </table>
-        </div>
-      </div>
+function renderT1({dff,dff_fails}) {
+  const el=document.getElementById('t1');
+  const totalFails=dff.filter(r=>r.Is_Fail).length;
+  if(!dff_fails.length){el.innerHTML='<div class="alert alert-info mt-3">No attributed fails in this period.</div>';return;}
+  const bp={}; for(const r of dff_fails) bp[r.Fail_Name]=(bp[r.Fail_Name]||0)+1;
+  const sorted=Object.entries(bp).map(([n,c])=>({n,c,pct:(c/totalFails*100).toFixed(1)})).sort((a,b)=>b.c-a.c);
+  el.innerHTML=`
+    <div class="section-hdr">Fail Attribution</div>
+    <p class="text-muted" style="font-size:12px">Click a bar or row to see that person's full fail list.</p>
+    <div style="display:grid;grid-template-columns:3fr 2fr;gap:16px">
+      <div class="chart-box"><div id="ch-fa" class="plot-div"></div></div>
+      <div>${tbl(['Person','Fails Caused','% of Fails'],sorted.map(r=>[r.n,r.c,r.pct+'%']))}</div>
     </div>
-    <div id="tab1-drilldown"></div>
-    <div id="tab1-unattr"></div>`;
+    <div id="t1-drilldown"></div>
+    <div id="t1-unattr"></div>`;
 
-  mkChart('chart-fail-attr', {
-    type:'bar',
-    data: { labels:sorted.map(r=>r.name), datasets:[{
-      data:sorted.map(r=>r.count), backgroundColor:BLUE, borderColor:NAVY, borderWidth:1,
-    }]},
-    options: {
-      indexAxis:'y', responsive:true,
-      plugins:{ legend:{display:false}, tooltip:{callbacks:{label:c=>` ${c.parsed.x} fails`}} },
-      scales:{ x:{beginAtZero:true, title:{display:true,text:'Fails Attributed'}} },
-      onClick:(_,elems)=>{
-        if (!elems.length) return;
-        showTab1Drilldown(sorted[elems[0].index].name, dff_fails);
-      }
-    }
+  newPlot('ch-fa',[{type:'bar',orientation:'h',
+    y:sorted.map(r=>r.n).reverse(), x:sorted.map(r=>r.c).reverse(),
+    text:sorted.map(r=>r.c).reverse(), textposition:'outside',
+    marker:{color:sorted.map(r=>r.c).reverse(),colorscale:[[0,TINT],[.5,BLUE],[1,NAVY]],showscale:false},
+    customdata:sorted.map(r=>[r.n]).reverse(), hovertemplate:'<b>%{y}</b><br>%{x} fails<extra></extra>',
+  }],{title:{text:'Fails Attributed by Person',font:{family:'Georgia',color:NAVY,size:14}},
+    xaxis:{title:'Fails Attributed'},yaxis:{autorange:'reversed',tickfont:{size:11}},
+    height:Math.max(320,sorted.length*42)});
+
+  document.getElementById('ch-fa').on('plotly_click',d=>{
+    const p=d.points[0]; showT1Drill(p.customdata[0],dff_fails);
   });
 
-  el.querySelectorAll('#fail-attr-table .person-row').forEach(row=>{
-    row.addEventListener('click',()=>showTab1Drilldown(sorted[+row.dataset.idx].name, dff_fails));
+  // table row clicks
+  el.querySelectorAll('.dash-table tbody tr').forEach((tr,i)=>{
+    tr.style.cursor='pointer';
+    tr.addEventListener('click',()=>showT1Drill(sorted[i].n,dff_fails));
   });
 
   // Unattributed
-  const unattr = dff.filter(r=>r.Is_Fail && r.Fail_Inits.length===0);
-  if (unattr.length) {
-    document.getElementById('tab1-unattr').innerHTML = `
-      <div class="mt-3">
-        <button class="btn btn-outline-warning btn-sm" type="button"
-          data-bs-toggle="collapse" data-bs-target="#unattr-collapse">
-          ⚠️ ${unattr.length} fails with no initials found in reason
-        </button>
-        <div class="collapse mt-2" id="unattr-collapse">
-          ${makeTable(['Date','Job #','Panel','Line','Reason'],
-            unattr.sort((a,b)=>b._date-a._date)
-              .map(r=>[fmtDate(r._date),r.Sales_Order,r.Panel,r.Line,r.Reason]))}
-        </div>
-      </div>`;
+  const unattr=dff.filter(r=>r.Is_Fail&&r.Fail_Inits.length===0);
+  if(unattr.length){
+    const ud=document.getElementById('t1-unattr');
+    ud.innerHTML=`<button class="expander-btn mt-3" onclick="toggleExpander(this)">
+      ⚠️ ${unattr.length} fails with no initials found in reason ▼</button>
+      <div class="collapse-body">${tbl(['Date','Job #','Panel','Line','Reason'],
+        unattr.sort((a,b)=>b._date-a._date).map(r=>[fmtDate(r._date),r.Sales_Order,r.Panel,r.Line,r.Reason]))}</div>`;
   }
 }
 
-function showTab1Drilldown(person, dff_fails) {
-  const rows = dff_fails.filter(r=>r.Fail_Name===person).sort((a,b)=>b._date-a._date);
-  document.getElementById('tab1-drilldown').innerHTML = `
-    <div class="section-header mt-3 drilldown">📋 ${person} — All Attributed Fails</div>
-    ${makeTable(['Date','Job #','Panel','Line','Reason'],
-      rows.map(r=>[fmtDate(r._date),r.Sales_Order,r.Panel,r.Line,r.Reason]))}`;
-}
-
-// ─── TABS 2/3/4: Person Panels ────────────────────────────────────────────────
-function renderPersonTab(tabNum, roleCol, roleName) {
-  const el = document.getElementById(`tab${tabNum}-content`);
-  const {dff, dff_fails} = getFiltered();
-  const nameCol = `${roleCol}_Name`;
-
-  const sub = dff.filter(r=>r[roleCol]);
-  if (!sub.length) { el.innerHTML='<div class="alert alert-info mt-2">No data.</div>'; return; }
-
-  // Aggregate per person
-  const people = [...new Set(sub.map(r=>r[nameCol]))].filter(Boolean).sort();
-  const rows = people.map(person => {
-    const psub = sub.filter(r=>r[nameCol]===person);
-    const initials = [...new Set(psub.map(r=>r[roleCol]).filter(Boolean))];
-    const total = psub.length;
-    const myFails = psub.filter(r=>r.Is_Fail && r.Fail_Inits.some(i=>initials.includes(i))).length;
-    const failPct = total ? (myFails/total*100).toFixed(1) : null;
-    return {person, total, myFails, failPct, initials};
-  }).sort((a,b)=>b.total-a.total);
-
-  el.innerHTML = `
-    <div class="section-header">${roleName} Panels by Person</div>
-    <div class="table-responsive">
-      <table class="table table-sm table-hover">
-        <thead class="table-light"><tr>
-          <th>Person</th><th>Panels</th><th>My Fails</th><th>Fail %</th>
-        </tr></thead>
-        <tbody id="person-table-${tabNum}">
-          ${rows.map((r,i)=>`<tr class="person-row" data-idx="${i}">
-            <td>${r.person}</td>
-            <td>${r.total}</td>
-            <td>${r.myFails}</td>
-            <td class="${pctClass(r.failPct)}">${r.failPct!==null?r.failPct+'%':'—'}</td>
-          </tr>`).join('')}
-        </tbody>
-      </table>
-    </div>
-    <div class="row g-3 mt-1">
-      <div class="col-lg-8"><canvas id="chart-person-${tabNum}"></canvas></div>
-    </div>
-    <div id="person-drilldown-${tabNum}"></div>`;
-
-  // Bar chart: panels per person
-  mkChart(`chart-person-${tabNum}`, {
-    type:'bar',
-    data:{ labels:rows.map(r=>r.person), datasets:[
-      {label:'Total Panels', data:rows.map(r=>r.total), backgroundColor:BLUE},
-      {label:'My Fails',     data:rows.map(r=>r.myFails), backgroundColor:RED},
-    ]},
-    options:{ responsive:true, plugins:{legend:{position:'top'}},
-      scales:{y:{beginAtZero:true}},
-      onClick:(_,elems)=>{
-        if (!elems.length) return;
-        showPersonDrilldown(tabNum, rows[elems[0].index], dff, dff_fails, roleCol, roleName);
-      }
-    }
-  });
-
-  el.querySelectorAll(`#person-table-${tabNum} .person-row`).forEach(row=>{
-    row.addEventListener('click',()=>{
-      showPersonDrilldown(tabNum, rows[+row.dataset.idx], dff, dff_fails, roleCol, roleName);
-    });
-  });
-}
-
-function pctClass(v) {
-  if (v===null) return '';
-  v = parseFloat(v);
-  if (v>=15) return 'fail-pct-high';
-  if (v>=8)  return 'fail-pct-med';
-  return 'fail-pct-ok';
-}
-
-function showPersonDrilldown(tabNum, personRow, dff, dff_fails, roleCol, roleName) {
-  const {person, initials} = personRow;
-  const nameCol = `${roleCol}_Name`;
-  const init = initials[0];
-
-  const raw = dff.filter(r=>r[nameCol]===person).sort((a,b)=>b._date-a._date);
-
-  const tableRows = raw.map(r => {
-    const isFail = r.Is_Fail;
-    const myFail = isFail && r.Fail_Inits.includes(init);
-
-    // which role(s) did the attributed initials hold?
-    const roles = [];
-    if (r.Fail_Inits.length) {
-      for (const fi of r.Fail_Inits) {
-        if (r.Layout===fi) roles.push('Layout');
-        if (r.Wire===fi)   roles.push('Wire');
-        if (r.FA===fi)     roles.push('Final');
-      }
-    }
-
-    const attrPeople = !isFail ? '' :
-      r.Fail_Inits.length ? r.Fail_Inits.map(i=>initMap[i]||i).join(', ') : '— unattributed';
-
-    return {
-      cells:[fmtDate(r._date), r.Sales_Order||'', r.Pass_Fail, r.Panel||'',
-             r.Line||'', r.Reason||'', [...new Set(roles)].join(', '), attrPeople],
-      myFail
-    };
-  });
-
-  const ddEl = document.getElementById(`person-drilldown-${tabNum}`);
-  ddEl.innerHTML = `
-    <div class="section-header mt-3 drilldown">📋 ${person} — ${roleName} Panels</div>
-    <p class="small text-muted">
-      <span style="background:#fff0f0;padding:2px 6px;border-radius:3px">Red rows</span>
-      = fail attributed to ${person} in the ${roleName} role. Role column = which role caused each fail.
-    </p>
-    <div class="table-responsive">
-      <table class="table table-sm">
-        <thead class="table-light"><tr>
-          <th>Date</th><th>Job #</th><th>Pass/Fail</th><th>Panel</th>
-          <th>Line</th><th>Reason</th><th>Role</th><th>Failure Caused By</th>
-        </tr></thead>
-        <tbody>
-          ${tableRows.map(r=>`<tr class="${r.myFail?'fail-row':''}">
-            ${r.cells.map(c=>`<td>${c}</td>`).join('')}
-          </tr>`).join('')}
-        </tbody>
-      </table>
+function showT1Drill(person,dff_fails) {
+  const rows=dff_fails.filter(r=>r.Fail_Name===person).sort((a,b)=>b._date-a._date);
+  document.getElementById('t1-drilldown').innerHTML=`
+    <div class="drilldown-box">
+      <div class="section-hdr">📋 ${person} — All Attributed Fails</div>
+      ${tbl(['Date','Job #','Panel','Line','Reason'],rows.map(r=>[fmtDate(r._date),r.Sales_Order||'',r.Panel||'',r.Line||'',r.Reason||'']))}
     </div>`;
+  document.getElementById('t1-drilldown').scrollIntoView({behavior:'smooth',block:'nearest'});
+}
+
+// ─── TAB 2/3/4: Person Panels ─────────────────────────────────────────────────
+function renderPersonTab(tabId, roleCol, roleLabel) {
+  const el=document.getElementById(tabId);
+  const {dff,dff_fails}=getFiltered();
+  const g=grpState[tabId];
+  const sub=dff.filter(r=>r[roleCol]);
+  if(!sub.length){el.innerHTML='<div class="alert alert-info mt-2">No data.</div>';return;}
+
+  // Period key for each row
+  const periodKey=r=>g==='Month'?r.MonthLabel:g==='Week'?'Wk '+r.Week:r._date.toLocaleDateString('en-US',{month:'short',day:'numeric'});
+  const periodSort=r=>g==='Month'?r._date:g==='Week'?r.Week:fmtDate(r._date);
+
+  // Ordered periods
+  const periodMap={}; for(const r of sub){const k=periodKey(r);if(!periodMap[k])periodMap[k]=r._date;}
+  const periodOrder=Object.entries(periodMap).sort((a,b)=>a[1]-b[1]).map(e=>e[0]);
+
+  // All persons in this role
+  const persons=[...new Set(sub.map(r=>initMap[r[roleCol]]||r[roleCol]))].filter(Boolean);
+
+  // Panels per person per period
+  const pppMap={}; // person -> period -> count
+  for(const r of sub){
+    const p=initMap[r[roleCol]]||r[roleCol]; const pd=periodKey(r);
+    if(!pppMap[p])pppMap[p]={};
+    pppMap[p][pd]=(pppMap[p][pd]||0)+1;
+  }
+  const groupedBarData=persons.map((person,i)=>({
+    type:'bar', name:person,
+    x:periodOrder, y:periodOrder.map(pd=>(pppMap[person]&&pppMap[person][pd])||0),
+    marker:{color:QUALITATIVE[i%QUALITATIVE.length]},
+    customdata:Array(periodOrder.length).fill([person]),
+    hovertemplate:'<b>%{x}</b><br>'+person+': %{y} panels<extra></extra>',
+  }));
+
+  // FPY per person (only counting fails attributed to that person's role initials)
+  const fpyRows=[];
+  for(const init of [...new Set(sub.map(r=>r[roleCol]).filter(Boolean))]) {
+    const nm=initMap[init]||init;
+    const psub=sub.filter(r=>r[roleCol]===init);
+    const n=psub.length;
+    const myFails=psub.filter(r=>r.Is_Fail&&r.Fail_Inits.includes(init)).length;
+    const fpy=n?((n-myFails)/n*100):100;
+    fpyRows.push({init,name:nm,n,myFails,fpy:+fpy.toFixed(1)});
+  }
+  fpyRows.sort((a,b)=>a.fpy-b.fpy); // ascending so highest FPY at bottom (reversed axis)
+
+  // Pivot table
+  const nameOf=init=>initMap[init]||init;
+  const pivotInits=[...new Set(sub.map(r=>r[roleCol]).filter(Boolean))];
+  const pivotTotals=pivotInits.map(init=>({init,total:sub.filter(r=>r[roleCol]===init).length}))
+    .sort((a,b)=>b.total-a.total);
+  const pivotCols=['Person',...periodOrder,'Total'];
+  const pivotRows=pivotTotals.map(({init})=>{
+    const nm=nameOf(init);
+    const periods=periodOrder.map(pd=>(pppMap[nm]&&pppMap[nm][pd])||0);
+    return[nm,...periods,periods.reduce((s,v)=>s+v,0)];
+  });
+
+  el.innerHTML=`
+    <div class="section-hdr">${roleLabel} Panels by Person</div>
+    <div class="grp-btns">
+      ${['Day','Week','Month'].map(g2=>`<button class="grp-btn${g===g2?' active':''}" onclick="setGrp('${tabId}','${g2}','${roleCol}','${roleLabel}')">${g2}</button>`).join('')}
+    </div>
+    <div style="display:grid;grid-template-columns:3fr 2fr;gap:16px;margin-bottom:16px">
+      <div class="chart-box"><div id="ch-grp-${tabId}" class="plot-div"></div></div>
+      <div style="overflow-x:auto">${tbl(pivotCols,pivotRows)}</div>
+    </div>
+    <div class="chart-box"><div id="ch-fpy-${tabId}" class="plot-div"></div></div>
+    <div id="drill-${tabId}"></div>`;
+
+  // Grouped bar chart
+  newPlot(`ch-grp-${tabId}`,groupedBarData,{
+    title:{text:`${roleLabel} Panels per ${g} by Person`,font:{family:'Georgia',color:NAVY,size:14}},
+    barmode:'group', height:380,
+    xaxis:{categoryorder:'array',categoryarray:periodOrder,tickangle:-30},
+    yaxis:{title:'Panels'},legend:{orientation:'h',y:-0.2},
+  });
+  document.getElementById(`ch-grp-${tabId}`).on('plotly_click',d=>{
+    const pt=d.points[0]; showPersonDrill(tabId,pt.customdata[0][0],dff,roleCol,roleLabel);
+  });
+
+  // FPY horizontal bar with gradient
+  const fpyTooltip=`First Pass Yield: panels passed on first attempt ÷ total built, per ${roleLabel.toLowerCase()} tech. Higher is better — 90% is the target.`;
+  newPlot(`ch-fpy-${tabId}`,[{
+    type:'bar', orientation:'h',
+    y:fpyRows.map(r=>r.name), x:fpyRows.map(r=>r.fpy),
+    text:fpyRows.map(r=>r.fpy.toFixed(1)+'%'), textposition:'outside',
+    marker:{color:fpyRows.map(r=>r.fpy),colorscale:[[0,RED],[.5,WARMGRAY],[1,GREEN]],cmin:70,cmax:100,showscale:false},
+    customdata:fpyRows.map(r=>[r.name]),
+    hovertemplate:'<b>%{y}</b><br>FPY: %{x:.1f}%<extra></extra>',
+  }],{
+    title:{text:`First Pass Yield % — by ${roleLabel} Person`,font:{family:'Georgia',color:NAVY,size:14}},
+    xaxis:{range:[0,110],title:'FPY %'},yaxis:{autorange:'reversed'},
+    shapes:[{type:'line',x0:90,x1:90,y0:0,y1:1,xref:'x',yref:'paper',line:{color:NAVY,dash:'dash',width:1.5}}],
+    annotations:[{x:90,y:1.05,xref:'x',yref:'paper',text:'90% target',showarrow:false,font:{color:NAVY,size:11}}],
+    height:Math.max(300,fpyRows.length*44),
+  });
+  document.getElementById(`ch-fpy-${tabId}`).on('plotly_click',d=>{
+    const pt=d.points[0]; showPersonDrill(tabId,pt.customdata[0][0],dff,roleCol,roleLabel);
+  });
+}
+
+function setGrp(tabId,g,roleCol,roleLabel){ grpState[tabId]=g; renderPersonTab(tabId,roleCol,roleLabel); }
+
+function showPersonDrill(tabId, person, dff, roleCol, roleLabel) {
+  const nameCol=roleCol+'_Name';
+  const init=Object.keys(initMap).find(k=>initMap[k]===person)||person;
+  const rows=dff.filter(r=>r[nameCol]===person).sort((a,b)=>b._date-a._date);
+  const drEl=document.getElementById(`drill-${tabId}`);
+  const roleRows=rows.map(r=>{
+    const myFail=r.Is_Fail&&r.Fail_Inits.includes(init);
+    const roles=[];
+    if(r.Fail_Inits.length){
+      for(const fi of r.Fail_Inits){
+        if(r.Layout===fi)roles.push('Layout');
+        if(r.Wire===fi)roles.push('Wire');
+        if(r.FA===fi)roles.push('Final');
+      }
+    }
+    const attr=!r.Is_Fail?'':r.Fail_Inits.length?r.Fail_Inits.map(i=>initMap[i]||i).join(', '):'— unattributed';
+    return{cells:[fmtDate(r._date),r.Sales_Order||'',r.Pass_Fail,r.Panel||'',r.Line||'',r.Reason||'',[...new Set(roles)].join(', '),attr],myFail};
+  });
+  drEl.innerHTML=`
+    <div class="drilldown-box mt-3">
+      <div class="section-hdr">📋 ${person} — ${roleLabel} Panels</div>
+      <p style="font-size:12px;color:#666">
+        <span style="background:#fff0f0;padding:2px 6px;border-radius:3px;font-size:11px">Red rows</span>
+        = fail attributed to ${person} in the ${roleLabel} role.
+        <b>Role</b> = which role caused each fail.
+      </p>
+      ${tbl(['Date','Job #','Pass/Fail','Panel','Line','Reason','Role','Failure Caused By'],
+        roleRows.map(r=>r.cells), i=>roleRows[i].myFail?'row-fail':'')}
+    </div>`;
+  drEl.scrollIntoView({behavior:'smooth',block:'nearest'});
 }
 
 // ─── TAB 5: Trends ────────────────────────────────────────────────────────────
-function renderTab5({dff}) {
-  const el = document.getElementById('tab5-content');
-  el.innerHTML = `
-    <div class="section-header">Panels Built Over Time</div>
-    <div class="mb-2">
-      <div class="btn-group btn-group-sm" id="trend-grp-btns">
-        <button class="btn btn-outline-secondary" data-g="Day">Day</button>
-        <button class="btn btn-outline-secondary active" data-g="Week">Week</button>
-        <button class="btn btn-outline-secondary" data-g="Month">Month</button>
-      </div>
+let trendsGrp='Week', compareBy='Quarter';
+
+function renderT5({dff}) {
+  const el=document.getElementById('t5');
+  el.innerHTML=`
+    <div class="section-hdr">Panels Built Over Time</div>
+    <div class="grp-btns" id="tgrp-btns">
+      ${['Day','Week','Month'].map(g=>`<button class="grp-btn${trendsGrp===g?' active':''}" onclick="setTrendsGrp('${g}')">${g}</button>`).join('')}
     </div>
-    <canvas id="chart-trend" style="max-height:320px"></canvas>
+    <div class="chart-box"><div id="ch-trend" class="plot-div" style="min-height:350px"></div></div>
 
-    <div class="section-header mt-4">Period Comparison</div>
-    <div class="mb-2">
-      <div class="btn-group btn-group-sm" id="compare-btns">
-        <button class="btn btn-outline-secondary active" data-c="Quarter">Quarter</button>
-        <button class="btn btn-outline-secondary" data-c="Month">Month</button>
-      </div>
+    <div class="section-hdr mt-3">Period Comparison</div>
+    <div class="grp-btns">
+      ${['Quarter','Month'].map(c=>`<button class="grp-btn${compareBy===c?' active':''}" onclick="setCompare('${c}')">${c}</button>`).join('')}
     </div>
-    <div class="row g-3">
-      <div class="col-lg-6"><canvas id="chart-comp-panels" style="max-height:280px"></canvas></div>
-      <div class="col-lg-6"><canvas id="chart-comp-fails"  style="max-height:280px"></canvas></div>
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:16px">
+      <div class="chart-box"><div id="ch-comp-p" class="plot-div"></div></div>
+      <div class="chart-box"><div id="ch-comp-f" class="plot-div"></div></div>
     </div>
-    <div id="comp-table" class="mt-3"></div>
+    <div id="comp-tbl" class="mt-3"></div>
 
-    <div class="section-header mt-4">Person Summary</div>
-    <div id="person-summary-table"></div>`;
+    <div class="section-hdr mt-3">Person Summary (All Time)</div>
+    <div id="person-summary"></div>`;
 
-  const grpState = {g:'Week', c:'Quarter'};
+  drawTrend(dff); drawComparison(); drawPersonSummary();
+}
 
-  function drawTrend(g) {
-    const keyOf = r => g==='Month' ? r.MonthLabel : g==='Week' ? 'Wk '+r.Week : fmtDate(r._date);
-    const groups = {};
-    for (const r of dff) {
-      const k = keyOf(r);
-      if (!groups[k]) groups[k] = {panels:0, fails:0, sort:r._date};
-      groups[k].panels++; groups[k].fails+=r.Is_Fail;
-    }
-    const sorted = Object.entries(groups).sort((a,b)=>a[1].sort-b[1].sort);
-    mkChart('chart-trend',{type:'bar',
-      data:{labels:sorted.map(e=>e[0]),datasets:[
-        {label:'Panels',data:sorted.map(e=>e[1].panels),backgroundColor:BLUE},
-        {label:'Fails', data:sorted.map(e=>e[1].fails), backgroundColor:RED,  type:'line',
-         borderColor:RED, pointRadius:3, tension:.3, yAxisID:'y2'},
-      ]},
-      options:{responsive:true,scales:{y:{beginAtZero:true,title:{display:true,text:'Panels'}},
-        y2:{beginAtZero:true,position:'right',title:{display:true,text:'Fails'},grid:{drawOnChartArea:false}}}}
-    });
-  }
-
-  function drawComparison(c) {
-    const keyOf = r => c==='Quarter' ? r.Quarter : r.Month;
-    const groups = {};
-    for (const r of df) { // use full df for comparison
-      const k = keyOf(r); const lbl = c==='Quarter' ? r.Quarter : r.MonthLabel;
-      if (!groups[k]) groups[k] = {panels:0,fails:0,label:lbl,sort:r._date};
-      groups[k].panels++; groups[k].fails+=r.Is_Fail;
-    }
-    const sorted = Object.entries(groups).sort((a,b)=>a[0].localeCompare(b[0]));
-    const labels = sorted.map(e=>e[1].label);
-    const panels = sorted.map(e=>e[1].panels);
-    const failPcts = sorted.map(e=>(e[1].fails/e[1].panels*100).toFixed(1));
-
-    mkChart('chart-comp-panels',{type:'bar',
-      data:{labels,datasets:[{label:'Panels',data:panels,backgroundColor:BLUE}]},
-      options:{responsive:true,plugins:{legend:{display:false}},scales:{y:{beginAtZero:true}}}});
-
-    mkChart('chart-comp-fails',{type:'line',
-      data:{labels,datasets:[{label:'Fail %',data:failPcts,borderColor:RED,
-        backgroundColor:'rgba(192,57,43,.08)',fill:true,tension:.3,pointRadius:4,pointBackgroundColor:RED}]},
-      options:{responsive:true,plugins:{legend:{display:false}},
-        scales:{y:{beginAtZero:true,ticks:{callback:v=>v+'%'}}}}});
-
-    document.getElementById('comp-table').innerHTML = makeTable(
-      ['Period','Panels','Fails','Pass Rate%','Fail Rate%'],
-      sorted.map(([,v])=>[v.label,v.panels,v.fails,
-        ((v.panels-v.fails)/v.panels*100).toFixed(1)+'%',
-        (v.fails/v.panels*100).toFixed(1)+'%'])
-    );
-  }
-
-  // Person summary (all time)
-  function drawPersonSummary() {
-    const allInits = new Set();
-    for (const r of df) for (const col of ['Layout','Wire','FA'])
-      if (r[col]) allInits.add(r[col]);
-
-    const pRows = [...allInits].sort().map(init=>{
-      const disp = initMap[init]||init;
-      const cols = {};
-      for (const [col,lbl] of [['Layout','Layout'],['Wire','Wire'],['FA','Final']]) {
-        const sub = df.filter(r=>r[col]===init);
-        const n = sub.length;
-        const myFails = sub.filter(r=>r.Is_Fail && r.Fail_Inits.includes(init)).length;
-        cols[lbl+'P'] = n; cols[lbl+'F'] = n ? (myFails/n*100).toFixed(1) : null;
-      }
-      return {disp, ...cols};
-    }).filter(r=>r.LayoutP+r.WireP+r.FinalP>0)
-      .sort((a,b)=>b.LayoutP-a.LayoutP);
-
-    const fmtPct = v => v===null ? '<td>—</td>' : `<td class="${pctClass(v)}">${v}%</td>`;
-    document.getElementById('person-summary-table').innerHTML = `
-      <div class="table-responsive"><table class="table table-sm">
-        <thead class="table-light"><tr>
-          <th>Person</th>
-          <th>Layout Panels</th><th>Layout Fail%</th>
-          <th>Wire Panels</th><th>Wire Fail%</th>
-          <th>Final Panels</th><th>Final Fail%</th>
-        </tr></thead>
-        <tbody>${pRows.map(r=>`<tr>
-          <td>${r.disp}</td>
-          <td>${r.LayoutP}</td>${fmtPct(r.LayoutF)}
-          <td>${r.WireP}</td>${fmtPct(r.WireF)}
-          <td>${r.FinalP}</td>${fmtPct(r.FinalF)}
-        </tr>`).join('')}
-        </tbody>
-      </table></div>`;
-  }
-
-  drawTrend(grpState.g); drawComparison(grpState.c); drawPersonSummary();
-
-  el.querySelectorAll('#trend-grp-btns button').forEach(b=>{
-    b.addEventListener('click',()=>{
-      el.querySelectorAll('#trend-grp-btns button').forEach(x=>x.classList.remove('active'));
-      b.classList.add('active'); grpState.g=b.dataset.g; drawTrend(grpState.g);
-    });
-  });
-  el.querySelectorAll('#compare-btns button').forEach(b=>{
-    b.addEventListener('click',()=>{
-      el.querySelectorAll('#compare-btns button').forEach(x=>x.classList.remove('active'));
-      b.classList.add('active'); grpState.c=b.dataset.c; drawComparison(grpState.c);
-    });
+function drawTrend(dff) {
+  const g=trendsGrp;
+  const keyOf=r=>g==='Month'?r.MonthLabel:g==='Week'?'Wk '+r.Week:r._date.toLocaleDateString('en-US',{month:'short',day:'numeric'});
+  const grps={}; for(const r of dff){ const k=keyOf(r); if(!grps[k])grps[k]={panels:0,fails:0,sort:r._date}; grps[k].panels++; grps[k].fails+=r.Is_Fail; }
+  const s=Object.entries(grps).sort((a,b)=>a[1].sort-b[1].sort);
+  const lbls=s.map(e=>e[0]),panels=s.map(e=>e[1].panels),fails=s.map(e=>e[1].fails);
+  newPlot('ch-trend',[
+    {type:'bar',name:'Panels',x:lbls,y:panels,marker:{color:BLUE},hovertemplate:'<b>%{x}</b><br>%{y} panels<extra></extra>'},
+    {type:'scatter',name:'Fails',x:lbls,y:fails,mode:'lines+markers',yaxis:'y2',
+     line:{color:RED,width:2},marker:{color:RED,size:5},hovertemplate:'<b>%{x}</b><br>%{y} fails<extra></extra>'},
+  ],{barmode:'overlay',height:350,
+    xaxis:{tickangle:s.length>12?-35:0},
+    yaxis:{title:'Panels Built'},
+    yaxis2:{title:'Fails',overlaying:'y',side:'right',showgrid:false},
+    legend:{x:0,y:1.1,orientation:'h'},
   });
 }
 
-// ─── TAB 6: Time Analysis (Supabase) ─────────────────────────────────────────
-async function renderTab6() {
-  const el = document.getElementById('tab6-content');
-  el.innerHTML = `<div class="section-header">⏱ Time Analysis — Actual vs Routing Hours</div>
-    <div id="page-spinner"><div class="spinner-border text-primary" style="width:1.5rem;height:1.5rem"></div> Loading tracker data…</div>`;
-
-  if (!timingLoaded) {
-    try {
-      const res = await fetch(
-        `${SB_URL}/rest/v1/panel_time_summary?select=*&order=layout_started_at.desc.nullslast&limit=10000`,
-        { headers:{ 'apikey':SB_ANON, 'Authorization':`Bearer ${SB_ANON}`, 'Accept':'application/json' } }
-      );
-      if (!res.ok) throw new Error(`HTTP ${res.status}`);
-      timingData = await res.json();
-      timingLoaded = true;
-    } catch(e) {
-      el.innerHTML = `<div class="alert alert-danger mt-3">Could not reach Supabase: ${e.message}</div>`;
-      return;
-    }
-  }
-
-  if (!timingData.length) {
-    el.innerHTML = '<div class="alert alert-info mt-3">No tracker data yet — start scanning panels.</div>';
-    return;
-  }
-
-  buildTimeAnalysis(el);
+function drawComparison() {
+  const c=compareBy;
+  const keyOf=r=>c==='Quarter'?r.Quarter:r.Month;
+  const grps={}; for(const r of df){ const k=keyOf(r),lbl=c==='Quarter'?r.Quarter:r.MonthLabel; if(!grps[k])grps[k]={panels:0,fails:0,label:lbl,sort:r._date}; grps[k].panels++; grps[k].fails+=r.Is_Fail; }
+  const s=Object.entries(grps).sort((a,b)=>a[0].localeCompare(b[0]));
+  const lbls=s.map(e=>e[1].label),panels=s.map(e=>e[1].panels);
+  const failPcts=s.map(e=>(e[1].fails/e[1].panels*100).toFixed(1));
+  newPlot('ch-comp-p',[{type:'bar',x:lbls,y:panels,text:panels,textposition:'outside',
+    marker:{color:BLUE},hovertemplate:'<b>%{x}</b><br>%{y} panels<extra></extra>'}],
+    {title:{text:`Total Panels by ${c}`,font:{family:'Georgia',color:NAVY,size:13}},height:300,
+     xaxis:{tickangle:c==='Month'?-35:0},yaxis:{title:'Panels'}});
+  newPlot('ch-comp-f',[{type:'scatter',x:lbls,y:failPcts,mode:'lines+markers+text',
+    text:failPcts.map(v=>v+'%'),textposition:'top center',textfont:{color:RED,size:10},
+    line:{color:RED,width:2},marker:{color:RED,size:7},
+    fill:'tozeroy',fillcolor:'rgba(192,57,43,.08)',
+    hovertemplate:'<b>%{x}</b><br>Fail rate: %{y}%<extra></extra>'}],
+    {title:{text:`Fail Rate % by ${c}`,font:{family:'Georgia',color:NAVY,size:13}},height:300,
+     xaxis:{tickangle:c==='Month'?-35:0},yaxis:{title:'Fail Rate %',ticksuffix:'%'},showlegend:false});
+  document.getElementById('comp-tbl').innerHTML=tbl(
+    ['Period','Panels','Fails','Pass Rate%','Fail Rate%'],
+    s.map(([,v])=>[v.label,v.panels,v.fails,((v.panels-v.fails)/v.panels*100).toFixed(1)+'%',(v.fails/v.panels*100).toFixed(1)+'%']));
 }
 
-function buildTimeAnalysis(el) {
-  el.innerHTML = `
-    <div class="section-header">⏱ Time Analysis — Actual vs Routing Hours</div>
-    <div class="d-flex gap-2 align-items-center mb-2 flex-wrap">
-      <button class="btn btn-navy btn-sm" onclick="timingLoaded=false;renderTab6()">🔄 Refresh</button>
-      <span class="text-muted small">📊 ${timingData.length} panels loaded from Supabase</span>
-    </div>
+function setTrendsGrp(g){ trendsGrp=g; const {dff}=getFiltered(); drawTrend(dff); document.querySelectorAll('#tgrp-btns .grp-btn').forEach(b=>{b.classList.toggle('active',b.textContent===g);}); }
+function setCompare(c){ compareBy=c; drawComparison(); document.querySelectorAll('#t5 .grp-btns:nth-of-type(2) .grp-btn').forEach(b=>{b.classList.toggle('active',b.textContent===c);}); }
 
-    <div class="row g-2 mb-3">
-      <div class="col-auto">
-        <label class="form-label small mb-0">Time Period</label>
-        <select id="ta-period" class="form-select form-select-sm">
-          <option>Last 7 Days</option><option>Last 30 Days</option>
-          <option selected>Last 90 Days</option><option>Last 6 Months</option>
-          <option>Last Year</option><option>By Month</option><option>All Time</option>
+function drawPersonSummary() {
+  const allInits=new Set();
+  for(const r of df) for(const c of['Layout','Wire','FA']) if(r[c])allInits.add(r[c]);
+  const pRows=[...allInits].sort().map(init=>{
+    const nm=initMap[init]||init;
+    const cols={};
+    for(const[c,l]of[['Layout','Layout'],['Wire','Wire'],['FA','Final']]){
+      const s=df.filter(r=>r[c]===init),n=s.length;
+      const mf=s.filter(r=>r.Is_Fail&&r.Fail_Inits.includes(init)).length;
+      cols[l+'P']=n; cols[l+'F']=n?+(mf/n*100).toFixed(1):null;
+    }
+    return{nm,...cols};
+  }).filter(r=>r.LayoutP+r.WireP+r.FinalP>0).sort((a,b)=>b.LayoutP-a.LayoutP);
+  const fmtP=v=>v===null?'<td>—</td>':`<td class="${pctCls(v)}">${v}%</td>`;
+  document.getElementById('person-summary').innerHTML=`<div class="tbl-wrap"><table class="dash-table">
+    <thead><tr><th>Person</th><th>Layout Panels</th><th>Layout Fail%</th><th>Wire Panels</th><th>Wire Fail%</th><th>Final Panels</th><th>Final Fail%</th></tr></thead>
+    <tbody>${pRows.map(r=>`<tr><td>${r.nm}</td><td>${r.LayoutP}</td>${fmtP(r.LayoutF)}<td>${r.WireP}</td>${fmtP(r.WireF)}<td>${r.FinalP}</td>${fmtP(r.FinalF)}</tr>`).join('')}</tbody>
+    </table></div>`;
+}
+
+// ─── TAB 6: Time Analysis ─────────────────────────────────────────────────────
+async function renderT6() {
+  const el=document.getElementById('t6');
+  if(!timingLoaded){
+    el.innerHTML=`<div class="spinner-wrap"><div class="spinner"></div> Loading tracker data from Supabase…</div>`;
+    try{
+      const res=await fetch(`${SB_URL}/rest/v1/panel_time_summary?select=*&order=layout_started_at.desc.nullslast&limit=10000`,
+        {headers:{'apikey':SB_ANON,'Authorization':'Bearer '+SB_ANON,'Accept':'application/json'}});
+      if(!res.ok)throw new Error('HTTP '+res.status);
+      timingData=await res.json(); timingLoaded=true;
+    }catch(e){
+      el.innerHTML=`<div class="alert alert-danger mt-3">Could not reach Supabase: ${e.message}</div>`; return;
+    }
+  }
+  if(!timingData.length){el.innerHTML='<div class="alert alert-info mt-3">No tracker data yet.</div>';return;}
+  buildTA(el);
+}
+
+function buildTA(el) {
+  const tm=timingData.map(r=>{
+    const toN=v=>parseFloat(v)||0;
+    const lH=toN(r.layout_secs)/3600,wH=toN(r.wire_secs)/3600,fH=toN(r.final_secs)/3600,tH=toN(r.tech_secs)/3600;
+    const aH=parseFloat(r.actual_total_hours)||null,rH=parseFloat(r.routing_hours)||null;
+    let dateB=null; if(r.layout_started_at){const d=new Date(r.layout_started_at);if(!isNaN(d))dateB=d;}
+    const isC=r.is_complete===true||r.is_complete==='true'||r.is_complete===1;
+    const isO=r.is_over_time===true||r.is_over_time==='true'||r.is_over_time===1;
+    return{...r,lH,wH,fH,tH,aH,rH,dateB,isC,isO};
+  });
+  const months=[...new Set(tm.filter(r=>r.dateB).map(r=>`${r.dateB.getFullYear()}-${String(r.dateB.getMonth()+1).padStart(2,'0')}`))]
+    .sort().reverse();
+  const allW=[...new Set(['layout_worker','wire_worker','final_worker','tech_worker'].flatMap(c=>tm.map(r=>r[c]).filter(Boolean)))].sort();
+  const allP=[...new Set(tm.map(r=>r.panel_number).filter(Boolean))].sort();
+
+  el.innerHTML=`
+    <div class="section-hdr">⏱ Time Analysis — Actual vs Routing Hours</div>
+    <div style="display:flex;gap:8px;align-items:center;margin-bottom:12px">
+      <button class="grp-btn active" onclick="timingLoaded=false;renderT6()">🔄 Refresh</button>
+      <span style="font-size:12px;color:${WARMGRAY}">📊 ${tm.length} panels loaded</span>
+    </div>
+    <div class="ta-filters">
+      <div><label>Time Period</label>
+        <select id="ta-period" onchange="drawTA(tm_ref)">
+          ${['Last 7 Days','Last 30 Days','Last 90 Days','Last 6 Months','Last Year','By Month','All Time']
+            .map(o=>`<option${o==='Last 90 Days'?' selected':''}>${o}</option>`).join('')}
         </select>
       </div>
-      <div class="col-auto" id="ta-month-col" style="display:none">
-        <label class="form-label small mb-0">Month</label>
-        <select id="ta-month" class="form-select form-select-sm"></select>
+      <div id="ta-month-wrap" style="display:none"><label>Month</label>
+        <select id="ta-month" onchange="drawTA(tm_ref)">
+          ${months.map(m=>`<option>${m}</option>`).join('')}
+        </select>
       </div>
-      <div class="col-auto d-flex align-items-end">
-        <div class="form-check">
-          <input class="form-check-input" type="checkbox" id="ta-complete" checked>
-          <label class="form-check-label small" for="ta-complete">Completed panels only</label>
-        </div>
+      <div><label>Completed only</label>
+        <input type="checkbox" id="ta-complete" checked onchange="drawTA(tm_ref)" style="width:16px;height:16px;margin-top:4px">
       </div>
-      <div class="col-auto">
-        <label class="form-label small mb-0">Worker</label>
-        <select id="ta-workers" class="form-select form-select-sm" multiple style="height:60px"></select>
+      <div><label>Worker</label>
+        <select id="ta-workers" multiple style="height:56px;min-width:140px" onchange="drawTA(tm_ref)">
+          ${allW.map(w=>`<option>${w}</option>`).join('')}
+        </select>
       </div>
-      <div class="col-auto">
-        <label class="form-label small mb-0">Panel #</label>
-        <select id="ta-panels" class="form-select form-select-sm" multiple style="height:60px"></select>
+      <div><label>Panel #</label>
+        <select id="ta-panels" multiple style="height:56px;min-width:120px" onchange="drawTA(tm_ref)">
+          ${allP.map(p=>`<option>${p}</option>`).join('')}
+        </select>
       </div>
     </div>
-
-    <div id="ta-kpis" class="row g-2 mb-3"></div>
-    <div id="ta-charts" class="row g-3"></div>
+    <div id="ta-kpis" class="ta-kpis"></div>
+    <div style="display:grid;grid-template-columns:3fr 2fr;gap:16px;margin-bottom:16px">
+      <div class="chart-box"><div id="ch-scatter" class="plot-div" style="min-height:380px"></div></div>
+      <div class="chart-box"><div id="ch-stages" class="plot-div"></div></div>
+    </div>
     <div id="ta-worker-section"></div>
     <div id="ta-breakdown"></div>`;
 
-  // Parse timing rows
-  const tm = timingData.map(r => {
-    const toNum = v => parseFloat(v)||0;
-    const layoutSecs = toNum(r.layout_secs);
-    const wireSecs   = toNum(r.wire_secs);
-    const finalSecs  = toNum(r.final_secs);
-    const techSecs   = toNum(r.tech_secs);
-    const actualH    = parseFloat(r.actual_total_hours)||null;
-    const routingH   = parseFloat(r.routing_hours)||null;
-
-    let dateBuilt = null;
-    if (r.layout_started_at) {
-      const d = new Date(r.layout_started_at);
-      if (!isNaN(d)) dateBuilt = d;
-    }
-
-    const isComplete = r.is_complete===true || r.is_complete==='true' || r.is_complete===1;
-    const isOver = r.is_over_time===true || r.is_over_time==='true' || r.is_over_time===1;
-
-    return {
-      ...r,
-      layoutH: layoutSecs/3600, wireH:wireSecs/3600,
-      finalH: finalSecs/3600,   techH: techSecs/3600,
-      actualH, routingH, dateBuilt, isComplete, isOver,
-    };
+  // Store reference for event handlers
+  window.tm_ref=tm;
+  document.getElementById('ta-period').addEventListener('change',function(){
+    document.getElementById('ta-month-wrap').style.display=this.value==='By Month'?'':'none';
   });
+  drawTA(tm);
+}
 
-  // Populate month dropdown
-  const months = [...new Set(tm.filter(r=>r.dateBuilt)
-    .map(r=>`${r.dateBuilt.getFullYear()}-${String(r.dateBuilt.getMonth()+1).padStart(2,'0')}`))]
-    .sort().reverse();
-  const mSel = document.getElementById('ta-month');
-  months.forEach(m=>{ const o=document.createElement('option'); o.value=o.textContent=m; mSel.append(o); });
+function drawTA(tm) {
+  const period=document.getElementById('ta-period').value;
+  const selMonth=document.getElementById('ta-month')?.value;
+  const complete=document.getElementById('ta-complete').checked;
+  const selW=[...document.getElementById('ta-workers').selectedOptions].map(o=>o.value);
+  const selP=[...document.getElementById('ta-panels').selectedOptions].map(o=>o.value);
+  const maxD=new Date(Math.max(...tm.filter(r=>r.dateB).map(r=>r.dateB)));
+  const PD={'Last 7 Days':7,'Last 30 Days':30,'Last 90 Days':90,'Last 6 Months':182,'Last Year':365};
+  let f=tm.filter(r=>r.dateB);
+  if(PD[period]){const c=new Date(maxD);c.setDate(c.getDate()-PD[period]);f=f.filter(r=>r.dateB>=c);}
+  else if(period==='By Month')f=f.filter(r=>`${r.dateB.getFullYear()}-${String(r.dateB.getMonth()+1).padStart(2,'0')}`===selMonth);
+  if(complete)f=f.filter(r=>r.isC);
+  if(selP.length)f=f.filter(r=>selP.includes(r.panel_number));
+  if(selW.length)f=f.filter(r=>selW.some(w=>[r.layout_worker,r.wire_worker,r.final_worker,r.tech_worker].includes(w)));
 
-  // Populate worker & panel filters
-  const allWorkers = [...new Set(['layout_worker','wire_worker','final_worker','tech_worker']
-    .flatMap(c=>tm.map(r=>r[c]).filter(Boolean)))].sort();
-  const allPanels = [...new Set(tm.map(r=>r.panel_number).filter(Boolean))].sort();
-  const wSel = document.getElementById('ta-workers');
-  const pSel = document.getElementById('ta-panels');
-  allWorkers.forEach(w=>{ const o=document.createElement('option');o.value=o.textContent=w;wSel.append(o); });
-  allPanels.forEach(p=>{ const o=document.createElement('option');o.value=o.textContent=p;pSel.append(o); });
+  const nW=f.filter(r=>r.rH).length,nO=f.filter(r=>r.isO).length;
+  const sumA=f.reduce((s,r)=>s+(r.aH||0),0),sumR=f.reduce((s,r)=>s+(r.rH||0),0);
+  const hm=h=>h?`${Math.floor(h)}h ${Math.round((h%1)*60)}m`:'—';
+  document.getElementById('ta-kpis').innerHTML=[
+    ['Panels Tracked',f.length.toLocaleString(),`${nW} with routing target`],
+    ['Over Time',nO,`${nW?(nO/nW*100).toFixed(1):0}% of those with target`],
+    ['Actual Work Time',hm(sumA),'summed across panels'],
+    ['Target Time',hm(sumR),'summed routing hours'],
+  ].map(([l,v,s])=>`<div class="kpi-card"><div class="kpi-label">${l}</div><div class="kpi-value" style="font-size:20px">${v}</div><div class="kpi-sub">${s}</div></div>`).join('');
 
-  function drawTA() {
-    const period   = document.getElementById('ta-period').value;
-    const selMonth = document.getElementById('ta-month').value;
-    const complete = document.getElementById('ta-complete').checked;
-    const selW     = [...wSel.selectedOptions].map(o=>o.value);
-    const selP     = [...pSel.selectedOptions].map(o=>o.value);
-
-    // Period filter
-    const maxDate = new Date(Math.max(...tm.filter(r=>r.dateBuilt).map(r=>r.dateBuilt)));
-    const PD = {'Last 7 Days':7,'Last 30 Days':30,'Last 90 Days':90,'Last 6 Months':182,'Last Year':365};
-    let tmf = tm.filter(r=>r.dateBuilt);
-    if (PD[period]) {
-      const cut=new Date(maxDate); cut.setDate(cut.getDate()-PD[period]);
-      tmf=tmf.filter(r=>r.dateBuilt>=cut);
-    } else if (period==='By Month') {
-      tmf=tmf.filter(r=>{
-        const m=`${r.dateBuilt.getFullYear()}-${String(r.dateBuilt.getMonth()+1).padStart(2,'0')}`;
-        return m===selMonth;
-      });
-    }
-
-    if (complete) tmf=tmf.filter(r=>r.isComplete);
-    if (selP.length) tmf=tmf.filter(r=>selP.includes(r.panel_number));
-    if (selW.length) tmf=tmf.filter(r=>
-      selW.some(w=>[r.layout_worker,r.wire_worker,r.final_worker,r.tech_worker].includes(w)));
-
-    // KPIs
-    const nPanels   = tmf.length;
-    const withRH    = tmf.filter(r=>r.routingH).length;
-    const nOver     = tmf.filter(r=>r.isOver).length;
-    const pctOver   = withRH ? (nOver/withRH*100).toFixed(1) : '0.0';
-    const sumActual = tmf.reduce((s,r)=>s+(r.actualH||0),0);
-    const sumRoute  = tmf.reduce((s,r)=>s+(r.routingH||0),0);
-
-    const kpisEl = document.getElementById('ta-kpis');
-    const kpiData = [
-      ['Panels Tracked',  `${nPanels.toLocaleString()}`, `${withRH} with routing target`],
-      ['Over Time',       `${nOver}`, `${pctOver}% of those with target`],
-      ['Actual Work Time',sumActual?`${Math.floor(sumActual)}h ${Math.round((sumActual%1)*60)}m`:'—','summed across panels'],
-      ['Target Time',     sumRoute ?`${Math.floor(sumRoute)}h ${Math.round((sumRoute%1)*60)}m`:'—','summed routing hours'],
-    ];
-    kpisEl.innerHTML = kpiData.map(([lbl,val,sub])=>`
-      <div class="col"><div class="kpi-box">
-        <div class="kpi-label">${lbl}</div>
-        <div class="kpi-value">${val}</div>
-        <div class="kpi-sub">${sub}</div>
-      </div></div>`).join('');
-
-    if (!tmf.length) {
-      document.getElementById('ta-charts').innerHTML='<div class="col"><div class="alert alert-info">No data matches the selected filters.</div></div>';
-      document.getElementById('ta-worker-section').innerHTML='';
-      document.getElementById('ta-breakdown').innerHTML='';
-      return;
-    }
-
-    // Scatter: actual vs routing
-    const scatter = tmf.filter(r=>r.routingH&&r.actualH);
-    const scatterCfg = {
-      type:'scatter',
-      data:{ datasets:[
-        {label:'Over Time', data:scatter.filter(r=>r.isOver).map(r=>({x:r.routingH,y:r.actualH,panel:r.panel_number,job:r.job_number})),
-         backgroundColor:RED, pointRadius:5},
-        {label:'On Time',   data:scatter.filter(r=>!r.isOver).map(r=>({x:r.routingH,y:r.actualH,panel:r.panel_number,job:r.job_number})),
-         backgroundColor:GREEN, pointRadius:5},
-      ]},
-      options:{responsive:true,
-        plugins:{
-          legend:{position:'top'},
-          tooltip:{callbacks:{label:c=>`${c.dataset.label}: Panel ${c.raw.panel}, Job ${c.raw.job} — ${c.parsed.x.toFixed(2)}h target, ${c.parsed.y.toFixed(2)}h actual`}},
-        },
-        scales:{
-          x:{title:{display:true,text:'Target Hours (routing)'}},
-          y:{title:{display:true,text:'Actual Hours'}},
-        }
-      }
-    };
-
-    // Stage avg bar
-    const stageAvgs = ['Layout','Wire','Final','Tech'].map(s=>{
-      const col = s.toLowerCase()+'H';
-      const vals = tmf.map(r=>r[col]).filter(v=>v>0);
-      return {stage:s, avg:vals.length ? vals.reduce((a,b)=>a+b,0)/vals.length : null};
-    }).filter(s=>s.avg!==null);
-
-    document.getElementById('ta-charts').innerHTML=`
-      <div class="col-lg-7"><canvas id="chart-ta-scatter"></canvas></div>
-      <div class="col-lg-5"><canvas id="chart-ta-stages"></canvas></div>`;
-
-    mkChart('chart-ta-scatter', scatterCfg);
-    mkChart('chart-ta-stages',{type:'bar',
-      data:{labels:stageAvgs.map(s=>s.stage),datasets:[{
-        data:stageAvgs.map(s=>+s.avg.toFixed(3)),
-        backgroundColor:[BLUE,NAVY,'#4A90D9','#7FAFD9'],
-        label:'Avg Hours',
-      }]},
-      options:{indexAxis:'y',responsive:true,
-        plugins:{legend:{display:false},tooltip:{callbacks:{label:c=>` ${c.parsed.x.toFixed(2)}h`}}},
-        scales:{x:{beginAtZero:true,title:{display:true,text:'Avg Hours'}}}}
-    });
-
-    // Worker breakdown
-    const workerRows = [];
-    for (const [stage,wc,hc] of [['Layout','layout_worker','layoutH'],['Wire','wire_worker','wireH'],
-                                   ['Final','final_worker','finalH'],['Tech','tech_worker','techH']]) {
-      const grp = {};
-      for (const r of tmf) {
-        if (!r[wc]||!r[hc]) continue;
-        if (!grp[r[wc]]) grp[r[wc]]={panels:0,sum:0,min:Infinity,max:-Infinity};
-        grp[r[wc]].panels++; grp[r[wc]].sum+=r[hc];
-        grp[r[wc]].min=Math.min(grp[r[wc]].min,r[hc]);
-        grp[r[wc]].max=Math.max(grp[r[wc]].max,r[hc]);
-      }
-      for (const [worker,g] of Object.entries(grp))
-        workerRows.push({stage,worker,panels:g.panels,avg:g.sum/g.panels,min:g.min,max:g.max});
-    }
-
-    const wSec = document.getElementById('ta-worker-section');
-    if (workerRows.length) {
-      wSec.innerHTML=`<div class="section-header mt-3">Worker Time Breakdown</div>
-        <canvas id="chart-ta-workers" style="max-height:300px"></canvas>
-        <div id="worker-table" class="mt-3"></div>`;
-
-      const stages = [...new Set(workerRows.map(r=>r.stage))];
-      const workers = [...new Set(workerRows.map(r=>r.worker))].sort();
-      const stageColors = {Layout:BLUE, Wire:NAVY, Final:'#4A90D9', Tech:'#7FAFD9'};
-
-      mkChart('chart-ta-workers',{type:'bar',
-        data:{labels:workers,datasets:stages.map(s=>({
-          label:s,
-          data:workers.map(w=>{const r=workerRows.find(x=>x.stage===s&&x.worker===w);return r?+r.avg.toFixed(3):0;}),
-          backgroundColor:stageColors[s],
-        }))},
-        options:{responsive:true,scales:{y:{beginAtZero:true,title:{display:true,text:'Avg Hours'}}}}
-      });
-
-      document.getElementById('worker-table').innerHTML = makeTable(
-        ['Stage','Worker','Panels','Avg H:M:S','Min H:M:S','Max H:M:S'],
-        workerRows.sort((a,b)=>a.stage.localeCompare(b.stage)||a.worker.localeCompare(b.worker))
-          .map(r=>[r.stage,r.worker,r.panels,hms(r.avg),hms(r.min),hms(r.max)])
-      );
-    } else { wSec.innerHTML=''; }
-
-    // Time breakdown
-    const completed = tmf.filter(r=>r.actualH!==null);
-    const bdEl = document.getElementById('ta-breakdown');
-    if (!completed.length) { bdEl.innerHTML=''; return; }
-
-    const mean = (arr,k) => { const v=arr.map(r=>r[k]).filter(v=>v>0); return v.length?v.reduce((a,b)=>a+b,0)/v.length:null; };
-    const avgLayout=mean(completed,'layoutH'), avgWire=mean(completed,'wireH');
-    const avgFinal=mean(completed,'finalH'),   avgTech=mean(completed,'techH');
-    const avgTotal=mean(completed,'actualH');
-
-    const targets=[...new Set(completed.map(r=>r.routingH).filter(Boolean))];
-    const singleTarget = targets.length===1 ? targets[0] : null;
-    const isOver = singleTarget && avgTotal && avgTotal-singleTarget > 1/60;
-
-    bdEl.innerHTML=`
-      <div class="section-header mt-3">Time Breakdown</div>
-      <div class="row g-2 mb-3">
-        ${[['Avg Layout',avgLayout],['Avg Wire',avgWire],['Avg Final',avgFinal],['Avg Tech',avgTech]]
-          .map(([l,v])=>`<div class="col"><div class="kpi-box">
-            <div class="kpi-label">${l}</div>
-            <div class="kpi-value" style="font-size:20px">${hms(v)}</div>
-          </div></div>`).join('')}
-      </div>
-      <div class="row g-2 mb-3">
-        <div class="col"><div class="kpi-box" style="background:var(--tint);color:var(--navy)">
-          <div class="kpi-label">Target (routing)</div>
-          <div class="kpi-value" style="font-size:18px">${singleTarget?hms(singleTarget):'— (mixed)'}</div>
-        </div></div>
-        <div class="col"><div class="kpi-box" style="background:var(--tint);color:var(--navy)">
-          <div class="kpi-label">Avg Actual Total</div>
-          <div class="kpi-value" style="font-size:18px">${hms(avgTotal)}</div>
-        </div></div>
-        <div class="col"><div class="kpi-box" style="background:${isOver?'#fff0f0':'#f0fff4'};color:var(--navy)">
-          <div class="kpi-label">Delta</div>
-          <div class="kpi-value" style="font-size:18px;color:${isOver?RED:GREEN}">
-            ${singleTarget&&avgTotal?(isOver?'▲ ':'▼ ')+hms(Math.abs(avgTotal-singleTarget)):'—'}
-          </div>
-        </div></div>
-      </div>
-
-      <div class="section-header">Panel Detail</div>
-      ${makeTable(['Panel','Job','Date Built','Routing H','Actual H','Layout','Wire','Final','Tech','Status'],
-        completed.sort((a,b)=>(b.dateBuilt||0)-(a.dateBuilt||0)).map(r=>[
-          r.panel_number, r.job_number,
-          r.dateBuilt?fmtDate(r.dateBuilt):'—',
-          r.routingH?r.routingH.toFixed(2):'—',
-          r.actualH?r.actualH.toFixed(2):'—',
-          hms(r.layoutH), hms(r.wireH), hms(r.finalH), hms(r.techH),
-          `<span class="badge ${r.isOver?'badge-over':'badge-ok'}">${r.isOver?'Over':'On Time'}</span>`,
-        ]), (r,i)=>completed[i]?.isOver?'table-danger':'')}`;
+  if(!f.length){
+    ['ch-scatter','ch-stages'].forEach(id=>Plotly.purge(id));
+    document.getElementById('ta-worker-section').innerHTML='<div class="alert alert-info">No data matches the selected filters.</div>';
+    document.getElementById('ta-breakdown').innerHTML=''; return;
   }
 
-  document.getElementById('ta-period').addEventListener('change', function() {
-    document.getElementById('ta-month-col').style.display = this.value==='By Month'?'':'none';
-    drawTA();
-  });
-  ['ta-month','ta-complete','ta-workers','ta-panels'].forEach(id=>{
-    document.getElementById(id)?.addEventListener('change', drawTA);
+  // Scatter: actual vs routing
+  const sc=f.filter(r=>r.rH&&r.aH);
+  const over=sc.filter(r=>r.isO),onTime=sc.filter(r=>!r.isO);
+  const mx=sc.length?Math.max(...sc.map(r=>Math.max(r.rH,r.aH)))*1.1:10;
+  newPlot('ch-scatter',[
+    {type:'scatter',name:'Over Time',mode:'markers',
+      x:over.map(r=>r.rH),y:over.map(r=>r.aH),
+      marker:{color:RED,size:8,opacity:.8},
+      text:over.map(r=>`${r.panel_number}<br>Job: ${r.job_number}`),
+      hovertemplate:'<b>%{text}</b><br>Target: %{x:.2f}h<br>Actual: %{y:.2f}h<extra>Over Time</extra>'},
+    {type:'scatter',name:'On Time',mode:'markers',
+      x:onTime.map(r=>r.rH),y:onTime.map(r=>r.aH),
+      marker:{color:GREEN,size:8,opacity:.8},
+      text:onTime.map(r=>`${r.panel_number}<br>Job: ${r.job_number}`),
+      hovertemplate:'<b>%{text}</b><br>Target: %{x:.2f}h<br>Actual: %{y:.2f}h<extra>On Time</extra>'},
+    {type:'scatter',name:'On Target Line',mode:'lines',x:[0,mx],y:[0,mx],
+      line:{color:WARMGRAY,dash:'dash',width:1},showlegend:false,hoverinfo:'skip'},
+  ],{title:{text:'Actual vs Routing Hours',font:{family:'Georgia',color:NAVY,size:14}},height:380,
+    xaxis:{title:'Target Hours (routing)',range:[0,mx]},yaxis:{title:'Actual Hours',range:[0,mx]},
+    annotations:[{x:mx*.85,y:mx*.88,text:'on target',showarrow:false,font:{color:WARMGRAY,size:10}}],
   });
 
-  drawTA();
+  // Stage avg bar
+  const stageAvgs=[['Layout','lH'],['Wire','wH'],['Final','fH'],['Tech','tH']].map(([s,c])=>{
+    const v=f.map(r=>r[c]).filter(v=>v>0);
+    return v.length?{s,avg:v.reduce((a,b)=>a+b,0)/v.length}:null;
+  }).filter(Boolean);
+  if(stageAvgs.length) newPlot('ch-stages',[{
+    type:'bar',orientation:'h',y:stageAvgs.map(r=>r.s).reverse(),x:stageAvgs.map(r=>+r.avg.toFixed(3)).reverse(),
+    text:stageAvgs.map(r=>`${r.avg.toFixed(2)}h`).reverse(),textposition:'outside',
+    marker:{color:[BLUE,NAVY,'#4A90D9','#7FAFD9'].reverse()},
+    hovertemplate:'<b>%{y}</b><br>Avg: %{x:.2f}h<extra></extra>',
+  }],{title:{text:'Avg Hours per Stage',font:{family:'Georgia',color:NAVY,size:13}},
+    xaxis:{title:'Avg Hours'},height:260,showlegend:false});
+
+  // Worker breakdown
+  const wRows=[]; for(const[stage,wc,hc]of[['Layout','layout_worker','lH'],['Wire','wire_worker','wH'],['Final','final_worker','fH'],['Tech','tech_worker','tH']]){
+    const grp={}; for(const r of f){if(!r[wc]||!r[hc])continue;if(!grp[r[wc]])grp[r[wc]]={p:0,s:0,mn:Infinity,mx:-Infinity};grp[r[wc]].p++;grp[r[wc]].s+=r[hc];grp[r[wc]].mn=Math.min(grp[r[wc]].mn,r[hc]);grp[r[wc]].mx=Math.max(grp[r[wc]].mx,r[hc]);}
+    for(const[w,g]of Object.entries(grp)) wRows.push({stage,worker:w,panels:g.p,avg:g.s/g.p,min:g.mn,max:g.mx});
+  }
+  const wSec=document.getElementById('ta-worker-section');
+  if(wRows.length){
+    const stages=[...new Set(wRows.map(r=>r.stage))],workers=[...new Set(wRows.map(r=>r.worker))].sort();
+    const stC={Layout:BLUE,Wire:NAVY,Final:'#4A90D9',Tech:'#7FAFD9'};
+    wSec.innerHTML=`<div class="section-hdr">Worker Time Breakdown</div><div class="chart-box"><div id="ch-workers" class="plot-div" style="min-height:300px"></div></div><div id="worker-tbl" class="mt-2"></div>`;
+    newPlot('ch-workers',stages.map(s=>({type:'bar',name:s,x:workers,
+      y:workers.map(w=>{const r=wRows.find(x=>x.stage===s&&x.worker===w);return r?+r.avg.toFixed(3):0;}),
+      marker:{color:stC[s]},hovertemplate:'<b>%{x}</b><br>'+s+': %{y:.2f}h avg<extra></extra>'})),
+      {title:{text:'Avg Stage Time by Worker',font:{family:'Georgia',color:NAVY,size:13}},barmode:'group',height:320,yaxis:{title:'Avg Hours'}});
+    document.getElementById('worker-tbl').innerHTML=tbl(
+      ['Stage','Worker','Panels','Avg H:M:S','Min H:M:S','Max H:M:S'],
+      wRows.sort((a,b)=>a.stage.localeCompare(b.stage)||a.worker.localeCompare(b.worker))
+        .map(r=>[r.stage,r.worker,r.panels,hms(r.avg),hms(r.min),hms(r.max)]));
+  } else wSec.innerHTML='';
+
+  // Time breakdown
+  const comp=f.filter(r=>r.aH);
+  const bdEl=document.getElementById('ta-breakdown');
+  if(!comp.length){bdEl.innerHTML='';return;}
+  const mean=(a,k)=>{const v=a.map(r=>r[k]).filter(v=>v>0);return v.length?v.reduce((a,b)=>a+b,0)/v.length:null;};
+  const aL=mean(comp,'lH'),aW=mean(comp,'wH'),aF=mean(comp,'fH'),aT=mean(comp,'tH'),aA=mean(comp,'aH');
+  const targets=[...new Set(comp.map(r=>r.rH).filter(Boolean))];
+  const sTgt=targets.length===1?targets[0]:null;
+  const isOver=sTgt&&aA&&aA-sTgt>1/60;
+  bdEl.innerHTML=`
+    <div class="section-hdr mt-3">Time Breakdown</div>
+    <div style="display:grid;grid-template-columns:repeat(4,1fr);gap:10px;margin-bottom:14px">
+      ${[['Avg Layout',aL],['Avg Wire',aW],['Avg Final',aF],['Avg Tech',aT]].map(([l,v])=>`<div class="kpi-card"><div class="kpi-label">${l}</div><div class="kpi-value" style="font-size:18px">${hms(v)}</div></div>`).join('')}
+    </div>
+    <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:10px;margin-bottom:16px">
+      <div class="kpi-card" style="background:var(--tint);color:var(--navy)"><div class="kpi-label">Target (routing)</div><div class="kpi-value" style="font-size:18px">${sTgt?hms(sTgt):'— (mixed)'}</div></div>
+      <div class="kpi-card" style="background:var(--tint);color:var(--navy)"><div class="kpi-label">Avg Actual Total</div><div class="kpi-value" style="font-size:18px">${hms(aA)}</div></div>
+      <div class="kpi-card" style="background:${isOver?'#fff0f0':'#f0fff4'};color:var(--navy)"><div class="kpi-label">Delta</div><div class="kpi-value" style="font-size:18px;color:${isOver?RED:GREEN}">${sTgt&&aA?(isOver?'▲ ':'▼ ')+hms(Math.abs(aA-sTgt)):'—'}</div></div>
+    </div>
+    <div class="section-hdr">Panel Detail</div>
+    ${tbl(['Panel','Job','Date Built','Target H','Actual H','Layout','Wire','Final','Tech','Status'],
+      comp.sort((a,b)=>(b.dateB||0)-(a.dateB||0)).map(r=>[
+        r.panel_number,r.job_number,r.dateB?fmtDate(r.dateB):'—',
+        r.rH?r.rH.toFixed(2):'—',r.aH?r.aH.toFixed(2):'—',
+        hms(r.lH),hms(r.wH),hms(r.fH),hms(r.tH),
+        `<span class="${r.isO?'badge-over':'badge-ok'}">${r.isO?'Over':'On Time'}</span>`,
+      ]), i=>comp[i]?.isO?'row-fail':'')}`;
 }
 
-// ─── Master render ────────────────────────────────────────────────────────────
-function render() {
-  const data = getFiltered();
-  renderKPIs(data);
-  renderTab1(data);
-  renderPersonTab(2,'Layout','Layout');
-  renderPersonTab(3,'Wire','Wire');
-  renderPersonTab(4,'FA','Final');
-  renderTab5(data);
-  // Tab6 renders on first click
-}
+// ─── Helpers ──────────────────────────────────────────────────────────────────
+function toggleExpander(btn){ const b=btn.nextElementSibling; b.classList.toggle('open'); btn.textContent=btn.textContent.replace(/[▼▲]/,b.classList.contains('open')?'▲':'▼'); }
 
-// ─── File upload ──────────────────────────────────────────────────────────────
+// ─── File handling ────────────────────────────────────────────────────────────
 function handleFile(file) {
-  if (!file) return;
-  const reader = new FileReader();
-  reader.onload = e => {
-    try {
+  if(!file)return;
+  const r=new FileReader();
+  r.onload=e=>{
+    try{
       parseExcel(e.target.result);
-      document.getElementById('upload-section').classList.add('d-none');
-      document.getElementById('dashboard').classList.remove('d-none');
-
-      // Populate quarter dropdown
-      const quarters = [...new Set(df.map(r=>r.Quarter))].sort();
-      const qSel = document.getElementById('quarter-select');
-      qSel.innerHTML = quarters.reverse().map(q=>`<option>${q}</option>`).join('');
-
+      document.getElementById('upload-section').style.display='none';
+      document.getElementById('dashboard').style.display='block';
+      const quarters=[...new Set(df.map(r=>r.Quarter))].sort().reverse();
+      const qs=document.getElementById('quarter-select');
+      qs.innerHTML=quarters.map(q=>`<option>${q}</option>`).join('');
       render();
-    } catch(err) {
-      const errEl = document.getElementById('upload-error');
-      errEl.textContent = 'Error processing file: ' + err.message;
-      errEl.classList.remove('d-none');
+    }catch(err){
+      const ee=document.getElementById('upload-error');
+      ee.textContent='Error: '+err.message; ee.style.display='block';
     }
   };
-  reader.readAsArrayBuffer(file);
+  r.readAsArrayBuffer(file);
 }
 
-function resetDashboard() {
+function resetDashboard(){
   df=[]; failExploded=[]; timingLoaded=false; timingData=[];
-  Object.keys(charts).forEach(id=>destroyChart(id));
-  document.getElementById('upload-section').classList.remove('d-none');
-  document.getElementById('dashboard').classList.add('d-none');
-  document.getElementById('upload-error').classList.add('d-none');
+  document.getElementById('upload-section').style.display='';
+  document.getElementById('dashboard').style.display='none';
+  document.getElementById('upload-error').style.display='none';
   document.getElementById('file-input').value='';
+  ['ch-fa','ch-trend','ch-comp-p','ch-comp-f','ch-scatter','ch-stages','ch-workers'].forEach(id=>{try{Plotly.purge(id);}catch(e){}});
 }
 
-// ─── Event wiring ─────────────────────────────────────────────────────────────
-document.getElementById('file-input').addEventListener('change', e=>handleFile(e.target.files[0]));
-
-const uploadZone = document.querySelector('.upload-zone');
-uploadZone.addEventListener('dragover', e=>{ e.preventDefault(); uploadZone.style.background='#c0ccff'; });
-uploadZone.addEventListener('dragleave', ()=>{ uploadZone.style.background=''; });
-uploadZone.addEventListener('drop', e=>{ e.preventDefault(); uploadZone.style.background=''; handleFile(e.dataTransfer.files[0]); });
-
-document.getElementById('period-select').addEventListener('change', function() {
-  const qSel = document.getElementById('quarter-select');
-  qSel.classList.toggle('d-none', this.value!=='By Quarter');
-  render();
-});
-document.getElementById('quarter-select').addEventListener('change', render);
-
-// Lazy-load Tab 6 on first click
-document.querySelector('[data-bs-target="#tab6"]').addEventListener('click', ()=>{
-  if (!timingLoaded) renderTab6();
-});
-
-// Re-render role tabs when switching to them
-['#tab2','#tab3','#tab4'].forEach((sel,i)=>{
-  document.querySelector(`[data-bs-target="${sel}"]`).addEventListener('click', ()=>{
-    const {dff,dff_fails}=getFiltered();
-    const cfgs=[[2,'Layout','Layout'],[3,'Wire','Wire'],[4,'FA','Final']];
-    renderPersonTab(...cfgs[i]);
+// ─── Tab switching ────────────────────────────────────────────────────────────
+document.querySelectorAll('.tab-btn').forEach(btn=>{
+  btn.addEventListener('click',()=>{
+    document.querySelectorAll('.tab-btn').forEach(b=>b.classList.remove('active'));
+    document.querySelectorAll('.tab-pane').forEach(p=>p.classList.remove('active'));
+    btn.classList.add('active');
+    const tab=btn.dataset.tab; activeTab=tab;
+    document.getElementById(tab).classList.add('active');
+    if(tab==='t6'&&!timingLoaded) renderT6();
+    else if(tab==='t6') buildTA(window.tm_ref||[]);
+    else if(df.length) renderTab(tab);
+    // Trigger Plotly resize so charts fill their containers
+    setTimeout(()=>window.dispatchEvent(new Event('resize')),50);
   });
 });
-document.querySelector('[data-bs-target="#tab5"]').addEventListener('click', ()=>{
-  renderTab5(getFiltered());
-});
+
+function onPeriodChange(){
+  const v=document.getElementById('period-select').value;
+  document.getElementById('quarter-select').style.display=v==='By Quarter'?'':'none';
+  render();
+}
+
+function render(){
+  if(!df.length)return;
+  const data=getFiltered();
+  renderKPIs(data);
+  renderTab(activeTab);
+}
+
+function renderTab(tab){
+  const data=getFiltered();
+  if(tab==='t1') renderT1(data);
+  else if(tab==='t2') renderPersonTab('t2','Layout','Layout');
+  else if(tab==='t3') renderPersonTab('t3','Wire','Wire');
+  else if(tab==='t4') renderPersonTab('t4','FA','Final');
+  else if(tab==='t5') renderT5(data);
+  else if(tab==='t6') renderT6();
+}
 </script>
 </body>
 </html>
