@@ -11,9 +11,11 @@
 #>
 
 # --- Settings ---------------------------------------------------------------
-# Path to the OneDrive-synced workbook. Find it in Explorer, Shift+Right-click
-# the file, "Copy as path", and paste between the quotes.
-$Workbook    = "$env:USERPROFILE\Copeland\Panel Services - General\Copeland First Pass Q Report.xlsx"
+# Path to the OneDrive-synced workbook. Leave as-is and the script will find it
+# automatically; set it explicitly if you have several copies and want a specific one.
+# (Explorer: Shift+Right-click the file, "Copy as path".)
+$Workbook    = ''
+$WorkbookName= 'Copeland First Pass Q Report.xlsx'
 
 $SupabaseUrl = 'https://ptbhguthosenkffjhbry.supabase.co'
 $AnonKey     = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InB0YmhndXRob3NlbmtmZmpoYnJ5Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODQ5MDkzNzAsImV4cCI6MjEwMDQ4NTM3MH0.y71yXWsIUjzFBqC4itzZ36w9ixw_QDej2RaBPh8MLPI'
@@ -69,7 +71,33 @@ try {
     }
     Import-Module ImportExcel
 
-    if (-not (Test-Path $Workbook)) { throw "Workbook not found: $Workbook" }
+    # Locate the workbook. Prefers an explicit path; otherwise searches the OneDrive
+    # sync roots and takes the most recently written copy. Excludes Excel lock files
+    # (~$...) and locations that only ever hold frozen copies: Downloads and Teams
+    # chat attachments never update, so picking one would quietly sync stale data.
+    if ($Workbook -and (Test-Path $Workbook)) {
+        Write-Log "Using configured path"
+    } else {
+        if ($Workbook) { Write-Log "Configured path not found, searching..." 'WARN' }
+        $roots = Get-ChildItem $env:USERPROFILE -Directory -Force -ErrorAction SilentlyContinue |
+                 Where-Object { $_.Name -match '^(OneDrive|Copeland|Emerson)' }
+        $found = foreach ($r in $roots) {
+            Get-ChildItem $r.FullName -Recurse -Filter $WorkbookName -Force `
+                          -ErrorAction SilentlyContinue -Depth 6 |
+                Where-Object { $_.Name -notlike '~$*' -and
+                               $_.FullName -notmatch '\\(Downloads|Archive Files|.*Teams Chat Files)\\' }
+        }
+        $best = $found | Sort-Object LastWriteTime -Descending | Select-Object -First 1
+        if (-not $best) {
+            throw ("Could not find '$WorkbookName' in any OneDrive folder. Open the " +
+                   "library in SharePoint and choose 'Add shortcut to My files', wait " +
+                   "for OneDrive to finish, then run this again.")
+        }
+        $Workbook = $best.FullName
+        if ($found.Count -gt 1) {
+            Write-Log ("{0} copies found; using the newest: {1}" -f $found.Count, $Workbook) 'WARN'
+        }
+    }
 
     # Work from a copy: the live file is usually open in Excel or mid-sync.
     $temp = Join-Path $env:TEMP ("fp-sync-{0}.xlsx" -f (Get-Date -Format 'yyyyMMddHHmmss'))
