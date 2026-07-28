@@ -5,114 +5,98 @@
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>First Pass Quality Dashboard</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
-<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&family=Georgia&display=swap" rel="stylesheet">
-<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/css/bootstrap.min.css">
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&display=swap" rel="stylesheet">
 <style>
 :root {
   --navy:#000E57; --blue:#0F3CFF; --tint:#E7ECFF;
   --offwhite:#FFFEF5; --warmgray:#ABA18B; --red:#C0392B; --green:#27AE60;
 }
-* { box-sizing: border-box; }
-body { background:var(--offwhite); font-family:'Inter',Arial,sans-serif; font-size:14px; margin:0; }
+*{box-sizing:border-box;}
+body{background:var(--offwhite);font-family:'Inter',Arial,sans-serif;font-size:14px;margin:0;}
 
-/* ── Navbar ── */
-.top-nav { background:var(--navy); padding:10px 20px; display:flex; align-items:center; justify-content:space-between; }
-.top-nav h1 { color:#fff; font-family:Georgia; font-size:1.2rem; margin:0; font-weight:normal; }
-.top-nav small { color:rgba(255,255,255,.6); font-size:11px; }
+.top-nav{background:var(--navy);padding:10px 20px;display:flex;align-items:center;justify-content:space-between;}
+.top-nav h1{color:#fff;font-family:Georgia;font-size:1.2rem;margin:0;font-weight:normal;}
+.top-nav small{color:rgba(255,255,255,.6);font-size:11px;}
 
-/* ── Upload ── */
-#upload-section { max-width:640px; margin:80px auto; padding:0 20px; }
-.upload-card { background:#fff; border-radius:16px; box-shadow:0 4px 24px rgba(0,14,87,.10); padding:48px; text-align:center; border:2px dashed var(--blue); cursor:pointer; transition:background .2s,transform .15s; }
-.upload-card:hover { background:var(--tint); transform:translateY(-2px); }
-.upload-card h2 { font-family:Georgia; color:var(--navy); margin:12px 0 8px; }
-.upload-card p { color:var(--warmgray); font-size:13px; }
-.upload-icon { font-size:52px; }
-#upload-error { margin-top:16px; }
+#upload-section{max-width:640px;margin:80px auto;padding:0 20px;}
+.upload-card{background:#fff;border-radius:16px;box-shadow:0 4px 24px rgba(0,14,87,.10);padding:48px;text-align:center;border:2px dashed var(--blue);cursor:pointer;transition:background .2s,transform .15s;}
+.upload-card:hover{background:var(--tint);transform:translateY(-2px);}
+.upload-card h2{font-family:Georgia;color:var(--navy);margin:12px 0 8px;}
+.upload-card p{color:var(--warmgray);font-size:13px;}
+.upload-icon{font-size:52px;}
 
-/* ── Controls bar ── */
-#controls-bar {
-  position:sticky; top:0; z-index:200; background:#fff;
-  border-bottom:1px solid #e0e4f0; padding:8px 20px;
-  display:flex; gap:10px; align-items:center; flex-wrap:wrap;
-  box-shadow:0 2px 8px rgba(0,14,87,.06);
-}
-#controls-bar label { font-size:12px; color:var(--navy); font-weight:600; margin:0; }
-#controls-bar select { font-size:13px; padding:4px 8px; border:1px solid #c8d0e7; border-radius:6px; color:var(--navy); background:#fff; }
-#period-badge { color:var(--blue); font-size:12px; font-weight:600; }
-#data-summary { margin-left:auto; color:var(--warmgray); font-size:11px; }
-.reset-btn { margin-left:8px; background:transparent; border:1px solid #c8d0e7; color:var(--navy); border-radius:6px; padding:4px 10px; font-size:12px; cursor:pointer; }
-.reset-btn:hover { background:var(--tint); }
+#controls-bar{position:sticky;top:0;z-index:200;background:#fff;border-bottom:1px solid #e0e4f0;padding:8px 20px;display:flex;gap:10px;align-items:center;flex-wrap:wrap;box-shadow:0 2px 8px rgba(0,14,87,.06);}
+#controls-bar label{font-size:12px;color:var(--navy);font-weight:600;margin:0;}
+#controls-bar select{font-size:13px;padding:4px 8px;border:1px solid #c8d0e7;border-radius:6px;color:var(--navy);background:#fff;}
+#period-badge{color:var(--blue);font-size:12px;font-weight:600;}
+#data-summary{margin-left:auto;color:var(--warmgray);font-size:11px;}
+.reset-btn{background:transparent;border:1px solid #c8d0e7;color:var(--navy);border-radius:6px;padding:4px 10px;font-size:12px;cursor:pointer;}
+.reset-btn:hover{background:var(--tint);}
 
-/* ── KPI row ── */
-#kpi-row { display:grid; grid-template-columns:repeat(5,1fr); gap:12px; padding:16px 20px 0; }
-.kpi-card { background:var(--navy); color:#fff; border-radius:10px; padding:14px 16px; text-align:center; box-shadow:0 2px 8px rgba(0,14,87,.18); }
-.kpi-label { font-size:10px; opacity:.7; letter-spacing:.8px; text-transform:uppercase; }
-.kpi-value { font-size:26px; font-weight:700; font-family:Georgia; line-height:1.2; margin:2px 0; }
-.kpi-sub   { font-size:10px; opacity:.6; }
+#kpi-row{display:grid;grid-template-columns:repeat(5,1fr);gap:12px;padding:16px 20px 0;}
+.kpi-card{background:var(--navy);color:#fff;border-radius:10px;padding:14px 16px;text-align:center;box-shadow:0 2px 8px rgba(0,14,87,.18);}
+.kpi-label{font-size:10px;opacity:.7;letter-spacing:.8px;text-transform:uppercase;}
+.kpi-value{font-size:26px;font-weight:700;font-family:Georgia;line-height:1.2;margin:2px 0;}
+.kpi-sub{font-size:10px;opacity:.6;}
 
-/* ── Tabs ── */
-#tab-nav { display:flex; gap:0; padding:16px 20px 0; border-bottom:2px solid #e0e4f0; overflow-x:auto; }
-.tab-btn { background:none; border:none; border-bottom:3px solid transparent; padding:8px 14px; font-size:13px; font-weight:500; color:var(--warmgray); cursor:pointer; white-space:nowrap; transition:color .15s,border-color .15s; }
-.tab-btn:hover { color:var(--navy); }
-.tab-btn.active { color:var(--blue); border-bottom-color:var(--blue); font-weight:600; }
+#tab-nav{display:flex;gap:0;padding:16px 20px 0;border-bottom:2px solid #e0e4f0;overflow-x:auto;}
+.tab-btn{background:none;border:none;border-bottom:3px solid transparent;padding:8px 14px;font-size:13px;font-weight:500;color:var(--warmgray);cursor:pointer;white-space:nowrap;transition:color .15s,border-color .15s;}
+.tab-btn:hover{color:var(--navy);}
+.tab-btn.active{color:var(--blue);border-bottom-color:var(--blue);font-weight:600;}
 
-/* ── Tab content ── */
-.tab-pane { display:none; padding:16px 20px 40px; }
-.tab-pane.active { display:block; }
+.tab-pane{display:none;padding:16px 20px 80px;}
+.tab-pane.active{display:block;}
 
-/* ── Section header ── */
-.section-hdr { background:var(--navy); color:#fff; padding:7px 14px; border-radius:5px; font-family:Georgia; font-size:14px; font-weight:bold; margin:20px 0 10px; }
+.section-hdr{background:var(--navy);color:#fff;padding:8px 16px;border-radius:4px;font-family:Georgia;font-size:15px;font-weight:bold;margin:20px 0 10px;}
 
-/* ── Group-by buttons ── */
-.grp-btns { display:flex; gap:6px; margin-bottom:12px; }
-.grp-btn { background:#fff; border:1px solid #c8d0e7; border-radius:6px; padding:4px 12px; font-size:12px; font-weight:500; color:var(--navy); cursor:pointer; transition:background .15s; }
-.grp-btn.active { background:var(--blue); color:#fff; border-color:var(--blue); }
+.grp-btns{display:flex;gap:6px;margin-bottom:12px;}
+.grp-btn{background:#fff;border:1px solid #c8d0e7;border-radius:6px;padding:4px 12px;font-size:12px;font-weight:500;color:var(--navy);cursor:pointer;transition:background .15s;}
+.grp-btn.active{background:var(--blue);color:#fff;border-color:var(--blue);}
 
-/* ── Tables ── */
-.tbl-wrap { overflow-x:auto; border-radius:8px; box-shadow:0 1px 4px rgba(0,0,0,.07); }
-table.dash-table { width:100%; border-collapse:collapse; font-size:12.5px; }
-table.dash-table thead tr { background:var(--navy); color:#fff; }
-table.dash-table thead th { padding:8px 10px; font-weight:500; white-space:nowrap; }
-table.dash-table tbody tr { border-bottom:1px solid #eef0f7; transition:background .1s; }
-table.dash-table tbody tr:hover { background:#f4f6ff; }
-table.dash-table tbody td { padding:6px 10px; vertical-align:middle; }
-table.dash-table tbody tr.row-fail { background:#fff0f0; }
-table.dash-table tbody tr.row-fail:hover { background:#ffe0e0; }
-.badge-over { background:var(--red); color:#fff; border-radius:4px; padding:2px 6px; font-size:11px; }
-.badge-ok   { background:var(--green); color:#fff; border-radius:4px; padding:2px 6px; font-size:11px; }
-.pct-high { color:var(--red); font-weight:700; }
-.pct-med  { color:darkorange; font-weight:700; }
-.pct-ok   { color:var(--green); font-weight:600; }
+.tbl-wrap{overflow-x:auto;border-radius:8px;box-shadow:0 1px 4px rgba(0,0,0,.07);}
+table.dash-table{width:100%;border-collapse:collapse;font-size:12.5px;}
+table.dash-table thead tr{background:var(--navy);color:#fff;}
+table.dash-table thead th{padding:8px 10px;font-weight:500;white-space:nowrap;}
+table.dash-table tbody tr{border-bottom:1px solid #eef0f7;transition:background .1s;}
+table.dash-table tbody tr:hover{background:#f4f6ff;}
+table.dash-table tbody td{padding:6px 10px;vertical-align:middle;}
+table.dash-table tbody tr.row-fail{background:#fff0f0;}
+table.dash-table tbody tr.row-fail:hover{background:#ffe0e0;}
+.badge-over{background:var(--red);color:#fff;border-radius:4px;padding:2px 6px;font-size:11px;}
+.badge-ok{background:var(--green);color:#fff;border-radius:4px;padding:2px 6px;font-size:11px;}
+.pct-high{color:var(--red);font-weight:700;}
+.pct-med{color:darkorange;font-weight:700;}
+.pct-ok{color:var(--green);font-weight:600;}
 
-/* ── Collapse / expander ── */
-.expander-btn { background:#fff8e1; border:1px solid #f0c040; border-radius:6px; padding:5px 12px; font-size:12px; color:#7a5c00; cursor:pointer; }
-.expander-btn:hover { background:#fff0a0; }
-.collapse-body { display:none; margin-top:8px; }
-.collapse-body.open { display:block; }
+.expander-btn{background:#fff8e1;border:1px solid #f0c040;border-radius:6px;padding:5px 12px;font-size:12px;color:#7a5c00;cursor:pointer;margin-top:12px;}
+.expander-btn:hover{background:#fff0a0;}
+.collapse-body{display:none;margin-top:8px;}
+.collapse-body.open{display:block;}
 
-/* ── Drilldown ── */
-.drilldown-box { border-left:4px solid var(--blue); padding-left:14px; margin-top:16px; }
+.drilldown-box{border-left:4px solid var(--blue);padding-left:14px;margin-top:16px;}
 
-/* ── Charts ── */
-.chart-box { background:#fff; border-radius:10px; box-shadow:0 1px 6px rgba(0,0,0,.08); padding:4px; margin-bottom:16px; }
-.plot-div { min-height:300px; }
+.chart-box{background:#fff;border-radius:10px;box-shadow:0 1px 6px rgba(0,0,0,.08);padding:4px;margin-bottom:16px;}
+.plot-div{min-height:300px;}
 
-/* ── Time Analysis filters ── */
-.ta-filters { display:flex; gap:10px; align-items:flex-end; flex-wrap:wrap; background:#fff; border-radius:10px; padding:12px 16px; margin-bottom:16px; box-shadow:0 1px 6px rgba(0,0,0,.07); }
-.ta-filters label { font-size:11px; font-weight:600; color:var(--navy); display:block; margin-bottom:2px; }
-.ta-filters select, .ta-filters input[type=checkbox] { font-size:13px; border:1px solid #c8d0e7; border-radius:6px; padding:4px 8px; }
-.ta-kpis { display:grid; grid-template-columns:repeat(4,1fr); gap:10px; margin-bottom:16px; }
+.ta-filters{display:flex;gap:10px;align-items:flex-end;flex-wrap:wrap;background:#fff;border-radius:10px;padding:12px 16px;margin-bottom:16px;box-shadow:0 1px 6px rgba(0,0,0,.07);}
+.ta-filters label{font-size:11px;font-weight:600;color:var(--navy);display:block;margin-bottom:2px;}
+.ta-filters select,.ta-filters input[type=checkbox]{font-size:13px;border:1px solid #c8d0e7;border-radius:6px;padding:4px 8px;}
 
-/* ── Spinner ── */
-.spinner-wrap { display:flex; align-items:center; gap:10px; padding:40px 0; color:var(--navy); font-family:Georgia; }
-.spinner { width:22px; height:22px; border:3px solid var(--tint); border-top-color:var(--blue); border-radius:50%; animation:spin .8s linear infinite; }
-@keyframes spin { to { transform:rotate(360deg); } }
+.spinner-wrap{display:flex;align-items:center;gap:10px;padding:40px 0;color:var(--navy);font-family:Georgia;}
+.spinner{width:22px;height:22px;border:3px solid var(--tint);border-top-color:var(--blue);border-radius:50%;animation:spin .8s linear infinite;}
+@keyframes spin{to{transform:rotate(360deg);}}
 
-/* ── Responsive ── */
-@media(max-width:768px) {
-  #kpi-row { grid-template-columns:repeat(2,1fr); }
-  .kpi-value { font-size:20px; }
-  .ta-kpis { grid-template-columns:repeat(2,1fr); }
+.ps-filter-row{display:flex;gap:12px;align-items:flex-end;margin-bottom:12px;flex-wrap:wrap;}
+.ps-filter-row label{font-size:11px;font-weight:600;color:var(--navy);display:block;margin-bottom:2px;}
+.ps-filter-row select{font-size:13px;border:1px solid #c8d0e7;border-radius:6px;padding:4px 8px;color:var(--navy);}
+
+.version-history{position:fixed;bottom:12px;left:12px;z-index:9999;font-family:Arial,sans-serif;font-size:10px;color:#aaa;line-height:1.5;max-width:260px;}
+.version-history summary{cursor:pointer;font-size:10px;color:#bbb;user-select:none;}
+.version-history summary:hover{color:#888;}
+
+@media(max-width:768px){
+  #kpi-row{grid-template-columns:repeat(2,1fr);}
+  .kpi-value{font-size:20px;}
 }
 </style>
 </head>
@@ -123,7 +107,6 @@ table.dash-table tbody tr.row-fail:hover { background:#ffe0e0; }
   <small>Kennesaw Panel Assembly · First Pass Yield & Technician Performance</small>
 </div>
 
-<!-- Upload -->
 <div id="upload-section">
   <div class="upload-card" onclick="document.getElementById('file-input').click()"
        ondragover="event.preventDefault();this.style.background='#d0dcff'"
@@ -131,14 +114,13 @@ table.dash-table tbody tr.row-fail:hover { background:#ffe0e0; }
        ondrop="event.preventDefault();this.style.background='';handleFile(event.dataTransfer.files[0])">
     <div class="upload-icon">📂</div>
     <h2>Upload your report to get started</h2>
-    <p>Download the <b>First Pass Q Report</b> from Excel Online,<br>then drag it here or click to browse.</p>
+    <p>Download the <b>First Pass Q Report</b> from Excel Online,<br>then drag it onto the uploader in the sidebar.</p>
     <p style="color:#aaa;font-size:11px">Supports .xlsx files</p>
   </div>
   <input type="file" id="file-input" accept=".xlsx" style="display:none" onchange="handleFile(this.files[0])">
-  <div id="upload-error" style="display:none" class="alert alert-danger mt-3"></div>
+  <div id="upload-error" style="display:none;margin-top:16px;padding:10px 14px;background:#fff0f0;border:1px solid var(--red);border-radius:6px;color:var(--red);"></div>
 </div>
 
-<!-- Dashboard -->
 <div id="dashboard" style="display:none">
   <div id="controls-bar">
     <label>Period:</label>
@@ -178,13 +160,34 @@ table.dash-table tbody tr.row-fail:hover { background:#ffe0e0; }
   <div id="t6" class="tab-pane"></div>
 </div>
 
+<!-- Version changelog -->
+<div class="version-history">
+  <details>
+    <summary>v1.12 — changelog</summary>
+    <b>v1.12</b> Time Analysis tab: actual vs routing hours, worker breakdown, over-time flag<br>
+    <b>v1.11</b> Only attributed fails count against FPY% &amp; fail rates per person<br>
+    <b>v1.10</b> Person Summary: own Day/Week/Month/Quarter filter<br>
+    <b>v1.9</b> Failure Caused By column in drilldown; attribution bug fix<br>
+    <b>v1.8</b> Click bar in Layout/Wire/Final to see panel list<br>
+    <b>v1.7</b> Job # added to fail drill-downs<br>
+    <b>v1.6</b> Final by Person tab added<br>
+    <b>v1.5</b> Trends rework: panels chart, QoQ/MoM toggle, master table<br>
+    <b>v1.4</b> FPY% chart title hover tooltip<br>
+    <b>v1.3</b> Fiscal quarters starting Oct 1 (FY## Q#)<br>
+    <b>v1.2</b> Handle comma-separated initials e.g. (CO, IM)<br>
+    <b>v1.1</b> Multi-initials, click-to-drilldown, expanded period options<br>
+    <b>v1.0</b> Initial release
+  </details>
+</div>
+
 <script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
 <script src="https://cdn.plot.ly/plotly-2.35.2.min.js"></script>
 <script>
 // ─── Constants ────────────────────────────────────────────────────────────────
 const NAVY='#000E57',BLUE='#0F3CFF',TINT='#E7ECFF',OFFWHITE='#FFFEF5';
 const WARMGRAY='#ABA18B',RED='#C0392B',GREEN='#27AE60';
-const QUALITATIVE=['#636EFA','#EF553B','#00CC96','#AB63FA','#FFA15A','#19D3F3','#FF6692','#B6E880','#FF97FF','#FECB52'];
+// px.colors.qualitative.Bold (exact Plotly Python palette)
+const BOLD=['#7EB0D5','#BD7EBE','#D5B60A','#47B39C','#FC5A5A','#6A4C93','#1982C4','#8AC926','#F8E022','#B6E880','#FF97FF','#FECB52'];
 const SB_URL='https://ptbhguthosenkffjhbry.supabase.co';
 const SB_ANON='eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InB0YmhndXRob3NlbmtmZmpoYnJ5Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODQ5MDkzNzAsImV4cCI6MjEwMDQ4NTM3MH0.y71yXWsIUjzFBqC4itzZ36w9ixw_QDej2RaBPh8MLPI';
 
@@ -193,39 +196,38 @@ let df=[], initMap={}, knownInits=new Set(), failExploded=[];
 let timingData=[], timingLoaded=false;
 const grpState={t2:'Month',t3:'Month',t4:'Month'};
 let activeTab='t1';
+let psGrp='Month', psSel='';   // Person Summary own filter
 
-// ─── Plotly default layout ────────────────────────────────────────────────────
-const baseLayout = (extra={}) => Object.assign({
-  plot_bgcolor:OFFWHITE, paper_bgcolor:'rgba(0,0,0,0)',
-  font:{family:'Inter,Arial',color:NAVY,size:12},
+// ─── Plotly base layout ───────────────────────────────────────────────────────
+const baseLay=()=>({
+  plot_bgcolor:OFFWHITE, paper_bgcolor:OFFWHITE,
+  font:{family:'Arial',color:NAVY,size:12},
   margin:{l:10,r:20,t:40,b:30},
-  hoverlabel:{bgcolor:NAVY,font:{color:'#fff',family:'Inter',size:12}},
-  legend:{font:{size:11}},
+  hoverlabel:{bgcolor:NAVY,font:{color:'#fff',family:'Arial',size:12}},
   xaxis:{gridcolor:'#e8ebf5',zerolinecolor:'#e8ebf5'},
   yaxis:{gridcolor:'#e8ebf5',zerolinecolor:'#e8ebf5'},
-}, extra);
-
-const pCfg = {responsive:true, displayModeBar:true,
-  modeBarButtonsToRemove:['select2d','lasso2d','autoScale2d'],
-  displaylogo:false};
-
-function newPlot(id, data, layout) { Plotly.newPlot(id, data, Object.assign(baseLayout(), layout), pCfg); }
+});
+const pCfg={responsive:true,displayModeBar:true,
+  modeBarButtonsToRemove:['select2d','lasso2d','autoScale2d'],displaylogo:false};
+function newPlot(id,data,lay){Plotly.newPlot(id,data,Object.assign(baseLay(),lay),pCfg);}
 
 // ─── Utilities ────────────────────────────────────────────────────────────────
-const fmtDate = d => d instanceof Date ? d.toISOString().slice(0,10) : '';
-const hms = h => { if(!h||isNaN(h))return'—'; const s=Math.round(h*3600); return `${Math.floor(s/3600)}:${String(Math.floor(s%3600/60)).padStart(2,'0')}:${String(s%60).padStart(2,'0')}`; };
-const pctCls = v => { v=parseFloat(v); if(isNaN(v))return''; return v>=15?'pct-high':v>=8?'pct-med':'pct-ok'; };
+const fmtDate=d=>d instanceof Date?d.toISOString().slice(0,10):'';
+function hms(h){if(!h||isNaN(h)||h===0)return'—';const s=Math.round(h*3600);return `${Math.floor(s/3600)}:${String(Math.floor(s%3600/60)).padStart(2,'0')}:${String(s%60).padStart(2,'0')}`;}
+function hmsSigned(h){if(h==null||isNaN(h))return'—';const sign=h>0?'▲ ':h<0?'▼ ':'';return sign+hms(Math.abs(h));}
+function hmsDelta(h){if(h==null||isNaN(h))return'—';return(h>0?'▲ ':'')+hms(Math.abs(h));}
+const pctCls=v=>{v=parseFloat(v);if(isNaN(v))return'';return v>=15?'pct-high':v>=8?'pct-med':'pct-ok';};
 
-function shortName(full) {
+function shortName(full){
   full=String(full||'').trim();
   if(!full||full.toLowerCase()==='nan')return'';
   let first,last;
   if(full.includes(',')){ [last,first]=full.split(',',2).map(s=>s.trim()); }
-  else { const p=full.trim().split(/\s+/); first=p[0]; last=p.length>1?p[p.length-1]:''; }
+  else{ const p=full.trim().split(/\s+/);first=p[0];last=p.length>1?p[p.length-1]:''; }
   return last?`${first} ${last[0]}.`:first;
 }
 
-function extractAllInitials(text,ks) {
+function extractAllInitials(text,ks){
   if(typeof text!=='string')return[];
   const r=[];
   for(const m of text.matchAll(/\(([^)]+)\)/g))
@@ -234,70 +236,94 @@ function extractAllInitials(text,ks) {
   return r;
 }
 
-function fiscalQ(d) {
+function fiscalQ(d){
   const m=d.getMonth()+1,y=d.getFullYear();
   const fy=m>=10?y+1:y;
   const q=m>=10?1:m<=3?2:m<=6?3:4;
   return `FY${String(fy).slice(2)} Q${q}`;
 }
 
-function weekStart(d) { const w=new Date(d); w.setDate(d.getDate()-d.getDay()); return fmtDate(w); }
+function weekStart(d){const w=new Date(d);w.setDate(d.getDate()-d.getDay());return fmtDate(w);}
 
-function groupBy(arr,fn) { const m={}; for(const r of arr){ const k=typeof fn==='function'?fn(r):r[fn]; if(!m[k])m[k]=[]; m[k].push(r); } return m; }
-
-function tbl(cols, rows, rowCls) {
+function tbl(cols,rows,rowCls){
   return `<div class="tbl-wrap"><table class="dash-table">
     <thead><tr>${cols.map(c=>`<th>${c}</th>`).join('')}</tr></thead>
     <tbody>${rows.map((r,i)=>`<tr class="${rowCls?rowCls(i):''}">${r.map(c=>`<td>${c??''}</td>`).join('')}</tr>`).join('')}
     </tbody></table></div>`;
 }
 
+function getPeriodLabel(){
+  const period=document.getElementById('period-select').value;
+  const selQ=document.getElementById('quarter-select').value;
+  const PD={'Last 7 Days':7,'Last 30 Days':30,'Last 90 Days':90,'Last 6 Months':182,'Last Year':365};
+  if(!df.length)return period;
+  const maxDate=new Date(Math.max(...df.map(r=>r._date)));
+  if(PD[period]){
+    const cut=new Date(maxDate);cut.setDate(cut.getDate()-PD[period]);
+    const fmt=d=>d.toLocaleDateString('en-US',{month:'short',day:'numeric'});
+    return `${period}  (${fmt(cut)} – ${fmt(maxDate)}, ${maxDate.getFullYear()})`;
+  }
+  return period==='By Quarter'?selQ:'All Time';
+}
+
+function topIssue(personName,dff_fails){
+  const reasons=dff_fails.filter(r=>r.Fail_Name===personName).map(r=>r.Reason).filter(Boolean);
+  if(!reasons.length)return'—';
+  const clean=reasons.map(r=>r.replace(/\s*\([A-Z]{2,3}\)/g,'').trim()).filter(Boolean);
+  if(!clean.length)return'—';
+  const freq={};for(const r of clean)freq[r]=(freq[r]||0)+1;
+  const top=Object.entries(freq).sort((a,b)=>b[1]-a[1])[0];
+  return top?top[0].slice(0,70):'—';
+}
+
 // ─── Excel Parse ──────────────────────────────────────────────────────────────
-function parseExcel(buf) {
+function parseExcel(buf){
   const wb=XLSX.read(buf,{type:'array',cellDates:true});
-  initMap={}; knownInits=new Set();
+  initMap={};knownInits=new Set();
   const ns=wb.Sheets['Names'];
-  if(ns) for(const r of XLSX.utils.sheet_to_json(ns)) {
+  if(ns) for(const r of XLSX.utils.sheet_to_json(ns)){
     const i=String(r['Initials']||'').trim();
-    if(i&&r['Name']){ initMap[i]=shortName(r['Name']); knownInits.add(i); }
+    if(i&&r['Name']){initMap[i]=shortName(r['Name']);knownInits.add(i);}
   }
   const drName=wb.SheetNames.find(n=>n==='Daily Results')||wb.SheetNames.find(n=>n==='old daily results');
-  if(!drName) throw new Error('Could not find "Daily Results" sheet');
+  if(!drName)throw new Error('Could not find "Daily Results" sheet');
   const COLS=['Panel','Date','Pass_Fail','Reason','Line','Emp','Routing_Hours','Tech','Layout','Wire','FA','Sales_Order'];
   const raw=XLSX.utils.sheet_to_json(wb.Sheets[drName],{header:1});
-  df=[]; failExploded=[];
+  df=[];failExploded=[];
   for(let i=1;i<raw.length;i++){
-    const r=raw[i]; if(!r||r.length<2)continue;
-    const row={}; COLS.forEach((c,j)=>row[c]=r[j]);
-    let d=row['Date']; if(!d)continue;
-    if(d instanceof Date) row._date=d;
-    else if(typeof d==='number') row._date=new Date((d-25569)*86400*1000);
+    const r=raw[i];if(!r||r.length<2)continue;
+    const row={};COLS.forEach((c,j)=>row[c]=r[j]);
+    let d=row['Date'];if(!d)continue;
+    if(d instanceof Date)row._date=d;
+    else if(typeof d==='number')row._date=new Date((d-25569)*86400*1000);
     else row._date=new Date(d);
     if(isNaN(row._date))continue;
-    const pf=String(row.Pass_Fail||'').trim().toUpperCase().replace('FALL','FAIL').replace(/^PAS$/,'PASS');
+    const pf=String(row.Pass_Fail||'').trim().toUpperCase()
+      .replace('FALL','FAIL').replace(/^PAS$/,'PASS').replace('FAIL ','FAIL');
     row.Pass_Fail=pf;
     for(const c of['Layout','Wire','Tech','FA'])
       row[c]=String(row[c]||'').trim().toUpperCase().replace(/^NAN$/i,'');
-    const nm=i=>{const x=String(i||'').trim().toUpperCase();return x?(initMap[x]||x):'';};
-    row.Layout_Name=nm(row.Layout); row.Wire_Name=nm(row.Wire);
-    row.FA_Name=nm(row.FA); row.Tech_Name=nm(row.Tech);
+    const nm=x=>{const v=String(x||'').trim().toUpperCase();return v?(initMap[v]||v):'';};
+    row.Layout_Name=nm(row.Layout);row.Wire_Name=nm(row.Wire);
+    row.FA_Name=nm(row.FA);row.Tech_Name=nm(row.Tech);
     row.Fail_Inits=extractAllInitials(String(row.Reason||''),knownInits);
-    row.Is_Fail=pf==='FAIL'?1:0; row.Is_Pass=pf==='PASS'?1:0;
+    row.Is_Fail=pf==='FAIL'?1:0;row.Is_Pass=pf==='PASS'?1:0;
     const dt=row._date;
     row.Month=`${dt.getFullYear()}-${String(dt.getMonth()+1).padStart(2,'0')}`;
     row.MonthLabel=dt.toLocaleDateString('en-US',{month:'short',year:'numeric'});
     row.Quarter=fiscalQ(dt);
     row.Week=weekStart(dt);
+    row.DayStr=fmtDate(dt);
     df.push(row);
-    if(pf==='FAIL') for(const init of row.Fail_Inits)
+    if(pf==='FAIL')for(const init of row.Fail_Inits)
       failExploded.push({...row,Fail_Init:init,Fail_Name:initMap[init]||init});
   }
-  if(!df.length) throw new Error('No data rows in Daily Results');
+  if(!df.length)throw new Error('No data rows in Daily Results');
   df.sort((a,b)=>a._date-b._date);
 }
 
 // ─── Period filter ────────────────────────────────────────────────────────────
-function getFiltered() {
+function getFiltered(){
   const period=document.getElementById('period-select').value;
   const selQ=document.getElementById('quarter-select').value;
   if(!df.length)return{dff:[],dff_fails:[],maxDate:new Date(),period};
@@ -305,23 +331,23 @@ function getFiltered() {
   const PD={'Last 7 Days':7,'Last 30 Days':30,'Last 90 Days':90,'Last 6 Months':182,'Last Year':365};
   let dff,dff_fails;
   if(PD[period]){
-    const cut=new Date(maxDate); cut.setDate(cut.getDate()-PD[period]);
-    dff=df.filter(r=>r._date>=cut); dff_fails=failExploded.filter(r=>r._date>=cut);
+    const cut=new Date(maxDate);cut.setDate(cut.getDate()-PD[period]);
+    dff=df.filter(r=>r._date>=cut);dff_fails=failExploded.filter(r=>r._date>=cut);
   } else if(period==='By Quarter'){
-    dff=df.filter(r=>r.Quarter===selQ); dff_fails=failExploded.filter(r=>r.Quarter===selQ);
-  } else { dff=[...df]; dff_fails=[...failExploded]; }
+    dff=df.filter(r=>r.Quarter===selQ);dff_fails=failExploded.filter(r=>r.Quarter===selQ);
+  } else {dff=[...df];dff_fails=[...failExploded];}
   const minDate=dff.length?new Date(Math.min(...dff.map(r=>r._date))):maxDate;
   return{dff,dff_fails,maxDate,minDate,period};
 }
 
 // ─── KPIs ─────────────────────────────────────────────────────────────────────
-function renderKPIs({dff,dff_fails,minDate,maxDate,period}) {
+function renderKPIs({dff,dff_fails,maxDate}){
   const tot=dff.length,pass=dff.filter(r=>r.Is_Pass).length,fail=dff.filter(r=>r.Is_Fail).length;
   const fpy=tot?(pass/tot*100).toFixed(1):'0.0';
   const maxD=dff.length?new Date(Math.max(...dff.map(r=>r._date))):maxDate;
-  const minD=dff.length?new Date(Math.min(...dff.map(r=>r._date))):minDate;
+  const minD=dff.length?new Date(Math.min(...dff.map(r=>r._date))):maxDate;
   const days=Math.max((maxD-minD)/86400000,1);
-  const fc={}; for(const r of dff_fails) fc[r.Fail_Name]=(fc[r.Fail_Name]||0)+1;
+  const fc={};for(const r of dff_fails)fc[r.Fail_Name]=(fc[r.Fail_Name]||0)+1;
   const top=Object.entries(fc).sort((a,b)=>b[1]-a[1])[0];
   document.getElementById('kv-total').textContent=tot.toLocaleString();
   document.getElementById('ks-days').textContent=`${Math.round(days)} days`;
@@ -332,50 +358,51 @@ function renderKPIs({dff,dff_fails,minDate,maxDate,period}) {
   document.getElementById('kv-avg').textContent=(tot/days).toFixed(1);
   document.getElementById('kv-top').textContent=top?top[0]:'—';
   document.getElementById('ks-top').textContent=top?`${top[1]} attributed fails`:'';
-  // Period badge
-  const PD={'Last 7 Days':7,'Last 30 Days':30,'Last 90 Days':90,'Last 6 Months':182,'Last Year':365};
-  const selQ=document.getElementById('quarter-select').value;
-  let lbl=period==='By Quarter'?selQ:period==='All Time'?'All Time':period;
-  if(PD[period]){
-    const cut=new Date(maxDate); cut.setDate(cut.getDate()-PD[period]);
-    lbl+=` (${cut.toLocaleDateString('en-US',{month:'short',day:'numeric'})} – ${maxDate.toLocaleDateString('en-US',{month:'short',day:'numeric',year:'numeric'})})`;
-  }
+  const lbl=getPeriodLabel();
   document.getElementById('period-badge').textContent='Period: '+lbl;
   document.getElementById('data-summary').textContent=
-    `${fmtDate(new Date(Math.min(...df.map(r=>r._date))))} – ${fmtDate(new Date(Math.max(...df.map(r=>r._date))))} · ${df.length.toLocaleString()} records`;
+    `📅 ${fmtDate(new Date(Math.min(...df.map(r=>r._date))))} – ${fmtDate(new Date(Math.max(...df.map(r=>r._date))))} · 📋 ${df.length.toLocaleString()} total records`;
 }
 
 // ─── TAB 1: Fail Attribution ──────────────────────────────────────────────────
-function renderT1({dff,dff_fails}) {
+function renderT1({dff,dff_fails}){
   const el=document.getElementById('t1');
   const totalFails=dff.filter(r=>r.Is_Fail).length;
-  if(!dff_fails.length){el.innerHTML='<div class="alert alert-info mt-3">No attributed fails in this period.</div>';return;}
-  const bp={}; for(const r of dff_fails) bp[r.Fail_Name]=(bp[r.Fail_Name]||0)+1;
-  const sorted=Object.entries(bp).map(([n,c])=>({n,c,pct:(c/totalFails*100).toFixed(1)})).sort((a,b)=>b.c-a.c);
+  const periodLbl=getPeriodLabel();
+  if(!dff_fails.length){
+    el.innerHTML=`<div class="section-hdr">Fail Attribution — ${periodLbl}</div><div style="padding:20px;color:var(--warmgray)">No attributed fails in this period.</div>`;return;
+  }
+  const bp={};for(const r of dff_fails)bp[r.Fail_Name]=(bp[r.Fail_Name]||0)+1;
+  const sorted=Object.entries(bp)
+    .map(([n,c])=>({n,c,pct:(c/totalFails*100).toFixed(1),issue:topIssue(n,dff_fails)}))
+    .sort((a,b)=>b.c-a.c);
   el.innerHTML=`
-    <div class="section-hdr">Fail Attribution</div>
-    <p class="text-muted" style="font-size:12px">Click a bar or row to see that person's full fail list.</p>
+    <div class="section-hdr">Fail Attribution — ${periodLbl}</div>
+    <p style="color:var(--warmgray);font-size:12px;margin:0 0 12px">Click a bar or row to see that person's full fail list.</p>
     <div style="display:grid;grid-template-columns:3fr 2fr;gap:16px">
       <div class="chart-box"><div id="ch-fa" class="plot-div"></div></div>
-      <div>${tbl(['Person','Fails Caused','% of Fails'],sorted.map(r=>[r.n,r.c,r.pct+'%']))}</div>
+      <div>${tbl(['Person','Fails Caused','% of Fails','Most Common Issue'],
+        sorted.map(r=>[r.n,r.c,r.pct+'%',r.issue]))}</div>
     </div>
     <div id="t1-drilldown"></div>
     <div id="t1-unattr"></div>`;
 
   newPlot('ch-fa',[{type:'bar',orientation:'h',
-    y:sorted.map(r=>r.n).reverse(), x:sorted.map(r=>r.c).reverse(),
-    text:sorted.map(r=>r.c).reverse(), textposition:'outside',
+    y:sorted.map(r=>r.n).reverse(),x:sorted.map(r=>r.c).reverse(),
+    text:sorted.map(r=>r.c).reverse(),textposition:'outside',
     marker:{color:sorted.map(r=>r.c).reverse(),colorscale:[[0,TINT],[.5,BLUE],[1,NAVY]],showscale:false},
-    customdata:sorted.map(r=>[r.n]).reverse(), hovertemplate:'<b>%{y}</b><br>%{x} fails<extra></extra>',
-  }],{title:{text:'Fails Attributed by Person',font:{family:'Georgia',color:NAVY,size:14}},
+    customdata:sorted.map(r=>[r.n]).reverse(),
+    hovertemplate:'<b>%{y}</b><br>%{x} fails<extra></extra>',
+  }],{
+    title:{text:'Fails Attributed by Person',font:{family:'Georgia',color:NAVY,size:15}},
+    coloraxis_showscale:false,
     xaxis:{title:'Fails Attributed'},yaxis:{autorange:'reversed',tickfont:{size:11}},
-    height:Math.max(320,sorted.length*42)});
-
-  document.getElementById('ch-fa').on('plotly_click',d=>{
-    const p=d.points[0]; showT1Drill(p.customdata[0],dff_fails);
+    height:Math.max(300,sorted.length*42),margin:{l:10,r:50,t:40,b:20},
   });
 
-  // table row clicks
+  document.getElementById('ch-fa').on('plotly_click',d=>{
+    showT1Drill(d.points[0].customdata[0],dff_fails);
+  });
   el.querySelectorAll('.dash-table tbody tr').forEach((tr,i)=>{
     tr.style.cursor='pointer';
     tr.addEventListener('click',()=>showT1Drill(sorted[i].n,dff_fails));
@@ -385,14 +412,13 @@ function renderT1({dff,dff_fails}) {
   const unattr=dff.filter(r=>r.Is_Fail&&r.Fail_Inits.length===0);
   if(unattr.length){
     const ud=document.getElementById('t1-unattr');
-    ud.innerHTML=`<button class="expander-btn mt-3" onclick="toggleExpander(this)">
-      ⚠️ ${unattr.length} fails with no initials found in reason ▼</button>
+    ud.innerHTML=`<button class="expander-btn" onclick="toggleExpander(this)">⚠️ ${unattr.length} fails with no initials found in reason ▼</button>
       <div class="collapse-body">${tbl(['Date','Job #','Panel','Line','Reason'],
         unattr.sort((a,b)=>b._date-a._date).map(r=>[fmtDate(r._date),r.Sales_Order,r.Panel,r.Line,r.Reason]))}</div>`;
   }
 }
 
-function showT1Drill(person,dff_fails) {
+function showT1Drill(person,dff_fails){
   const rows=dff_fails.filter(r=>r.Fail_Name===person).sort((a,b)=>b._date-a._date);
   document.getElementById('t1-drilldown').innerHTML=`
     <div class="drilldown-box">
@@ -402,66 +428,61 @@ function showT1Drill(person,dff_fails) {
   document.getElementById('t1-drilldown').scrollIntoView({behavior:'smooth',block:'nearest'});
 }
 
-// ─── TAB 2/3/4: Person Panels ─────────────────────────────────────────────────
-function renderPersonTab(tabId, roleCol, roleLabel) {
+// ─── TABS 2/3/4: Person Panels ────────────────────────────────────────────────
+function renderPersonTab(tabId,roleCol,roleLabel){
   const el=document.getElementById(tabId);
-  const {dff,dff_fails}=getFiltered();
+  const {dff}=getFiltered();
   const g=grpState[tabId];
+  const periodLbl=getPeriodLabel();
   const sub=dff.filter(r=>r[roleCol]);
-  if(!sub.length){el.innerHTML='<div class="alert alert-info mt-2">No data.</div>';return;}
+  if(!sub.length){el.innerHTML='<div style="padding:20px;color:var(--warmgray)">No data.</div>';return;}
 
-  // Period key for each row
   const periodKey=r=>g==='Month'?r.MonthLabel:g==='Week'?'Wk '+r.Week:r._date.toLocaleDateString('en-US',{month:'short',day:'numeric'});
-  const periodSort=r=>g==='Month'?r._date:g==='Week'?r.Week:fmtDate(r._date);
-
-  // Ordered periods
-  const periodMap={}; for(const r of sub){const k=periodKey(r);if(!periodMap[k])periodMap[k]=r._date;}
+  const periodMap={};for(const r of sub){const k=periodKey(r);if(!periodMap[k])periodMap[k]=r._date;}
   const periodOrder=Object.entries(periodMap).sort((a,b)=>a[1]-b[1]).map(e=>e[0]);
 
-  // All persons in this role
   const persons=[...new Set(sub.map(r=>initMap[r[roleCol]]||r[roleCol]))].filter(Boolean);
-
-  // Panels per person per period
-  const pppMap={}; // person -> period -> count
+  const pppMap={};
   for(const r of sub){
-    const p=initMap[r[roleCol]]||r[roleCol]; const pd=periodKey(r);
+    const p=initMap[r[roleCol]]||r[roleCol];const pd=periodKey(r);
     if(!pppMap[p])pppMap[p]={};
     pppMap[p][pd]=(pppMap[p][pd]||0)+1;
   }
+
   const groupedBarData=persons.map((person,i)=>({
-    type:'bar', name:person,
-    x:periodOrder, y:periodOrder.map(pd=>(pppMap[person]&&pppMap[person][pd])||0),
-    marker:{color:QUALITATIVE[i%QUALITATIVE.length]},
+    type:'bar',name:person,
+    x:periodOrder,y:periodOrder.map(pd=>(pppMap[person]&&pppMap[person][pd])||0),
+    marker:{color:BOLD[i%BOLD.length]},
     customdata:Array(periodOrder.length).fill([person]),
     hovertemplate:'<b>%{x}</b><br>'+person+': %{y} panels<extra></extra>',
   }));
 
-  // FPY per person (only counting fails attributed to that person's role initials)
+  // FPY per person
   const fpyRows=[];
-  for(const init of [...new Set(sub.map(r=>r[roleCol]).filter(Boolean))]) {
+  for(const init of [...new Set(sub.map(r=>r[roleCol]).filter(Boolean))]){
     const nm=initMap[init]||init;
     const psub=sub.filter(r=>r[roleCol]===init);
     const n=psub.length;
     const myFails=psub.filter(r=>r.Is_Fail&&r.Fail_Inits.includes(init)).length;
-    const fpy=n?((n-myFails)/n*100):100;
-    fpyRows.push({init,name:nm,n,myFails,fpy:+fpy.toFixed(1)});
+    fpyRows.push({init,name:nm,n,myFails,fpy:+((n-myFails)/n*100).toFixed(1)});
   }
-  fpyRows.sort((a,b)=>a.fpy-b.fpy); // ascending so highest FPY at bottom (reversed axis)
+  fpyRows.sort((a,b)=>a.fpy-b.fpy);
 
   // Pivot table
-  const nameOf=init=>initMap[init]||init;
   const pivotInits=[...new Set(sub.map(r=>r[roleCol]).filter(Boolean))];
   const pivotTotals=pivotInits.map(init=>({init,total:sub.filter(r=>r[roleCol]===init).length}))
     .sort((a,b)=>b.total-a.total);
   const pivotCols=['Person',...periodOrder,'Total'];
   const pivotRows=pivotTotals.map(({init})=>{
-    const nm=nameOf(init);
+    const nm=initMap[init]||init;
     const periods=periodOrder.map(pd=>(pppMap[nm]&&pppMap[nm][pd])||0);
     return[nm,...periods,periods.reduce((s,v)=>s+v,0)];
   });
 
+  const fpyTooltip=`First Pass Yield (FPY) = panels that passed inspection on the first attempt ÷ total panels built, shown per ${roleLabel.toLowerCase()} technician. A panel 'fails' if it required any rework or correction before passing. Higher is better — 90% is the target.`;
+
   el.innerHTML=`
-    <div class="section-hdr">${roleLabel} Panels by Person</div>
+    <div class="section-hdr">${roleLabel} Panels by Person — ${periodLbl}</div>
     <div class="grp-btns">
       ${['Day','Week','Month'].map(g2=>`<button class="grp-btn${g===g2?' active':''}" onclick="setGrp('${tabId}','${g2}','${roleCol}','${roleLabel}')">${g2}</button>`).join('')}
     </div>
@@ -472,41 +493,48 @@ function renderPersonTab(tabId, roleCol, roleLabel) {
     <div class="chart-box"><div id="ch-fpy-${tabId}" class="plot-div"></div></div>
     <div id="drill-${tabId}"></div>`;
 
-  // Grouped bar chart
   newPlot(`ch-grp-${tabId}`,groupedBarData,{
-    title:{text:`${roleLabel} Panels per ${g} by Person`,font:{family:'Georgia',color:NAVY,size:14}},
-    barmode:'group', height:380,
+    title:{text:`${roleLabel} Panels per ${g} by Person`,font:{family:'Georgia',color:NAVY,size:15}},
+    barmode:'group',height:400,
+    legend:{title:{text:null}},
     xaxis:{categoryorder:'array',categoryarray:periodOrder,tickangle:-30},
-    yaxis:{title:'Panels'},legend:{orientation:'h',y:-0.2},
+    yaxis:{title:'Panels'},
+    margin:{l:10,r:10,t:40,b:20},
   });
   document.getElementById(`ch-grp-${tabId}`).on('plotly_click',d=>{
-    const pt=d.points[0]; showPersonDrill(tabId,pt.customdata[0][0],dff,roleCol,roleLabel);
+    const pt=d.points[0];showPersonDrill(tabId,pt.customdata[0][0],dff,roleCol,roleLabel);
   });
 
-  // FPY horizontal bar with gradient
-  const fpyTooltip=`First Pass Yield: panels passed on first attempt ÷ total built, per ${roleLabel.toLowerCase()} tech. Higher is better — 90% is the target.`;
   newPlot(`ch-fpy-${tabId}`,[{
-    type:'bar', orientation:'h',
-    y:fpyRows.map(r=>r.name), x:fpyRows.map(r=>r.fpy),
-    text:fpyRows.map(r=>r.fpy.toFixed(1)+'%'), textposition:'outside',
+    type:'bar',orientation:'h',
+    y:fpyRows.map(r=>r.name),x:fpyRows.map(r=>r.fpy),
+    text:fpyRows.map(r=>r.fpy.toFixed(1)+'%'),texttemplate:'%{text}',textposition:'outside',
     marker:{color:fpyRows.map(r=>r.fpy),colorscale:[[0,RED],[.5,WARMGRAY],[1,GREEN]],cmin:70,cmax:100,showscale:false},
     customdata:fpyRows.map(r=>[r.name]),
     hovertemplate:'<b>%{y}</b><br>FPY: %{x:.1f}%<extra></extra>',
   }],{
-    title:{text:`First Pass Yield % — by ${roleLabel} Person`,font:{family:'Georgia',color:NAVY,size:14}},
-    xaxis:{range:[0,110],title:'FPY %'},yaxis:{autorange:'reversed'},
+    coloraxis_showscale:false,
+    xaxis:{range:[0,115],title:'FPY %'},yaxis:{autorange:'reversed'},
     shapes:[{type:'line',x0:90,x1:90,y0:0,y1:1,xref:'x',yref:'paper',line:{color:NAVY,dash:'dash',width:1.5}}],
-    annotations:[{x:90,y:1.05,xref:'x',yref:'paper',text:'90% target',showarrow:false,font:{color:NAVY,size:11}}],
-    height:Math.max(300,fpyRows.length*44),
+    annotations:[
+      {x:90,y:1.05,xref:'x',yref:'paper',text:'90% target',showarrow:false,font:{color:NAVY,size:11}},
+      {x:0,y:1.12,xref:'paper',yref:'paper',
+       text:`First Pass Yield % — by ${roleLabel} Person  <b>ⓘ</b>`,
+       font:{size:15,color:NAVY,family:'Georgia'},showarrow:false,xanchor:'left',
+       hovertext:fpyTooltip,
+       hoverlabel:{bgcolor:NAVY,font:{color:'#fff',family:'Arial',size:12},bordercolor:BLUE}},
+    ],
+    height:Math.max(300,fpyRows.length*42),
+    margin:{l:10,r:70,t:55,b:20},
   });
   document.getElementById(`ch-fpy-${tabId}`).on('plotly_click',d=>{
-    const pt=d.points[0]; showPersonDrill(tabId,pt.customdata[0][0],dff,roleCol,roleLabel);
+    const pt=d.points[0];showPersonDrill(tabId,pt.customdata[0][0],dff,roleCol,roleLabel);
   });
 }
 
-function setGrp(tabId,g,roleCol,roleLabel){ grpState[tabId]=g; renderPersonTab(tabId,roleCol,roleLabel); }
+function setGrp(tabId,g,roleCol,roleLabel){grpState[tabId]=g;renderPersonTab(tabId,roleCol,roleLabel);}
 
-function showPersonDrill(tabId, person, dff, roleCol, roleLabel) {
+function showPersonDrill(tabId,person,dff,roleCol,roleLabel){
   const nameCol=roleCol+'_Name';
   const init=Object.keys(initMap).find(k=>initMap[k]===person)||person;
   const rows=dff.filter(r=>r[nameCol]===person).sort((a,b)=>b._date-a._date);
@@ -527,111 +555,181 @@ function showPersonDrill(tabId, person, dff, roleCol, roleLabel) {
   drEl.innerHTML=`
     <div class="drilldown-box mt-3">
       <div class="section-hdr">📋 ${person} — ${roleLabel} Panels</div>
-      <p style="font-size:12px;color:#666">
-        <span style="background:#fff0f0;padding:2px 6px;border-radius:3px;font-size:11px">Red rows</span>
-        = fail attributed to ${person} in the ${roleLabel} role.
+      <p style="font-size:12px;color:#666;margin:4px 0 8px">
         <b>Role</b> = which role caused each fail.
+        Rows highlighted <span style="background:#fff0f0;padding:1px 5px;border-radius:3px">red</span>
+        = fail attributed to ${person} in the ${roleLabel} role.
       </p>
       ${tbl(['Date','Job #','Pass/Fail','Panel','Line','Reason','Role','Failure Caused By'],
-        roleRows.map(r=>r.cells), i=>roleRows[i].myFail?'row-fail':'')}
+        roleRows.map(r=>r.cells),i=>roleRows[i].myFail?'row-fail':'')}
     </div>`;
   drEl.scrollIntoView({behavior:'smooth',block:'nearest'});
 }
 
 // ─── TAB 5: Trends ────────────────────────────────────────────────────────────
-let trendsGrp='Week', compareBy='Quarter';
+let trendsGrp='Week',compareBy='Quarter';
 
-function renderT5({dff}) {
+function renderT5({dff}){
   const el=document.getElementById('t5');
+  const periodLbl=getPeriodLabel();
   el.innerHTML=`
-    <div class="section-hdr">Panels Built Over Time</div>
+    <div class="section-hdr">Panels Built — ${periodLbl}</div>
     <div class="grp-btns" id="tgrp-btns">
       ${['Day','Week','Month'].map(g=>`<button class="grp-btn${trendsGrp===g?' active':''}" onclick="setTrendsGrp('${g}')">${g}</button>`).join('')}
     </div>
-    <div class="chart-box"><div id="ch-trend" class="plot-div" style="min-height:350px"></div></div>
+    <div class="chart-box"><div id="ch-trend" class="plot-div" style="min-height:380px"></div></div>
 
-    <div class="section-hdr mt-3">Period Comparison</div>
-    <div class="grp-btns">
+    <div class="section-hdr mt-2">Period Comparison</div>
+    <div class="grp-btns" id="cgrp-btns">
       ${['Quarter','Month'].map(c=>`<button class="grp-btn${compareBy===c?' active':''}" onclick="setCompare('${c}')">${c}</button>`).join('')}
     </div>
     <div style="display:grid;grid-template-columns:1fr 1fr;gap:16px">
       <div class="chart-box"><div id="ch-comp-p" class="plot-div"></div></div>
       <div class="chart-box"><div id="ch-comp-f" class="plot-div"></div></div>
     </div>
-    <div id="comp-tbl" class="mt-3"></div>
+    <div id="comp-tbl" class="mt-2" style="margin-bottom:16px"></div>
 
-    <div class="section-hdr mt-3">Person Summary (All Time)</div>
+    <div class="section-hdr">Person Summary</div>
+    <p style="color:var(--warmgray);font-size:12px;margin:0 0 8px">Panels and fail rate for each person by their role on the panel.</p>
+    <div class="ps-filter-row">
+      <div><label>Group by</label>
+        <select id="ps-grp" onchange="onPsGrpChange()">
+          ${['Day','Week','Month','Quarter','All Time'].map(v=>`<option${v===psGrp?' selected':''}>${v}</option>`).join('')}
+        </select>
+      </div>
+      <div id="ps-sel-wrap"><label id="ps-sel-lbl">Period</label>
+        <select id="ps-sel" onchange="drawPersonSummary()"></select>
+      </div>
+    </div>
     <div id="person-summary"></div>`;
 
-  drawTrend(dff); drawComparison(); drawPersonSummary();
+  drawTrend(dff);drawComparison();initPsSel();drawPersonSummary();
 }
 
-function drawTrend(dff) {
+function drawTrend(dff){
   const g=trendsGrp;
   const keyOf=r=>g==='Month'?r.MonthLabel:g==='Week'?'Wk '+r.Week:r._date.toLocaleDateString('en-US',{month:'short',day:'numeric'});
-  const grps={}; for(const r of dff){ const k=keyOf(r); if(!grps[k])grps[k]={panels:0,fails:0,sort:r._date}; grps[k].panels++; grps[k].fails+=r.Is_Fail; }
+  const grps={};for(const r of dff){const k=keyOf(r);if(!grps[k])grps[k]={panels:0,fails:0,sort:r._date};grps[k].panels++;grps[k].fails+=r.Is_Fail;}
   const s=Object.entries(grps).sort((a,b)=>a[1].sort-b[1].sort);
   const lbls=s.map(e=>e[0]),panels=s.map(e=>e[1].panels),fails=s.map(e=>e[1].fails);
   newPlot('ch-trend',[
-    {type:'bar',name:'Panels',x:lbls,y:panels,marker:{color:BLUE},hovertemplate:'<b>%{x}</b><br>%{y} panels<extra></extra>'},
-    {type:'scatter',name:'Fails',x:lbls,y:fails,mode:'lines+markers',yaxis:'y2',
-     line:{color:RED,width:2},marker:{color:RED,size:5},hovertemplate:'<b>%{x}</b><br>%{y} fails<extra></extra>'},
-  ],{barmode:'overlay',height:350,
-    xaxis:{tickangle:s.length>12?-35:0},
+    {type:'bar',name:'Panels',x:lbls,y:panels,marker:{color:BLUE},
+     text:panels,textposition:'outside',
+     hovertemplate:'<b>%{x}</b><br>%{y} panels<extra></extra>'},
+  ],{height:380,
+    margin:{l:10,r:10,t:20,b:20},
     yaxis:{title:'Panels Built'},
-    yaxis2:{title:'Fails',overlaying:'y',side:'right',showgrid:false},
-    legend:{x:0,y:1.1,orientation:'h'},
+    xaxis:{tickangle:s.length>12?-35:0},
   });
 }
 
-function drawComparison() {
+function drawComparison(){
   const c=compareBy;
   const keyOf=r=>c==='Quarter'?r.Quarter:r.Month;
-  const grps={}; for(const r of df){ const k=keyOf(r),lbl=c==='Quarter'?r.Quarter:r.MonthLabel; if(!grps[k])grps[k]={panels:0,fails:0,label:lbl,sort:r._date}; grps[k].panels++; grps[k].fails+=r.Is_Fail; }
+  const grps={};for(const r of df){const k=keyOf(r),lbl=c==='Quarter'?r.Quarter:r.MonthLabel;if(!grps[k])grps[k]={panels:0,fails:0,label:lbl,sort:r._date};grps[k].panels++;grps[k].fails+=r.Is_Fail;}
   const s=Object.entries(grps).sort((a,b)=>a[0].localeCompare(b[0]));
   const lbls=s.map(e=>e[1].label),panels=s.map(e=>e[1].panels);
   const failPcts=s.map(e=>(e[1].fails/e[1].panels*100).toFixed(1));
   newPlot('ch-comp-p',[{type:'bar',x:lbls,y:panels,text:panels,textposition:'outside',
     marker:{color:BLUE},hovertemplate:'<b>%{x}</b><br>%{y} panels<extra></extra>'}],
-    {title:{text:`Total Panels by ${c}`,font:{family:'Georgia',color:NAVY,size:13}},height:300,
-     xaxis:{tickangle:c==='Month'?-35:0},yaxis:{title:'Panels'}});
+    {title:{text:`Total Panels by ${c}`,font:{family:'Georgia',color:NAVY,size:14}},height:320,
+     xaxis:{tickangle:c==='Month'?-35:0},yaxis:{title:'Panels'},
+     margin:{l:10,r:10,t:40,b:20}});
   newPlot('ch-comp-f',[{type:'scatter',x:lbls,y:failPcts,mode:'lines+markers+text',
-    text:failPcts.map(v=>v+'%'),textposition:'top center',textfont:{color:RED,size:10},
+    text:failPcts.map(v=>v+'%'),textposition:'top center',textfont:{color:RED,size:11},
     line:{color:RED,width:2},marker:{color:RED,size:7},
     fill:'tozeroy',fillcolor:'rgba(192,57,43,.08)',
     hovertemplate:'<b>%{x}</b><br>Fail rate: %{y}%<extra></extra>'}],
-    {title:{text:`Fail Rate % by ${c}`,font:{family:'Georgia',color:NAVY,size:13}},height:300,
-     xaxis:{tickangle:c==='Month'?-35:0},yaxis:{title:'Fail Rate %',ticksuffix:'%'},showlegend:false});
+    {title:{text:`Fail Rate % by ${c}`,font:{family:'Georgia',color:NAVY,size:14}},height:280,
+     xaxis:{tickangle:c==='Month'?-35:0},
+     yaxis:{title:'Fail Rate %',ticksuffix:'%',rangemode:'tozero'},
+     showlegend:false,margin:{l:10,r:10,t:40,b:20}});
   document.getElementById('comp-tbl').innerHTML=tbl(
     ['Period','Panels','Fails','Pass Rate%','Fail Rate%'],
-    s.map(([,v])=>[v.label,v.panels,v.fails,((v.panels-v.fails)/v.panels*100).toFixed(1)+'%',(v.fails/v.panels*100).toFixed(1)+'%']));
+    s.map(([,v])=>[v.label,v.panels,v.fails,
+      ((v.panels-v.fails)/v.panels*100).toFixed(1)+'%',
+      (v.fails/v.panels*100).toFixed(1)+'%']));
 }
 
-function setTrendsGrp(g){ trendsGrp=g; const {dff}=getFiltered(); drawTrend(dff); document.querySelectorAll('#tgrp-btns .grp-btn').forEach(b=>{b.classList.toggle('active',b.textContent===g);}); }
-function setCompare(c){ compareBy=c; drawComparison(); document.querySelectorAll('#t5 .grp-btns:nth-of-type(2) .grp-btn').forEach(b=>{b.classList.toggle('active',b.textContent===c);}); }
+function setTrendsGrp(g){
+  trendsGrp=g;const {dff}=getFiltered();drawTrend(dff);
+  document.querySelectorAll('#tgrp-btns .grp-btn').forEach(b=>b.classList.toggle('active',b.textContent===g));
+}
+function setCompare(c){
+  compareBy=c;drawComparison();
+  document.querySelectorAll('#cgrp-btns .grp-btn').forEach(b=>b.classList.toggle('active',b.textContent===c));
+}
 
-function drawPersonSummary() {
+// ── Person Summary own-period filter ─────────────────────────────────────────
+function initPsSel(){
+  const wrap=document.getElementById('ps-sel-wrap');
+  const lbl=document.getElementById('ps-sel-lbl');
+  const sel=document.getElementById('ps-sel');
+  if(psGrp==='All Time'){wrap.style.display='none';return;}
+  wrap.style.display='';
+  let opts=[];
+  if(psGrp==='Day'){
+    lbl.textContent='Day';
+    opts=[...new Set(df.map(r=>r.DayStr))].sort().reverse();
+  } else if(psGrp==='Week'){
+    lbl.textContent='Week starting';
+    opts=[...new Set(df.map(r=>r.Week))].sort().reverse();
+  } else if(psGrp==='Month'){
+    lbl.textContent='Month';
+    const mm={};df.forEach(r=>mm[r.Month]=r.MonthLabel);
+    opts=Object.keys(mm).sort().reverse();
+    sel.innerHTML=opts.map(v=>`<option value="${v}"${v===psSel?' selected':''}>${mm[v]}</option>`).join('');
+    if(!psSel||!opts.includes(psSel))psSel=opts[0]||'';
+    return;
+  } else if(psGrp==='Quarter'){
+    lbl.textContent='Quarter';
+    opts=[...new Set(df.map(r=>r.Quarter))].sort().reverse();
+  }
+  sel.innerHTML=opts.map(v=>`<option${v===psSel?' selected':''}>${v}</option>`).join('');
+  if(!psSel||!opts.includes(psSel))psSel=opts[0]||'';
+}
+
+function onPsGrpChange(){
+  psGrp=document.getElementById('ps-grp').value;psSel='';
+  initPsSel();drawPersonSummary();
+}
+
+function getPsData(){
+  if(psGrp==='All Time')return df;
+  const sel=document.getElementById('ps-sel')?.value||psSel;
+  psSel=sel;
+  if(psGrp==='Day')return df.filter(r=>r.DayStr===sel);
+  if(psGrp==='Week')return df.filter(r=>r.Week===sel);
+  if(psGrp==='Month')return df.filter(r=>r.Month===sel);
+  if(psGrp==='Quarter')return df.filter(r=>r.Quarter===sel);
+  return df;
+}
+
+function drawPersonSummary(){
+  const psData=getPsData();
   const allInits=new Set();
-  for(const r of df) for(const c of['Layout','Wire','FA']) if(r[c])allInits.add(r[c]);
+  for(const r of psData)for(const c of['Layout','Wire','FA'])if(r[c])allInits.add(r[c]);
   const pRows=[...allInits].sort().map(init=>{
     const nm=initMap[init]||init;
     const cols={};
     for(const[c,l]of[['Layout','Layout'],['Wire','Wire'],['FA','Final']]){
-      const s=df.filter(r=>r[c]===init),n=s.length;
+      const s=psData.filter(r=>r[c]===init),n=s.length;
       const mf=s.filter(r=>r.Is_Fail&&r.Fail_Inits.includes(init)).length;
-      cols[l+'P']=n; cols[l+'F']=n?+(mf/n*100).toFixed(1):null;
+      const fr=n?mf/n*100:null;
+      cols[l+'P']=n;cols[l+'F']=n&&mf>0?+(fr.toFixed(1)):n?0:null;
     }
     return{nm,...cols};
-  }).filter(r=>r.LayoutP+r.WireP+r.FinalP>0).sort((a,b)=>b.LayoutP-a.LayoutP);
-  const fmtP=v=>v===null?'<td>—</td>':`<td class="${pctCls(v)}">${v}%</td>`;
+  }).filter(r=>(r.LayoutP||0)+(r.WireP||0)+(r.FinalP||0)>0)
+    .sort((a,b)=>(b.LayoutP||0)-(a.LayoutP||0));
+  const fmtP=v=>v===null?'<td>—</td>':`<td class="${pctCls(v)}">${v.toFixed(1)}%</td>`;
   document.getElementById('person-summary').innerHTML=`<div class="tbl-wrap"><table class="dash-table">
     <thead><tr><th>Person</th><th>Layout Panels</th><th>Layout Fail%</th><th>Wire Panels</th><th>Wire Fail%</th><th>Final Panels</th><th>Final Fail%</th></tr></thead>
-    <tbody>${pRows.map(r=>`<tr><td>${r.nm}</td><td>${r.LayoutP}</td>${fmtP(r.LayoutF)}<td>${r.WireP}</td>${fmtP(r.WireF)}<td>${r.FinalP}</td>${fmtP(r.FinalF)}</tr>`).join('')}</tbody>
-    </table></div>`;
+    <tbody>${pRows.map(r=>`<tr><td>${r.nm}</td><td>${r.LayoutP}</td>${fmtP(r.LayoutF)}<td>${r.WireP}</td>${fmtP(r.WireF)}<td>${r.FinalP}</td>${fmtP(r.FinalF)}</tr>`).join('')}
+    </tbody></table></div>`;
 }
 
 // ─── TAB 6: Time Analysis ─────────────────────────────────────────────────────
-async function renderT6() {
+async function renderT6(){
   const el=document.getElementById('t6');
   if(!timingLoaded){
     el.innerHTML=`<div class="spinner-wrap"><div class="spinner"></div> Loading tracker data from Supabase…</div>`;
@@ -639,39 +737,67 @@ async function renderT6() {
       const res=await fetch(`${SB_URL}/rest/v1/panel_time_summary?select=*&order=layout_started_at.desc.nullslast&limit=10000`,
         {headers:{'apikey':SB_ANON,'Authorization':'Bearer '+SB_ANON,'Accept':'application/json'}});
       if(!res.ok)throw new Error('HTTP '+res.status);
-      timingData=await res.json(); timingLoaded=true;
+      timingData=await res.json();
+      if(timingData.length<10&&timingData.length>0){
+        const r2=await fetch(`${SB_URL}/rest/v1/panel_time_summary?select=*&order=layout_started_at.desc.nullslast&limit=10000`,
+          {headers:{'apikey':SB_ANON,'Authorization':'Bearer '+SB_ANON,'Accept':'application/json'}});
+        if(r2.ok)timingData=await r2.json();
+      }
+      timingLoaded=true;
     }catch(e){
-      el.innerHTML=`<div class="alert alert-danger mt-3">Could not reach Supabase: ${e.message}</div>`; return;
+      el.innerHTML=`<div style="padding:20px;background:#fff0f0;border-radius:8px;color:var(--red)">Could not reach Supabase: ${e.message}</div>`;return;
     }
   }
-  if(!timingData.length){el.innerHTML='<div class="alert alert-info mt-3">No tracker data yet.</div>';return;}
+  if(!timingData.length){el.innerHTML='<div style="padding:20px;color:var(--warmgray)">No tracker data yet — start scanning panels in the tracker app.</div>';return;}
   buildTA(el);
 }
 
-function buildTA(el) {
+function buildTA(el){
+  // Join with Excel Pass/Fail data (match on panel_number + last 4 of job#)
+  const joinMap={};
+  for(const r of df){
+    const tail=String(r.Sales_Order||'').trim().slice(-4);
+    const key=`${r.Panel}|${tail}`;
+    if(!joinMap[key])joinMap[key]={Pass_Fail:r.Pass_Fail,Is_Fail:r.Is_Fail};
+  }
+
   const tm=timingData.map(r=>{
     const toN=v=>parseFloat(v)||0;
     const lH=toN(r.layout_secs)/3600,wH=toN(r.wire_secs)/3600,fH=toN(r.final_secs)/3600,tH=toN(r.tech_secs)/3600;
-    const aH=parseFloat(r.actual_total_hours)||null,rH=parseFloat(r.routing_hours)||null;
-    let dateB=null; if(r.layout_started_at){const d=new Date(r.layout_started_at);if(!isNaN(d))dateB=d;}
+    const aH=parseFloat(r.actual_total_hours)||null;
+    const rH=parseFloat(r.routing_hours)||null;
+    let dateB=null;
+    if(r.layout_started_at){
+      const d=new Date(r.layout_started_at);
+      if(!isNaN(d)){
+        // Convert UTC to US/Eastern date
+        dateB=new Date(d.toLocaleString('en-US',{timeZone:'America/New_York'}));
+      }
+    }
     const isC=r.is_complete===true||r.is_complete==='true'||r.is_complete===1;
     const isO=r.is_over_time===true||r.is_over_time==='true'||r.is_over_time===1;
-    return{...r,lH,wH,fH,tH,aH,rH,dateB,isC,isO};
+    const tail=String(r.job_number||'').trim().slice(-4);
+    const key=`${r.panel_number}|${tail}`;
+    const joined=joinMap[key]||{};
+    const panFamily=String(r.panel_number||'').split('-')[0];
+    return{...r,lH,wH,fH,tH,aH,rH,dateB,isC,isO,Q_Result:joined.Pass_Fail||null,panFamily};
   });
-  const months=[...new Set(tm.filter(r=>r.dateB).map(r=>`${r.dateB.getFullYear()}-${String(r.dateB.getMonth()+1).padStart(2,'0')}`))]
-    .sort().reverse();
+
+  const months=[...new Set(tm.filter(r=>r.dateB).map(r=>{
+    const d=r.dateB;return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}`;
+  }))].sort().reverse();
   const allW=[...new Set(['layout_worker','wire_worker','final_worker','tech_worker'].flatMap(c=>tm.map(r=>r[c]).filter(Boolean)))].sort();
   const allP=[...new Set(tm.map(r=>r.panel_number).filter(Boolean))].sort();
 
   el.innerHTML=`
     <div class="section-hdr">⏱ Time Analysis — Actual vs Routing Hours</div>
     <div style="display:flex;gap:8px;align-items:center;margin-bottom:12px">
-      <button class="grp-btn active" onclick="timingLoaded=false;renderT6()">🔄 Refresh</button>
-      <span style="font-size:12px;color:${WARMGRAY}">📊 ${tm.length} panels loaded</span>
+      <button class="grp-btn active" onclick="timingLoaded=false;renderT6()">🔄 Refresh tracker data</button>
+      <span style="font-size:12px;color:var(--warmgray)">📊 ${tm.length} panels loaded from Supabase</span>
     </div>
     <div class="ta-filters">
       <div><label>Time Period</label>
-        <select id="ta-period" onchange="drawTA(tm_ref)">
+        <select id="ta-period" onchange="onTaPeriodChange()">
           ${['Last 7 Days','Last 30 Days','Last 90 Days','Last 6 Months','Last Year','By Month','All Time']
             .map(o=>`<option${o==='Last 90 Days'?' selected':''}>${o}</option>`).join('')}
         </select>
@@ -684,44 +810,51 @@ function buildTA(el) {
       <div><label>Completed only</label>
         <input type="checkbox" id="ta-complete" checked onchange="drawTA(tm_ref)" style="width:16px;height:16px;margin-top:4px">
       </div>
-      <div><label>Worker</label>
-        <select id="ta-workers" multiple style="height:56px;min-width:140px" onchange="drawTA(tm_ref)">
+      <div><label>Filter by worker</label>
+        <select id="ta-workers" multiple style="height:60px;min-width:160px" onchange="drawTA(tm_ref)">
           ${allW.map(w=>`<option>${w}</option>`).join('')}
         </select>
       </div>
-      <div><label>Panel #</label>
-        <select id="ta-panels" multiple style="height:56px;min-width:120px" onchange="drawTA(tm_ref)">
+      <div><label>Panel number</label>
+        <select id="ta-panels" multiple style="height:60px;min-width:130px" onchange="drawTA(tm_ref)">
           ${allP.map(p=>`<option>${p}</option>`).join('')}
         </select>
       </div>
     </div>
-    <div id="ta-kpis" class="ta-kpis"></div>
+    <div id="ta-kpis" style="display:grid;grid-template-columns:repeat(4,1fr);gap:10px;margin-bottom:16px"></div>
     <div style="display:grid;grid-template-columns:3fr 2fr;gap:16px;margin-bottom:16px">
-      <div class="chart-box"><div id="ch-scatter" class="plot-div" style="min-height:380px"></div></div>
+      <div class="chart-box"><div id="ch-scatter" class="plot-div" style="min-height:400px"></div></div>
       <div class="chart-box"><div id="ch-stages" class="plot-div"></div></div>
     </div>
     <div id="ta-worker-section"></div>
     <div id="ta-breakdown"></div>`;
 
-  // Store reference for event handlers
   window.tm_ref=tm;
-  document.getElementById('ta-period').addEventListener('change',function(){
-    document.getElementById('ta-month-wrap').style.display=this.value==='By Month'?'':'none';
-  });
   drawTA(tm);
 }
 
-function drawTA(tm) {
+function onTaPeriodChange(){
+  const v=document.getElementById('ta-period').value;
+  document.getElementById('ta-month-wrap').style.display=v==='By Month'?'':'none';
+  drawTA(window.tm_ref||[]);
+}
+
+function drawTA(tm){
   const period=document.getElementById('ta-period').value;
   const selMonth=document.getElementById('ta-month')?.value;
   const complete=document.getElementById('ta-complete').checked;
   const selW=[...document.getElementById('ta-workers').selectedOptions].map(o=>o.value);
   const selP=[...document.getElementById('ta-panels').selectedOptions].map(o=>o.value);
-  const maxD=new Date(Math.max(...tm.filter(r=>r.dateB).map(r=>r.dateB)));
+
   const PD={'Last 7 Days':7,'Last 30 Days':30,'Last 90 Days':90,'Last 6 Months':182,'Last Year':365};
-  let f=tm.filter(r=>r.dateB);
+  const hasDates=tm.filter(r=>r.dateB);
+  const maxD=hasDates.length?new Date(Math.max(...hasDates.map(r=>r.dateB))):new Date();
+  let f=hasDates;
   if(PD[period]){const c=new Date(maxD);c.setDate(c.getDate()-PD[period]);f=f.filter(r=>r.dateB>=c);}
-  else if(period==='By Month')f=f.filter(r=>`${r.dateB.getFullYear()}-${String(r.dateB.getMonth()+1).padStart(2,'0')}`===selMonth);
+  else if(period==='By Month'){
+    f=f.filter(r=>{const d=r.dateB;return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}`===selMonth;});
+  } else if(period!=='All Time'){f=hasDates;}
+
   if(complete)f=f.filter(r=>r.isC);
   if(selP.length)f=f.filter(r=>selP.includes(r.panel_number));
   if(selW.length)f=f.filter(r=>selW.some(w=>[r.layout_worker,r.wire_worker,r.final_worker,r.tech_worker].includes(w)));
@@ -729,108 +862,204 @@ function drawTA(tm) {
   const nW=f.filter(r=>r.rH).length,nO=f.filter(r=>r.isO).length;
   const sumA=f.reduce((s,r)=>s+(r.aH||0),0),sumR=f.reduce((s,r)=>s+(r.rH||0),0);
   const hm=h=>h?`${Math.floor(h)}h ${Math.round((h%1)*60)}m`:'—';
+
   document.getElementById('ta-kpis').innerHTML=[
     ['Panels Tracked',f.length.toLocaleString(),`${nW} with routing target`],
-    ['Over Time',nO,`${nW?(nO/nW*100).toFixed(1):0}% of those with target`],
-    ['Actual Work Time',hm(sumA),'summed across panels'],
-    ['Target Time',hm(sumR),'summed routing hours'],
+    ['Over Time',nO.toLocaleString(),`${nW?(nO/nW*100).toFixed(1):0}% of those with target`],
+    ['Actual Working Time',hm(sumA),'summed wall-clock across panels'],
+    ['Target Time',hm(sumR),'summed routing hours across panels'],
   ].map(([l,v,s])=>`<div class="kpi-card"><div class="kpi-label">${l}</div><div class="kpi-value" style="font-size:20px">${v}</div><div class="kpi-sub">${s}</div></div>`).join('');
 
   if(!f.length){
-    ['ch-scatter','ch-stages'].forEach(id=>Plotly.purge(id));
-    document.getElementById('ta-worker-section').innerHTML='<div class="alert alert-info">No data matches the selected filters.</div>';
-    document.getElementById('ta-breakdown').innerHTML=''; return;
+    ['ch-scatter','ch-stages'].forEach(id=>{try{Plotly.purge(id);}catch(e){}});
+    document.getElementById('ta-worker-section').innerHTML='<div style="padding:16px;color:var(--warmgray)">No data matches the selected filters.</div>';
+    document.getElementById('ta-breakdown').innerHTML='';return;
   }
 
-  // Scatter: actual vs routing
+  // ── Scatter: actual vs routing ──
   const sc=f.filter(r=>r.rH&&r.aH);
   const over=sc.filter(r=>r.isO),onTime=sc.filter(r=>!r.isO);
   const mx=sc.length?Math.max(...sc.map(r=>Math.max(r.rH,r.aH)))*1.1:10;
   newPlot('ch-scatter',[
     {type:'scatter',name:'Over Time',mode:'markers',
-      x:over.map(r=>r.rH),y:over.map(r=>r.aH),
-      marker:{color:RED,size:8,opacity:.8},
-      text:over.map(r=>`${r.panel_number}<br>Job: ${r.job_number}`),
-      hovertemplate:'<b>%{text}</b><br>Target: %{x:.2f}h<br>Actual: %{y:.2f}h<extra>Over Time</extra>'},
+      x:over.map(r=>r.rH),y:over.map(r=>r.aH),marker:{color:RED,size:8,opacity:.8},
+      customdata:over.map(r=>[r.panel_number,r.job_number]),
+      hovertemplate:'<b>Panel %{customdata[0]}</b><br>Job: %{customdata[1]}<br>Target: %{x:.3f}h<br>Actual: %{y:.3f}h<extra>Over Time</extra>'},
     {type:'scatter',name:'On Time',mode:'markers',
-      x:onTime.map(r=>r.rH),y:onTime.map(r=>r.aH),
-      marker:{color:GREEN,size:8,opacity:.8},
-      text:onTime.map(r=>`${r.panel_number}<br>Job: ${r.job_number}`),
-      hovertemplate:'<b>%{text}</b><br>Target: %{x:.2f}h<br>Actual: %{y:.2f}h<extra>On Time</extra>'},
+      x:onTime.map(r=>r.rH),y:onTime.map(r=>r.aH),marker:{color:GREEN,size:8,opacity:.8},
+      customdata:onTime.map(r=>[r.panel_number,r.job_number]),
+      hovertemplate:'<b>Panel %{customdata[0]}</b><br>Job: %{customdata[1]}<br>Target: %{x:.3f}h<br>Actual: %{y:.3f}h<extra>On Time</extra>'},
     {type:'scatter',name:'On Target Line',mode:'lines',x:[0,mx],y:[0,mx],
       line:{color:WARMGRAY,dash:'dash',width:1},showlegend:false,hoverinfo:'skip'},
-  ],{title:{text:'Actual vs Routing Hours',font:{family:'Georgia',color:NAVY,size:14}},height:380,
-    xaxis:{title:'Target Hours (routing)',range:[0,mx]},yaxis:{title:'Actual Hours',range:[0,mx]},
-    annotations:[{x:mx*.85,y:mx*.88,text:'on target',showarrow:false,font:{color:WARMGRAY,size:10}}],
-  });
+  ],{title:{text:'Actual vs Routing Hours',font:{family:'Georgia',color:NAVY,size:14}},height:400,
+    xaxis:{title:'Target (h)',range:[0,mx]},yaxis:{title:'Actual (h)',range:[0,mx]},
+    legend:{title:{text:null}},
+    annotations:[{x:mx*.88,y:mx*.88,text:'on target',showarrow:false,font:{color:WARMGRAY,size:10}}],
+    margin:{l:10,r:10,t:40,b:20}});
 
-  // Stage avg bar
+  // ── Stage avg bar ──
   const stageAvgs=[['Layout','lH'],['Wire','wH'],['Final','fH'],['Tech','tH']].map(([s,c])=>{
     const v=f.map(r=>r[c]).filter(v=>v>0);
     return v.length?{s,avg:v.reduce((a,b)=>a+b,0)/v.length}:null;
   }).filter(Boolean);
   if(stageAvgs.length) newPlot('ch-stages',[{
-    type:'bar',orientation:'h',y:stageAvgs.map(r=>r.s).reverse(),x:stageAvgs.map(r=>+r.avg.toFixed(3)).reverse(),
+    type:'bar',orientation:'h',
+    y:stageAvgs.map(r=>r.s).reverse(),x:stageAvgs.map(r=>+r.avg.toFixed(3)).reverse(),
     text:stageAvgs.map(r=>`${r.avg.toFixed(2)}h`).reverse(),textposition:'outside',
     marker:{color:[BLUE,NAVY,'#4A90D9','#7FAFD9'].reverse()},
     hovertemplate:'<b>%{y}</b><br>Avg: %{x:.2f}h<extra></extra>',
-  }],{title:{text:'Avg Hours per Stage',font:{family:'Georgia',color:NAVY,size:13}},
-    xaxis:{title:'Avg Hours'},height:260,showlegend:false});
+  }],{title:{text:'Avg Hours per Stage',font:{family:'Georgia',color:NAVY,size:14}},
+    showlegend:false,height:300,margin:{l:10,r:60,t:40,b:20},xaxis:{title:'Avg Hours'}});
 
-  // Worker breakdown
-  const wRows=[]; for(const[stage,wc,hc]of[['Layout','layout_worker','lH'],['Wire','wire_worker','wH'],['Final','final_worker','fH'],['Tech','tech_worker','tH']]){
-    const grp={}; for(const r of f){if(!r[wc]||!r[hc])continue;if(!grp[r[wc]])grp[r[wc]]={p:0,s:0,mn:Infinity,mx:-Infinity};grp[r[wc]].p++;grp[r[wc]].s+=r[hc];grp[r[wc]].mn=Math.min(grp[r[wc]].mn,r[hc]);grp[r[wc]].mx=Math.max(grp[r[wc]].mx,r[hc]);}
-    for(const[w,g]of Object.entries(grp)) wRows.push({stage,worker:w,panels:g.p,avg:g.s/g.p,min:g.mn,max:g.mx});
+  // ── Worker breakdown ──
+  const wRows=[];
+  for(const[stage,wc,hc]of[['Layout','layout_worker','lH'],['Wire','wire_worker','wH'],['Final','final_worker','fH'],['Tech','tech_worker','tH']]){
+    const sub=f.filter(r=>r[wc]&&r[hc]>0);
+    const grp={};for(const r of sub){if(!grp[r[wc]])grp[r[wc]]={p:0,s:0,mn:Infinity,mx:-Infinity};grp[r[wc]].p++;grp[r[wc]].s+=r[hc];grp[r[wc]].mn=Math.min(grp[r[wc]].mn,r[hc]);grp[r[wc]].mx=Math.max(grp[r[wc]].mx,r[hc]);}
+    for(const[w,g]of Object.entries(grp))wRows.push({stage,worker:w,panels:g.p,avg:g.s/g.p,min:g.mn,max:g.mx});
   }
   const wSec=document.getElementById('ta-worker-section');
   if(wRows.length){
-    const stages=[...new Set(wRows.map(r=>r.stage))],workers=[...new Set(wRows.map(r=>r.worker))].sort();
+    const stages=[...new Set(wRows.map(r=>r.stage))];
+    const workers=[...new Set(wRows.map(r=>r.worker))].sort();
     const stC={Layout:BLUE,Wire:NAVY,Final:'#4A90D9',Tech:'#7FAFD9'};
-    wSec.innerHTML=`<div class="section-hdr">Worker Time Breakdown</div><div class="chart-box"><div id="ch-workers" class="plot-div" style="min-height:300px"></div></div><div id="worker-tbl" class="mt-2"></div>`;
+    wSec.innerHTML=`<div class="section-hdr">Worker Time Breakdown</div>
+      <div class="chart-box"><div id="ch-workers" class="plot-div" style="min-height:360px"></div></div>
+      <div id="worker-tbl" class="mt-2" style="margin-bottom:16px"></div>`;
     newPlot('ch-workers',stages.map(s=>({type:'bar',name:s,x:workers,
       y:workers.map(w=>{const r=wRows.find(x=>x.stage===s&&x.worker===w);return r?+r.avg.toFixed(3):0;}),
-      marker:{color:stC[s]},hovertemplate:'<b>%{x}</b><br>'+s+': %{y:.2f}h avg<extra></extra>'})),
-      {title:{text:'Avg Stage Time by Worker',font:{family:'Georgia',color:NAVY,size:13}},barmode:'group',height:320,yaxis:{title:'Avg Hours'}});
+      text:workers.map(w=>{const r=wRows.find(x=>x.stage===s&&x.worker===w);return r?`${Math.floor(r.avg*60)}m`:'';}),
+      textposition:'outside',
+      marker:{color:stC[s]},
+      hovertemplate:'<b>%{x}</b><br>'+s+': %{y:.2f}h avg<extra></extra>'})),
+      {title:{text:'Avg Stage Time by Worker',font:{family:'Georgia',color:NAVY,size:14}},
+       barmode:'group',height:360,yaxis:{title:'Avg Hours'},margin:{l:10,r:10,t:40,b:20}});
     document.getElementById('worker-tbl').innerHTML=tbl(
       ['Stage','Worker','Panels','Avg H:M:S','Min H:M:S','Max H:M:S'],
       wRows.sort((a,b)=>a.stage.localeCompare(b.stage)||a.worker.localeCompare(b.worker))
         .map(r=>[r.stage,r.worker,r.panels,hms(r.avg),hms(r.min),hms(r.max)]));
   } else wSec.innerHTML='';
 
-  // Time breakdown
-  const comp=f.filter(r=>r.aH);
+  // ── Time Breakdown ──
+  const completed=f.filter(r=>r.aH);
   const bdEl=document.getElementById('ta-breakdown');
-  if(!comp.length){bdEl.innerHTML='';return;}
-  const mean=(a,k)=>{const v=a.map(r=>r[k]).filter(v=>v>0);return v.length?v.reduce((a,b)=>a+b,0)/v.length:null;};
-  const aL=mean(comp,'lH'),aW=mean(comp,'wH'),aF=mean(comp,'fH'),aT=mean(comp,'tH'),aA=mean(comp,'aH');
-  const targets=[...new Set(comp.map(r=>r.rH).filter(Boolean))];
+  if(!completed.length){bdEl.innerHTML='';return;}
+
+  const mean=(arr,k)=>{const v=arr.map(r=>r[k]).filter(v=>v>0);return v.length?v.reduce((a,b)=>a+b,0)/v.length:null;};
+  const aL=mean(completed,'lH'),aW=mean(completed,'wH'),aF=mean(completed,'fH'),aT=mean(completed,'tH');
+  const aA=mean(completed,'aH');
+  const targets=[...new Set(completed.map(r=>r.rH).filter(Boolean))];
   const sTgt=targets.length===1?targets[0]:null;
-  const isOver=sTgt&&aA&&aA-sTgt>1/60;
+  const delta=sTgt&&aA?aA-sTgt:null;
+  const isOver=delta!==null&&delta>(1/60);
+  const taColor=isOver?RED:GREEN,taBg=isOver?'#fff0f0':'#f0fff4';
+
   bdEl.innerHTML=`
-    <div class="section-hdr mt-3">Time Breakdown</div>
-    <div style="display:grid;grid-template-columns:repeat(4,1fr);gap:10px;margin-bottom:14px">
-      ${[['Avg Layout',aL],['Avg Wire',aW],['Avg Final',aF],['Avg Tech',aT]].map(([l,v])=>`<div class="kpi-card"><div class="kpi-label">${l}</div><div class="kpi-value" style="font-size:18px">${hms(v)}</div></div>`).join('')}
+    <div class="section-hdr">Time Breakdown</div>
+    <div style="display:grid;grid-template-columns:repeat(4,1fr);gap:10px;margin-bottom:16px">
+      ${[['Avg Layout',aL],['Avg Wire',aW],['Avg Final',aF],['Avg Tech',aT]].map(([l,v])=>
+        `<div class="kpi-card"><div class="kpi-label">${l}</div><div class="kpi-value" style="font-size:22px">${hms(v)||'—'}</div></div>`).join('')}
     </div>
     <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:10px;margin-bottom:16px">
-      <div class="kpi-card" style="background:var(--tint);color:var(--navy)"><div class="kpi-label">Target (routing)</div><div class="kpi-value" style="font-size:18px">${sTgt?hms(sTgt):'— (mixed)'}</div></div>
-      <div class="kpi-card" style="background:var(--tint);color:var(--navy)"><div class="kpi-label">Avg Actual Total</div><div class="kpi-value" style="font-size:18px">${hms(aA)}</div></div>
-      <div class="kpi-card" style="background:${isOver?'#fff0f0':'#f0fff4'};color:var(--navy)"><div class="kpi-label">Delta</div><div class="kpi-value" style="font-size:18px;color:${isOver?RED:GREEN}">${sTgt&&aA?(isOver?'▲ ':'▼ ')+hms(Math.abs(aA-sTgt)):'—'}</div></div>
+      <div class="kpi-card" style="background:var(--tint);color:var(--navy)">
+        <div class="kpi-label" style="color:var(--navy)">Target (routing hours)</div>
+        <div class="kpi-value" style="font-size:22px;color:var(--navy)">${sTgt?hms(sTgt):'— (mixed)'}</div>
+      </div>
+      <div class="kpi-card" style="background:${taBg};color:${taColor}">
+        <div class="kpi-label" style="color:${taColor}">Avg Completion</div>
+        <div class="kpi-value" style="font-size:22px;color:${taColor}">${hms(aA)||'—'}</div>
+      </div>
+      <div class="kpi-card" style="background:${taBg};color:${taColor}">
+        <div class="kpi-label" style="color:${taColor}">Delta</div>
+        <div class="kpi-value" style="font-size:22px;color:${taColor}">${delta!==null?hmsSigned(delta):'—'}</div>
+      </div>
     </div>
+
+    <div id="quickest-teams"></div>
+
     <div class="section-hdr">Panel Detail</div>
-    ${tbl(['Panel','Job','Date Built','Target H','Actual H','Layout','Wire','Final','Tech','Status'],
-      comp.sort((a,b)=>(b.dateB||0)-(a.dateB||0)).map(r=>[
-        r.panel_number,r.job_number,r.dateB?fmtDate(r.dateB):'—',
-        r.rH?r.rH.toFixed(2):'—',r.aH?r.aH.toFixed(2):'—',
-        hms(r.lH),hms(r.wH),hms(r.fH),hms(r.tH),
-        `<span class="${r.isO?'badge-over':'badge-ok'}">${r.isO?'Over':'On Time'}</span>`,
-      ]), i=>comp[i]?.isO?'row-fail':'')}`;
+    <div id="panel-detail"></div>`;
+
+  // ── Quickest Teams ──
+  const teamData=completed.map(r=>{
+    const team=[r.layout_worker||'—',r.wire_worker||'—',r.final_worker||'—',r.tech_worker||'—'].join(' / ');
+    return{...r,team};
+  });
+  const teamGrp={};
+  for(const r of teamData){
+    if(!teamGrp[r.team])teamGrp[r.team]={panels:0,sumA:0,sumL:0,sumW:0,sumF:0,sumT:0,cntL:0,cntW:0,cntF:0,cntT:0};
+    const g=teamGrp[r.team];
+    g.panels++;g.sumA+=r.aH||0;
+    if(r.lH>0){g.sumL+=r.lH;g.cntL++;}
+    if(r.wH>0){g.sumW+=r.wH;g.cntW++;}
+    if(r.fH>0){g.sumF+=r.fH;g.cntF++;}
+    if(r.tH>0){g.sumT+=r.tH;g.cntT++;}
+  }
+  const teamSummary=Object.entries(teamGrp)
+    .map(([team,g])=>({team,panels:g.panels,avgTotal:g.sumA/g.panels,
+      avgL:g.cntL?g.sumL/g.cntL:null,avgW:g.cntW?g.sumW/g.cntW:null,
+      avgF:g.cntF?g.sumF/g.cntF:null,avgT:g.cntT?g.sumT/g.cntT:null}))
+    .sort((a,b)=>a.avgTotal-b.avgTotal);
+
+  if(teamSummary.length){
+    const rankColors=['#f0fff4','#f7fff0','#fffde7','#fff3e0','#fff0f0'];
+    const n=teamSummary.length;
+    const teamRows=teamSummary.map((r,i)=>{
+      const idx=n>1?Math.round(i/(n-1)*(rankColors.length-1)):0;
+      const bg=rankColors[idx];
+      const vsTarget=sTgt?hmsSigned(r.avgTotal-sTgt):null;
+      return{cells:[r.team,r.panels,hms(r.avgTotal),hms(r.avgL),hms(r.avgW),hms(r.avgF),hms(r.avgT),
+        ...(sTgt?[vsTarget]:[])],bg};
+    });
+    const tCols=['Team','# Panels','Avg Total','Layout','Wire','Final','Tech',...(sTgt?['vs Target']:[])];
+    document.getElementById('quickest-teams').innerHTML=`
+      <div style="font-family:Georgia;font-size:14px;font-weight:bold;color:var(--navy);margin:8px 0 4px">Quickest Teams</div>
+      <p style="color:var(--warmgray);font-size:12px;margin:0 0 8px">Layout by / Wire by / Final by / Tech by — sorted by avg completion time. Green = fastest.</p>
+      <div class="tbl-wrap"><table class="dash-table">
+        <thead><tr>${tCols.map(c=>`<th>${c}</th>`).join('')}</tr></thead>
+        <tbody>${teamRows.map(r=>`<tr style="background:${r.bg}">${r.cells.map(c=>`<td>${c??''}</td>`).join('')}</tr>`).join('')}
+        </tbody></table></div>`;
+  }
+
+  // ── Panel Detail ──
+  const detailRows=[...completed].sort((a,b)=>{
+    const jc=String(a.job_number||'').localeCompare(String(b.job_number||''));
+    if(jc!==0)return jc;
+    return(a.panel_seq||0)-(b.panel_seq||0);
+  });
+  const idCols=['Panel #','Job #','Seq','Date','Q Result','Over?'].filter(c=>
+    c!=='Seq'||detailRows.some(r=>r.panel_seq!=null));
+  const hasSeq=detailRows.some(r=>r.panel_seq!=null);
+  const detTbl=tbl(
+    [...(hasSeq?['Panel #','Job #','Seq']:['Panel #','Job #']),'Date','Q Result','Over?',
+     'Layout by','Layout H:M:S','Wire by','Wire H:M:S','Final by','Final H:M:S','Tech by','Tech H:M:S','Target','Actual','Delta'],
+    detailRows.map(r=>{
+      const dlt=r.aH&&r.rH?r.aH-r.rH:null;
+      return[
+        r.panel_number,r.job_number,
+        ...(hasSeq?[r.panel_seq??'—']:[]),
+        r.dateB?r.dateB.toLocaleDateString('en-CA'):'—',
+        r.Q_Result||'—',
+        `<span class="${r.isO?'badge-over':'badge-ok'}">${r.isO?'Yes':'No'}</span>`,
+        r.layout_worker||'—',hms(r.lH),
+        r.wire_worker||'—',hms(r.wH),
+        r.final_worker||'—',hms(r.fH),
+        r.tech_worker||'—',hms(r.tH),
+        hms(r.rH),hms(r.aH),hmsDelta(dlt),
+      ];
+    }),i=>detailRows[i]?.isO?'row-fail':''
+  );
+  document.getElementById('panel-detail').innerHTML=detTbl;
 }
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
-function toggleExpander(btn){ const b=btn.nextElementSibling; b.classList.toggle('open'); btn.textContent=btn.textContent.replace(/[▼▲]/,b.classList.contains('open')?'▲':'▼'); }
+function toggleExpander(btn){
+  const b=btn.nextElementSibling;b.classList.toggle('open');
+  btn.textContent=btn.textContent.replace(/[▼▲]/,b.classList.contains('open')?'▲':'▼');
+}
 
 // ─── File handling ────────────────────────────────────────────────────────────
-function handleFile(file) {
+function handleFile(file){
   if(!file)return;
   const r=new FileReader();
   r.onload=e=>{
@@ -839,24 +1068,24 @@ function handleFile(file) {
       document.getElementById('upload-section').style.display='none';
       document.getElementById('dashboard').style.display='block';
       const quarters=[...new Set(df.map(r=>r.Quarter))].sort().reverse();
-      const qs=document.getElementById('quarter-select');
-      qs.innerHTML=quarters.map(q=>`<option>${q}</option>`).join('');
+      document.getElementById('quarter-select').innerHTML=quarters.map(q=>`<option>${q}</option>`).join('');
       render();
     }catch(err){
       const ee=document.getElementById('upload-error');
-      ee.textContent='Error: '+err.message; ee.style.display='block';
+      ee.textContent='Error: '+err.message;ee.style.display='block';
     }
   };
   r.readAsArrayBuffer(file);
 }
 
 function resetDashboard(){
-  df=[]; failExploded=[]; timingLoaded=false; timingData=[];
+  df=[];failExploded=[];timingLoaded=false;timingData=[];
   document.getElementById('upload-section').style.display='';
   document.getElementById('dashboard').style.display='none';
   document.getElementById('upload-error').style.display='none';
   document.getElementById('file-input').value='';
-  ['ch-fa','ch-trend','ch-comp-p','ch-comp-f','ch-scatter','ch-stages','ch-workers'].forEach(id=>{try{Plotly.purge(id);}catch(e){}});
+  ['ch-fa','ch-trend','ch-comp-p','ch-comp-f','ch-scatter','ch-stages','ch-workers']
+    .forEach(id=>{try{Plotly.purge(id);}catch(e){}});
 }
 
 // ─── Tab switching ────────────────────────────────────────────────────────────
@@ -865,19 +1094,18 @@ document.querySelectorAll('.tab-btn').forEach(btn=>{
     document.querySelectorAll('.tab-btn').forEach(b=>b.classList.remove('active'));
     document.querySelectorAll('.tab-pane').forEach(p=>p.classList.remove('active'));
     btn.classList.add('active');
-    const tab=btn.dataset.tab; activeTab=tab;
+    const tab=btn.dataset.tab;activeTab=tab;
     document.getElementById(tab).classList.add('active');
-    if(tab==='t6'&&!timingLoaded) renderT6();
-    else if(tab==='t6') buildTA(window.tm_ref||[]);
-    else if(df.length) renderTab(tab);
-    // Trigger Plotly resize so charts fill their containers
+    if(tab==='t6'&&!timingLoaded)renderT6();
+    else if(tab==='t6')buildTA(document.getElementById('t6'));
+    else if(df.length)renderTab(tab);
     setTimeout(()=>window.dispatchEvent(new Event('resize')),50);
   });
 });
 
 function onPeriodChange(){
-  const v=document.getElementById('period-select').value;
-  document.getElementById('quarter-select').style.display=v==='By Quarter'?'':'none';
+  document.getElementById('quarter-select').style.display=
+    document.getElementById('period-select').value==='By Quarter'?'':'none';
   render();
 }
 
@@ -890,12 +1118,12 @@ function render(){
 
 function renderTab(tab){
   const data=getFiltered();
-  if(tab==='t1') renderT1(data);
-  else if(tab==='t2') renderPersonTab('t2','Layout','Layout');
-  else if(tab==='t3') renderPersonTab('t3','Wire','Wire');
-  else if(tab==='t4') renderPersonTab('t4','FA','Final');
-  else if(tab==='t5') renderT5(data);
-  else if(tab==='t6') renderT6();
+  if(tab==='t1')renderT1(data);
+  else if(tab==='t2')renderPersonTab('t2','Layout','Layout');
+  else if(tab==='t3')renderPersonTab('t3','Wire','Wire');
+  else if(tab==='t4')renderPersonTab('t4','FA','Final');
+  else if(tab==='t5')renderT5(data);
+  else if(tab==='t6')renderT6();
 }
 </script>
 </body>
