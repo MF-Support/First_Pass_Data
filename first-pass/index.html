@@ -220,7 +220,8 @@ const pCfg={responsive:true,displayModeBar:true,
   modeBarButtonsToRemove:['select2d','lasso2d','autoScale2d'],displaylogo:false};
 function newPlot(id,data,lay){Plotly.newPlot(id,data,Object.assign(baseLay(),lay),pCfg);}
 function scrollToDrill(el){
-  const top=el.getBoundingClientRect().top+window.pageYOffset-80;
+  const margin=Math.min(Math.round(window.innerHeight*0.5),480);
+  const top=el.getBoundingClientRect().top+window.pageYOffset-margin;
   window.scrollTo({top:Math.max(0,top),behavior:'smooth'});
 }
 
@@ -1377,7 +1378,7 @@ document.querySelectorAll('.tab-btn').forEach(btn=>{
     btn.classList.add('active');
     const tab=btn.dataset.tab;activeTab=tab;
     document.getElementById(tab).classList.add('active');
-    window.scrollTo({top:0});
+    document.documentElement.scrollTop=0;document.body.scrollTop=0;
     if(tab==='t6'&&!timingLoaded)renderT6();
     else if(tab==='t6')buildTA(document.getElementById('t6'));
     else if(df.length)renderTab(tab);
