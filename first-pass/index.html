@@ -17,6 +17,32 @@ body{background:var(--offwhite);font-family:'Inter',Arial,sans-serif;font-size:1
 .top-nav{background:var(--navy);padding:10px 20px;display:flex;align-items:center;justify-content:space-between;}
 .top-nav h1{color:#fff;font-family:Georgia;font-size:1.2rem;margin:0;font-weight:normal;}
 .top-nav small{color:rgba(255,255,255,.6);font-size:11px;}
+.report-btn{background:rgba(255,255,255,.14);border:1px solid rgba(255,255,255,.4);color:#fff;
+  border-radius:6px;padding:7px 14px;font-size:12.5px;font-weight:600;cursor:pointer;
+  white-space:nowrap;transition:background .15s;}
+.report-btn:hover{background:rgba(255,255,255,.26);}
+
+.rp-overlay{display:none;position:fixed;inset:0;background:rgba(0,14,87,.45);z-index:10000;
+  align-items:center;justify-content:center;padding:20px;}
+.rp-overlay.open{display:flex;}
+.rp-dialog{background:#fff;border-radius:12px;padding:22px 24px;max-width:560px;width:100%;
+  max-height:88vh;overflow-y:auto;box-shadow:0 12px 44px rgba(0,14,87,.3);}
+.rp-title{font-family:Georgia;font-size:19px;font-weight:bold;color:var(--navy);margin-bottom:6px;}
+.rp-sub{font-size:12px;color:var(--warmgray);margin:0 0 16px;line-height:1.55;}
+.rp-label{display:block;font-size:11px;font-weight:700;color:var(--navy);
+  text-transform:uppercase;letter-spacing:.04em;margin-bottom:5px;}
+.rp-checks{display:grid;grid-template-columns:1fr 1fr;gap:6px 14px;margin-bottom:16px;}
+.rp-checks label{display:flex;align-items:center;gap:7px;font-size:13px;color:var(--navy);cursor:pointer;}
+.rp-row{display:flex;gap:14px;flex-wrap:wrap;margin-bottom:16px;}
+.rp-dialog select{width:100%;font-size:13px;padding:6px 8px;border:1px solid #c8d0e7;
+  border-radius:6px;color:var(--navy);background:#fff;}
+.rp-progress{font-size:12px;color:var(--blue);min-height:18px;margin-bottom:10px;}
+.rp-actions{display:flex;justify-content:flex-end;gap:10px;}
+.rp-cancel{background:#fff;border:1px solid #c8d0e7;color:var(--navy);border-radius:6px;
+  padding:8px 16px;font-size:13px;cursor:pointer;}
+.rp-go{background:var(--blue);border:1px solid var(--blue);color:#fff;border-radius:6px;
+  padding:8px 20px;font-size:13px;font-weight:600;cursor:pointer;}
+.rp-go:disabled{opacity:.55;cursor:default;}
 
 #upload-section{max-width:640px;margin:80px auto;padding:0 20px;}
 .upload-card{background:#fff;border-radius:16px;box-shadow:0 4px 24px rgba(0,14,87,.10);padding:48px;text-align:center;border:2px dashed var(--blue);cursor:pointer;transition:background .2s,transform .15s;}
@@ -121,8 +147,53 @@ input:checked+.toggle-slider:before{transform:translateX(18px);}
 <body>
 
 <div class="top-nav">
-  <h1>🏭 First Pass Quality Dashboard</h1>
-  <small>Kennesaw Panel Assembly · First Pass Performance</small>
+  <div>
+    <h1>🏭 First Pass Quality Dashboard</h1>
+    <small>Kennesaw Panel Assembly · First Pass Performance</small>
+  </div>
+  <button id="report-btn" class="report-btn" onclick="openReportDialog()" style="display:none">⬇ Download Report</button>
+</div>
+
+<!-- Report options -->
+<div id="report-overlay" class="rp-overlay" onclick="if(event.target===this)closeReportDialog()">
+  <div class="rp-dialog">
+    <div class="rp-title">Download Report</div>
+    <p class="rp-sub">Builds a standalone HTML file with the charts, tables and data for
+       whatever you choose below. Open it in any browser, or print it to PDF.</p>
+
+    <label class="rp-label">Sections to include</label>
+    <div id="rp-tabs" class="rp-checks"></div>
+
+    <div class="rp-row">
+      <div style="flex:1;min-width:150px">
+        <label class="rp-label">Date range</label>
+        <select id="rp-period" onchange="onReportPeriodChange()"></select>
+      </div>
+      <div style="flex:1;min-width:150px" id="rp-sub-wrap">
+        <label class="rp-label" id="rp-sub-label">Which</label>
+        <select id="rp-sub"></select>
+      </div>
+    </div>
+
+    <div class="rp-row">
+      <div style="flex:1;min-width:150px">
+        <label class="rp-label">Group by</label>
+        <select id="rp-group">
+          <option>Day</option><option>Week</option><option selected>Month</option>
+        </select>
+      </div>
+      <div style="flex:1;min-width:150px">
+        <label class="rp-label">Person</label>
+        <select id="rp-person"><option value="">All people</option></select>
+      </div>
+    </div>
+
+    <div id="rp-progress" class="rp-progress"></div>
+    <div class="rp-actions">
+      <button class="rp-cancel" onclick="closeReportDialog()">Cancel</button>
+      <button class="rp-go" id="rp-go" onclick="generateReport()">Generate</button>
+    </div>
+  </div>
 </div>
 
 <div id="loading-section">
@@ -198,12 +269,12 @@ input:checked+.toggle-slider:before{transform:translateX(18px);}
 <!-- Version changelog -->
 <div class="version-history">
   <details>
-    <summary>v1.18 — changelog (updated 2026-07-28)</summary>
+    <summary>v1.19 — changelog (updated 2026-07-28)</summary>
+    <b>v1.19</b> New <b>Download Report</b> button (top right): pick sections, date range, grouping and all-or-one person, and get a single self-contained HTML file with every chart and table — open it anywhere or print it to PDF. Period Comparison can now compare by Day, Week, Month or Quarter<br>
     <b>v1.18</b> Layout/Wire/Final tables show “—” instead of 0 when someone did no work in that role for a period — totals are unchanged. Security hardening: tracker history can no longer be deleted by anyone outside the shop, and report text is now escaped before display<br>
     <b>v1.17</b> Live data is now fed automatically from the SharePoint report — the dashboard loads it on open and refreshes when the workbook changes. Fixed a limit that only showed the newest 1,000 records; the full history now loads<br>
     <b>v1.16</b> Daily, Weekly and Monthly now each get a second dropdown to pick exactly which day, which week (dated from its Sunday) or which month — same as Quarterly. Section headers work identically to the top bar. "This Month"/"Last Month" replaced by "Monthly". Panel tracker: added Line E<br>
     <b>v1.15</b> Live data: the dashboard now loads straight from the synced report and refreshes itself when the workbook changes — no upload needed. Status shown next to the period. Uploading a file still works as a fallback<br>
-    <b>v1.14</b> New period set: Daily, Weekly, This Month, Last Month, Last 3/6 Months, Last Year, Monthly (pick a month), Quarterly (Fiscal), All Time — default is now This Month. Header renamed to First Pass Performance; Final by Person icon changed; FPY tooltip now reads "personnel" instead of "technician"<br>
   </details>
 </div>
 
@@ -302,7 +373,21 @@ const baseLay=()=>({
 });
 const pCfg={responsive:true,displayModeBar:true,
   modeBarButtonsToRemove:['select2d','lasso2d','autoScale2d'],displaylogo:false};
-function newPlot(id,data,lay){Plotly.newPlot(id,data,Object.assign(baseLay(),lay),pCfg);}
+// Track in-flight renders so the report exporter can wait for real completion
+// rather than guessing with a timeout — a tall chart can outlast any fixed sleep,
+// and toImage on a half-drawn chart fails.
+let pendingPlots=[];
+function newPlot(id,data,lay){
+  const p=Plotly.newPlot(id,data,Object.assign(baseLay(),lay),pCfg);
+  pendingPlots.push(p);
+  return p;
+}
+async function awaitPlots(){
+  const inflight=pendingPlots;pendingPlots=[];
+  await Promise.allSettled(inflight);
+  // one frame so automargin/relayout settles before anything reads the SVG
+  await new Promise(r=>requestAnimationFrame(()=>requestAnimationFrame(r)));
+}
 // Replacing a pane's innerHTML detaches Plotly divs without tearing down their
 // internal state, leaving orphaned responsive-resize handlers bound to window.
 // Those orphans corrupt live chart geometry on the next resize (SVG overflows its
@@ -495,7 +580,13 @@ function subFor(key){
   return globalSub()||defaultSub(p);
 }
 
+// Rolling windows anchor to the newest record. During a person-scoped report df
+// is narrowed to one person, so without an override "Last Year" would measure
+// from that person's last shift and two people would get different windows for
+// the same selection. reportAnchor pins it to the full dataset.
+let reportAnchor=null;
 function dataAnchor(){
+  if(reportAnchor)return reportAnchor;
   return df.length?new Date(Math.max(...df.map(r=>r._date))):new Date();
 }
 
@@ -858,7 +949,7 @@ function renderT5(){
     <div style="display:flex;align-items:center;gap:8px;margin-bottom:12px">
       <label style="font-size:12px;font-weight:600;color:var(--navy)">Compare by</label>
       <select id="cgrp-sel" onchange="setCompare(this.value)" style="font-size:13px;padding:4px 8px;border:1px solid #c8d0e7;border-radius:6px;color:var(--navy)">
-        ${['Quarter','Month'].map(c=>`<option value="${c}"${compareBy===c?' selected':''}>${c}</option>`).join('')}
+        ${['Day','Week','Month','Quarter'].map(c=>`<option value="${c}"${compareBy===c?' selected':''}>${c}</option>`).join('')}
       </select>
     </div>
     <div style="display:grid;grid-template-columns:1fr 1fr;gap:16px">
@@ -908,15 +999,22 @@ function drawTrend(){
 function drawComparison(){
   const c=compareBy;
   const cmpRows=getFilteredFor('t5-comp').dff;
-  const keyOf=r=>c==='Quarter'?r.Quarter:r.Month;
-  const grps={};for(const r of cmpRows){const k=keyOf(r),lbl=c==='Quarter'?r.Quarter:r.MonthLabel;if(!grps[k])grps[k]={panels:0,fails:0,label:lbl,sort:r._date};grps[k].panels++;grps[k].fails+=r.Is_Fail;}
+  // Bucket field is sortable; the label is the readable form shown on the axis.
+  const CMP_FIELD={Day:'DayStr',Week:'Week',Month:'Month',Quarter:'Quarter'};
+  const f=CMP_FIELD[c]||'Month';
+  const keyOf=r=>r[f];
+  const lblOf=r=>c==='Month'?r.MonthLabel
+                :c==='Quarter'?r.Quarter
+                :c==='Week'?'Wk '+r.Week
+                :r.DayStr;
+  const grps={};for(const r of cmpRows){const k=keyOf(r),lbl=lblOf(r);if(!grps[k])grps[k]={panels:0,fails:0,label:lbl,sort:r._date};grps[k].panels++;grps[k].fails+=r.Is_Fail;}
   const s=Object.entries(grps).sort((a,b)=>a[0].localeCompare(b[0]));
   const lbls=s.map(e=>e[1].label),panels=s.map(e=>e[1].panels);
   const failPcts=s.map(e=>(e[1].fails/e[1].panels*100).toFixed(1));
   newPlot('ch-comp-p',[{type:'bar',x:lbls,y:panels,text:panels,textposition:'outside',cliponaxis:false,
     marker:{color:BLUE},hovertemplate:'<b>%{x}</b><br>%{y} panels<extra></extra>'}],
     {title:{text:`Total Panels by ${c}`,font:{family:'Georgia',color:NAVY,size:14}},height:320,
-     xaxis:{tickangle:c==='Month'?-35:0,automargin:true},yaxis:{title:'Panels',automargin:true},
+     xaxis:{tickangle:s.length>8?-40:0,automargin:true},yaxis:{title:'Panels',automargin:true},
      margin:{l:50,r:20,t:40,b:60}});
   // Labels sit above each marker, so the highest point needs headroom or its
   // label renders past the top of the plot area and gets clipped.
@@ -928,7 +1026,7 @@ function drawComparison(){
     fill:'tozeroy',fillcolor:'rgba(192,57,43,.08)',
     hovertemplate:'<b>%{x}</b><br>Fail rate: %{y}%<extra></extra>'}],
     {title:{text:`Fail Rate % by ${c}`,font:{family:'Georgia',color:NAVY,size:14}},height:280,
-     xaxis:{tickangle:c==='Month'?-35:0,automargin:true},
+     xaxis:{tickangle:s.length>8?-40:0,automargin:true},
      yaxis:{title:'Fail Rate %',ticksuffix:'%',rangemode:'tozero',automargin:true,
             range:[0,maxPct>0?maxPct*1.20:10]},
      showlegend:false,margin:{l:50,r:20,t:62,b:60}});
@@ -1486,6 +1584,8 @@ function showDashboard(){
   if(l)l.style.display='none';
   document.getElementById('upload-section').style.display='none';
   document.getElementById('dashboard').style.display='block';
+  const rb=document.getElementById('report-btn');
+  if(rb)rb.style.display='';
   populateSubSelect(true);
   updateLiveBadge();
   render();
@@ -1652,6 +1752,245 @@ function resetDashboard(){
   document.getElementById('file-input').value='';
   ['ch-fa','ch-trend','ch-comp-p','ch-comp-f','ch-scatter','ch-stages','ch-workers']
     .forEach(id=>{try{Plotly.purge(id);}catch(e){}});
+}
+
+// ─── Report export ────────────────────────────────────────────────────────────
+// Renders the chosen tabs off to one side under report-specific filters, converts
+// every Plotly chart to a PNG, and writes a standalone HTML file. The dashboard's
+// own state is saved first and restored in a finally, so generating a report never
+// disturbs what the user was looking at.
+const REPORT_TABS=[
+  {id:'t1',name:'Fail Attribution'},
+  {id:'t2',name:'Layout by Person'},
+  {id:'t3',name:'Wire by Person'},
+  {id:'t4',name:'Final by Person'},
+  {id:'t5',name:'Trends'},
+  {id:'t6',name:'Time Analysis'},
+];
+
+function openReportDialog(){
+  if(!df.length){alert('No data loaded yet.');return;}
+  document.getElementById('rp-tabs').innerHTML=REPORT_TABS.map(t=>
+    `<label><input type="checkbox" value="${t.id}" ${t.id==='t6'?'':'checked'}> ${esc(t.name)}</label>`).join('');
+
+  const ps=document.getElementById('rp-period');
+  ps.innerHTML=PERIOD_OPTS.map(p=>`<option${p===globalPeriod()?' selected':''}>${esc(p)}</option>`).join('');
+
+  const people=[...new Set(df.flatMap(r=>[r.Layout_Name,r.Wire_Name,r.FA_Name,r.Tech_Name].filter(Boolean)))].sort();
+  document.getElementById('rp-person').innerHTML=
+    '<option value="">All people</option>'+people.map(p=>`<option value="${esc(p)}">${esc(p)}</option>`).join('');
+
+  document.getElementById('rp-progress').textContent='';
+  document.getElementById('rp-go').disabled=false;
+  onReportPeriodChange();
+  document.getElementById('report-overlay').classList.add('open');
+}
+
+function closeReportDialog(){
+  document.getElementById('report-overlay').classList.remove('open');
+}
+
+function onReportPeriodChange(){
+  const p=document.getElementById('rp-period').value;
+  const wrap=document.getElementById('rp-sub-wrap');
+  const sel=document.getElementById('rp-sub');
+  if(!needsSub(p)){wrap.style.display='none';sel.innerHTML='';return;}
+  wrap.style.display='';
+  document.getElementById('rp-sub-label').textContent='Which '+SUB_NOUN[p];
+  const opts=subOptions(p);
+  sel.innerHTML=opts.map(o=>`<option value="${esc(o.value)}">${esc(o.label)}</option>`).join('');
+}
+
+async function generateReport(){
+  const chosen=[...document.querySelectorAll('#rp-tabs input:checked')].map(c=>c.value);
+  if(!chosen.length){alert('Pick at least one section.');return;}
+
+  const period=document.getElementById('rp-period').value;
+  const sub=needsSub(period)?document.getElementById('rp-sub').value:'';
+  const group=document.getElementById('rp-group').value;
+  const person=document.getElementById('rp-person').value;
+  const prog=document.getElementById('rp-progress');
+  const goBtn=document.getElementById('rp-go');
+  goBtn.disabled=true;
+
+  // Snapshot everything the render path touches.
+  const saved={
+    df,failExploded,activeTab,
+    secPeriod:{...secPeriod},secSub:{...secSub},
+    trendsGrp,grpState:{...grpState},
+    topPeriod:document.getElementById('period-select').value,
+    topSub:document.getElementById('sub-select').value,
+    taWorker:document.getElementById('ta-workers')?document.getElementById('ta-workers').value:null,
+  };
+
+  try{
+    // Pin the window to the whole dataset before any person filtering.
+    reportAnchor=saved.df.length
+      ? new Date(Math.max(...saved.df.map(r=>r._date))) : new Date();
+    if(person){
+      const init=Object.keys(initMap).find(k=>initMap[k]===person)||person;
+      const involved=r=>r.Layout===init||r.Wire===init||r.FA===init||r.Tech===init;
+      df=df.filter(involved);
+      failExploded=failExploded.filter(involved);
+      if(!df.length){alert('No panels for '+person+' in this data.');return;}
+    }
+
+    // Force every section onto the report's own period/grouping.
+    document.getElementById('period-select').value=period;
+    if(needsSub(period)){
+      populateSubSelect(true);
+      const ss=document.getElementById('sub-select');
+      if([...ss.options].some(o=>o.value===sub))ss.value=sub;
+    }else{populateSubSelect(true);}
+    secPeriod={};secSub={};
+    trendsGrp=group;
+    ['t2','t3','t4'].forEach(t=>grpState[t]=group);
+    if(person&&document.getElementById('ta-workers')){
+      const tw=document.getElementById('ta-workers');
+      if([...tw.options].some(o=>o.value===person))tw.value=person;
+    }
+
+    const parts=[];
+    for(let i=0;i<chosen.length;i++){
+      const tab=chosen[i];
+      const meta=REPORT_TABS.find(t=>t.id===tab);
+      prog.textContent=`Rendering ${meta.name} (${i+1} of ${chosen.length})…`;
+      await new Promise(r=>setTimeout(r,40));
+
+      // Plotly needs the pane laid out to size its charts; a display:none pane
+      // yields zero dimensions and toImage produces nothing.
+      document.querySelectorAll('.tab-pane').forEach(p=>p.classList.remove('active'));
+      document.getElementById(tab).classList.add('active');
+
+      pendingPlots=[];
+      if(tab==='t6'){
+        if(!timingLoaded){await renderT6();}else{buildTA(document.getElementById('t6'));}
+      }else{
+        activeTab=tab;renderTab(tab);
+      }
+      await awaitPlots();
+
+      const clone=document.getElementById(tab).cloneNode(true);
+      // Charts live in the live DOM, not the clone, so image them from the source
+      // pane and copy the results across.
+      const livePane=document.getElementById(tab);
+      const srcPlots=[...livePane.querySelectorAll('.js-plotly-plot')];
+      const clonePlots=[...clone.querySelectorAll('.js-plotly-plot')];
+      for(let k=0;k<srcPlots.length;k++){
+        const gd=srcPlots[k];
+        const w=Math.max(gd.clientWidth||900,700),h=Math.max(gd.clientHeight||400,300);
+        let uri=null;
+        // Retry: the SVG->canvas step rejects with a bare Event if the chart is
+        // still settling, and one dropped chart shouldn't cost the whole report.
+        for(let attempt=0;attempt<3&&!uri;attempt++){
+          try{ uri=await Plotly.toImage(gd,{format:'png',width:w,height:h,scale:2}); }
+          catch(e){ await new Promise(r=>setTimeout(r,250*(attempt+1))); }
+        }
+        if(uri){
+          const img=document.createElement('img');
+          img.src=uri;img.style.cssText='width:100%;max-width:'+w+'px;height:auto;display:block';
+          if(clonePlots[k])clonePlots[k].parentNode.replaceChild(img,clonePlots[k]);
+        }else if(clonePlots[k]){
+          clonePlots[k].textContent='[chart unavailable]';
+        }
+      }
+      // Strip interactive controls — they do nothing in a static file.
+      clone.querySelectorAll('select,button,input').forEach(el=>{
+        const label=el.tagName==='SELECT'
+          ? (el.options[el.selectedIndex]||{}).text||'' : '';
+        if(label){
+          const span=document.createElement('span');
+          span.textContent=label;
+          span.style.cssText='font-family:Arial;font-size:12px;font-weight:600';
+          el.parentNode.replaceChild(span,el);
+        }else el.remove();
+      });
+      parts.push({name:meta.name,html:clone.innerHTML});
+    }
+
+    prog.textContent='Assembling file…';
+    const rangeLabel=getPeriodLabel(period,sub);
+    downloadReportFile(parts,{rangeLabel,group,person,rows:df.length});
+    prog.textContent='Done — check your downloads.';
+    setTimeout(closeReportDialog,900);
+  }catch(err){
+    prog.textContent='Failed: '+err.message;
+  }finally{
+    // Always put the dashboard back exactly as it was.
+    reportAnchor=null;
+    df=saved.df;failExploded=saved.failExploded;
+    secPeriod=saved.secPeriod;secSub=saved.secSub;
+    trendsGrp=saved.trendsGrp;Object.assign(grpState,saved.grpState);
+    document.getElementById('period-select').value=saved.topPeriod;
+    populateSubSelect(true);
+    const ss=document.getElementById('sub-select');
+    if([...ss.options].some(o=>o.value===saved.topSub))ss.value=saved.topSub;
+    activeTab=saved.activeTab;
+    document.querySelectorAll('.tab-pane').forEach(p=>p.classList.remove('active'));
+    const back=document.getElementById(saved.activeTab);
+    if(back)back.classList.add('active');
+    try{renderTab(activeTab);}catch(e){}
+    goBtn.disabled=false;
+  }
+}
+
+function downloadReportFile(parts,meta){
+  const now=new Date();
+  const stamp=now.toISOString().slice(0,16).replace('T','_').replace(':','');
+  const title=`First Pass Report — ${meta.rangeLabel}`;
+  const css=`
+    body{font-family:Arial,Helvetica,sans-serif;color:#000E57;background:#fff;margin:0;padding:26px 30px;}
+    h1{font-family:Georgia;font-size:22px;margin:0 0 4px;}
+    .meta{color:#ABA18B;font-size:12px;margin-bottom:22px;line-height:1.7;}
+    .meta b{color:#000E57;}
+    .sec{page-break-before:always;margin-top:30px;}
+    .sec:first-of-type{page-break-before:auto;margin-top:0;}
+    .sec-name{font-family:Georgia;font-size:17px;font-weight:bold;background:#000E57;color:#fff;
+      padding:8px 14px;border-radius:4px;margin:0 0 14px;}
+    .section-hdr{background:#000E57;color:#fff;padding:7px 14px;border-radius:4px;
+      font-family:Georgia;font-size:14px;font-weight:bold;margin:18px 0 10px;}
+    table{width:100%;border-collapse:collapse;font-size:11.5px;margin-bottom:14px;}
+    thead tr{background:#000E57;color:#fff;}
+    th{padding:7px 9px;text-align:left;white-space:nowrap;}
+    td{padding:5px 9px;border-bottom:1px solid #eef0f7;text-align:left;word-break:break-word;}
+    tr.row-fail{background:#fff0f0;}
+    .chart-box{margin:0 0 16px;}
+    img{max-width:100%;height:auto;}
+    .tbl-wrap{overflow-x:auto;}
+    .pct-high{color:#C0392B;font-weight:700;}
+    .pct-med{color:darkorange;font-weight:700;}
+    .pct-ok{color:#27AE60;font-weight:600;}
+    .kpi-card{display:inline-block;background:#000E57;color:#fff;border-radius:8px;
+      padding:10px 16px;margin:0 8px 8px 0;text-align:center;min-width:120px;}
+    .kpi-label{font-size:9px;opacity:.7;text-transform:uppercase;letter-spacing:.7px;}
+    .kpi-value{font-size:20px;font-weight:bold;font-family:Georgia;}
+    .kpi-sub{font-size:9px;opacity:.6;}
+    .drilldown-box,.trace-card,.ps-filter-row,.grp-btns,.ta-filters{display:none;}
+    @media print{body{padding:0;} .sec{page-break-before:always;}}
+  `;
+  const body=parts.map(p=>
+    `<div class="sec"><div class="sec-name">${esc(p.name)}</div>${p.html}</div>`).join('\n');
+
+  const html=`<!doctype html>
+<html><head><meta charset="utf-8"><title>${esc(title)}</title><style>${css}</style></head>
+<body>
+<h1>${esc(title)}</h1>
+<div class="meta">
+  <b>Range:</b> ${esc(meta.rangeLabel)} &nbsp;·&nbsp;
+  <b>Grouped by:</b> ${esc(meta.group)} &nbsp;·&nbsp;
+  <b>Person:</b> ${esc(meta.person||'All people')}<br>
+  <b>Records:</b> ${meta.rows.toLocaleString()} &nbsp;·&nbsp;
+  <b>Generated:</b> ${esc(now.toLocaleString())}
+</div>
+${body}
+</body></html>`;
+
+  const blob=new Blob([html],{type:'text/html;charset=utf-8'});
+  const a=document.createElement('a');
+  a.href=URL.createObjectURL(blob);
+  a.download=`first-pass-report_${meta.person?meta.person.replace(/[^\w]+/g,'-')+'_':''}${stamp}.html`;
+  document.body.appendChild(a);a.click();
+  setTimeout(()=>{URL.revokeObjectURL(a.href);a.remove();},1000);
 }
 
 // ─── Tab switching ────────────────────────────────────────────────────────────
