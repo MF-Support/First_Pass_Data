@@ -297,7 +297,7 @@ let df=[], initMap={}, knownInits=new Set(), failExploded=[];
 let timingData=[], timingLoaded=false;
 const grpState={t2:'Month',t3:'Month',t4:'Month'};
 let activeTab='t1';
-let psTrendPerson='', psTrendGrp='auto';
+let psTrendPerson='', psTrendGrp='Week';
 // Live feed state. dataSource is 'live' (Supabase, fed by Power Automate) or
 // 'file' (manual upload fallback).
 let dataSource='file', liveTimer=null, liveLastSync=null;
@@ -1025,6 +1025,9 @@ function renderT5(){
             .map(nm=>`<option value="${esc(nm)}"${nm===psTrendPerson?' selected':''}>${esc(nm)}</option>`).join('')}
         </select>
       </div>
+      <div id="ps-trend-grp-wrap" style="display:none"><label>Chart groups by</label>
+        <select id="ps-trend-grp" onchange="rebuildPsTrend(this.value)"></select>
+      </div>
     </div>
     <div id="ps-trend-chart"></div>`;
 
@@ -1137,7 +1140,7 @@ function drawPersonSummary(){
 
 function onPsTrendPersonChange(){
   psTrendPerson=document.getElementById('ps-trend-name')?.value||'';
-  psTrendGrp='auto';
+  psTrendGrp='Week';
   drawPsTrend();
 }
 
@@ -1146,6 +1149,8 @@ function drawPsTrend(){
   if(!el)return;
   purgePlots(el);
   if(!psTrendPerson){
+    const gw=document.getElementById('ps-trend-grp-wrap');
+    if(gw)gw.style.display='none';   // nothing to group until a person is picked
     el.innerHTML='<p style="color:var(--warmgray);padding:16px 0">Select a person above to view their FPY trend.</p>';
     return;
   }
@@ -1163,7 +1168,7 @@ function rebuildPsTrend(grp){
   setTimeout(()=>buildPsTrend(psTrendPerson,el,grp),50);
 }
 
-function buildPsTrend(person,el,grp='auto'){
+function buildPsTrend(person,el,grp='Week'){
   const base=getPtBase();
   const init=Object.keys(initMap).find(k=>initMap[k]===person)||person;
   const myRows=base.filter(r=>r.Layout===init||r.Wire===init||r.FA===init);
@@ -1172,6 +1177,16 @@ function buildPsTrend(person,el,grp='auto'){
   const span=myRows.length>1?(new Date(Math.max(...myRows.map(r=>r._date)))-new Date(Math.min(...myRows.map(r=>r._date))))/86400000:0;
   const autoGrp=span<=30?'Day':span<=90?'Week':'Month';
   const useGrp=grp==='auto'?autoGrp:grp;
+
+  // The picker lives beside the Person dropdown, but only this function knows
+  // what Auto would resolve to, so it fills the options in each time it runs.
+  const grpWrap=document.getElementById('ps-trend-grp-wrap');
+  const grpSel=document.getElementById('ps-trend-grp');
+  if(grpWrap&&grpSel){
+    grpWrap.style.display='';
+    grpSel.innerHTML=[['Day','Day'],['Week','Week'],['Month','Month'],['auto',`Auto (${autoGrp})`]]
+      .map(([v,t])=>`<option value="${v}"${v===grp?' selected':''}>${esc(t)}</option>`).join('');
+  }
   const keyOf=r=>useGrp==='Day'?r.DayStr:useGrp==='Week'?'Wk '+r.Week:r.MonthLabel;
   const sortOf=r=>useGrp==='Day'?r.DayStr:useGrp==='Week'?r.Week:r.Month;
 
@@ -1238,16 +1253,6 @@ function buildPsTrend(person,el,grp='auto'){
       <span style="font-size:26px;font-weight:700;color:${trendColor};line-height:1">${trendArrow}</span>
       <span style="font-size:13px;color:${trendColor};font-weight:600">${trendText}</span>
       <span style="font-size:11px;color:var(--warmgray);margin-left:4px">${myRows.length} panels · ${sorted.length} ${useGrp.toLowerCase()}s</span>
-      <div style="margin-left:auto;display:flex;align-items:center;gap:5px">
-        <label style="font-size:11px;color:var(--warmgray);white-space:nowrap">Chart groups by</label>
-        <select style="font-size:12px;padding:2px 6px;border:1px solid #c8d0e7;border-radius:5px;background:#fff"
-                onchange="rebuildPsTrend(this.value)">
-          <option value="auto"${grp==='auto'?' selected':''}>Auto (${autoGrp})</option>
-          <option value="Day"${grp==='Day'?' selected':''}>Day</option>
-          <option value="Week"${grp==='Week'?' selected':''}>Week</option>
-          <option value="Month"${grp==='Month'?' selected':''}>Month</option>
-        </select>
-      </div>
     </div>
     <div style="display:flex;gap:8px;flex-wrap:wrap;margin-bottom:10px" id="${legendId}">${legendCards}</div>
     <div class="chart-box"><div id="${trendId}" style="min-height:280px"></div></div>
