@@ -194,16 +194,29 @@ serial numbers and `M/D/YYYY`, all verified.
 **Power Automate** → **Create** → **Automated cloud flow**.
 
 **Trigger:** *When a file is modified (properties only)* — SharePoint
-- Site Address: the **PanelServices** site
-- Library Name: the library holding the report
+- **Site Address:** `https://mycopeland.sharepoint.com/sites/PanelServices`
+- **Library Name:** `Documents` — pick it from the dropdown
+- **Folder:** `/General`
+
+> The file's URL reads `.../Shared Documents/General/...`, but the dropdown shows this
+> library as **Documents**. Same library — `Shared Documents` is its internal URL name,
+> `Documents` is its display name. Choose from the dropdown rather than typing.
+> Setting the folder to `/General` stops the flow firing for unrelated files.
 
 > Prefer a fixed cadence instead? Use **Recurrence** (e.g. every 15 minutes). Simpler,
 > and avoids retriggering on unrelated files in the library.
 
 **Action 2:** reading the workbook — whichever you chose in Step 1
-- **1A:** *Run script* — Excel Online (Business). File: the report workbook,
-  Script: `Export First Pass Report`
-- **1B:** the two *List rows present in a table* + *Select* pairs
+
+**1A:** *Run script* — Excel Online (Business)
+| Field | Value |
+|---|---|
+| Location | `SharePoint Site` → `https://mycopeland.sharepoint.com/sites/PanelServices` |
+| Document Library | `Documents` |
+| File | `/General/Copeland First Pass Q Report.xlsx` |
+| Script | `Export First Pass Report` |
+
+**1B:** the two *List rows present in a table* + *Select* pairs, same file location.
 
 **Action 3:** *HTTP*
 - **Method:** `POST`
