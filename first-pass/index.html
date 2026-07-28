@@ -56,10 +56,10 @@ body{background:var(--offwhite);font-family:'Inter',Arial,sans-serif;font-size:1
 .tbl-wrap{overflow-x:auto;border-radius:8px;box-shadow:0 1px 4px rgba(0,0,0,.07);}
 table.dash-table{width:100%;border-collapse:collapse;font-size:12.5px;}
 table.dash-table thead tr{background:var(--navy);color:#fff;}
-table.dash-table thead th{padding:8px 10px;font-weight:500;white-space:nowrap;}
+table.dash-table thead th{padding:8px 10px;font-weight:500;white-space:nowrap;text-align:center;}
 table.dash-table tbody tr{border-bottom:1px solid #eef0f7;transition:background .1s;}
 table.dash-table tbody tr:hover{background:#f4f6ff;}
-table.dash-table tbody td{padding:6px 10px;vertical-align:middle;}
+table.dash-table tbody td{padding:6px 10px;vertical-align:middle;text-align:left;}
 table.dash-table tbody tr.row-fail{background:#fff0f0;}
 table.dash-table tbody tr.row-fail:hover{background:#ffe0e0;}
 .badge-over{background:var(--red);color:#fff;border-radius:4px;padding:2px 6px;font-size:11px;}
@@ -378,30 +378,32 @@ function renderT1({dff,dff_fails}){
     .sort((a,b)=>b.c-a.c);
   el.innerHTML=`
     <div class="section-hdr">Fail Attribution — ${periodLbl}</div>
-    <p style="color:var(--warmgray);font-size:12px;margin:0 0 12px">Click a bar or row to see that person's full fail list.</p>
-    <div style="display:grid;grid-template-columns:3fr 2fr;gap:16px">
-      <div class="chart-box"><div id="ch-fa" class="plot-div"></div></div>
-      <div>${tbl(['Person','Fails Caused','% of Fails','Most Common Issue'],
-        sorted.map(r=>[r.n,r.c,r.pct+'%',r.issue]))}</div>
-    </div>
+    <p style="color:var(--warmgray);font-size:12px;margin:0 0 12px">Click a bar to highlight it and see that person's full fail list below.</p>
+    <div class="chart-box"><div id="ch-fa" class="plot-div"></div></div>
+    ${tbl(['Person','Fails Caused','% of Fails','Most Common Issue'],
+        sorted.map(r=>[r.n,r.c,r.pct+'%',r.issue]))}
     <div id="t1-drilldown"></div>
     <div id="t1-unattr"></div>`;
 
   newPlot('ch-fa',[{type:'bar',orientation:'h',
     y:sorted.map(r=>r.n).reverse(),x:sorted.map(r=>r.c).reverse(),
-    text:sorted.map(r=>r.c).reverse(),textposition:'outside',
+    text:sorted.map(r=>r.c).reverse(),textposition:'outside',cliponaxis:false,
     marker:{color:sorted.map(r=>r.c).reverse(),colorscale:[[0,TINT],[.5,BLUE],[1,NAVY]],showscale:false},
+    selected:{marker:{opacity:1}},unselected:{marker:{opacity:0.3}},
     customdata:sorted.map(r=>[r.n]).reverse(),
     hovertemplate:'<b>%{y}</b><br>%{x} fails<extra></extra>',
   }],{
     title:{text:'Fails Attributed by Person',font:{family:'Georgia',color:NAVY,size:15}},
     coloraxis_showscale:false,
-    xaxis:{title:'Fails Attributed'},yaxis:{autorange:'reversed',tickfont:{size:11}},
-    height:Math.max(300,sorted.length*42),margin:{l:10,r:50,t:40,b:20},
+    xaxis:{title:'Fails Attributed'},
+    yaxis:{autorange:'reversed',tickfont:{size:11},automargin:true},
+    height:Math.max(300,sorted.length*42),margin:{l:10,r:70,t:40,b:20},
   });
 
   document.getElementById('ch-fa').on('plotly_click',d=>{
-    showT1Drill(d.points[0].customdata[0],dff_fails);
+    const pt=d.points[0];
+    Plotly.restyle('ch-fa',{selectedpoints:[[pt.pointIndex]]},[0]);
+    showT1Drill(pt.customdata[0],dff_fails);
   });
   el.querySelectorAll('.dash-table tbody tr').forEach((tr,i)=>{
     tr.style.cursor='pointer';
@@ -497,24 +499,24 @@ function renderPersonTab(tabId,roleCol,roleLabel){
     title:{text:`${roleLabel} Panels per ${g} by Person`,font:{family:'Georgia',color:NAVY,size:15}},
     barmode:'group',height:400,
     legend:{title:{text:null}},
-    xaxis:{categoryorder:'array',categoryarray:periodOrder,tickangle:-30},
-    yaxis:{title:'Panels'},
-    margin:{l:10,r:10,t:40,b:20},
+    xaxis:{categoryorder:'array',categoryarray:periodOrder,tickangle:-30,automargin:true},
+    yaxis:{title:'Panels',automargin:true},
+    margin:{l:40,r:20,t:40,b:60},
   });
   document.getElementById(`ch-grp-${tabId}`).on('plotly_click',d=>{
-    const pt=d.points[0];showPersonDrill(tabId,pt.customdata[0][0],dff,roleCol,roleLabel);
+    const pt=d.points[0];showPersonDrill(tabId,pt.customdata[0],dff,roleCol,roleLabel);
   });
 
   newPlot(`ch-fpy-${tabId}`,[{
     type:'bar',orientation:'h',
     y:fpyRows.map(r=>r.name),x:fpyRows.map(r=>r.fpy),
-    text:fpyRows.map(r=>r.fpy.toFixed(1)+'%'),texttemplate:'%{text}',textposition:'outside',
+    text:fpyRows.map(r=>r.fpy.toFixed(1)+'%'),texttemplate:'%{text}',textposition:'outside',cliponaxis:false,
     marker:{color:fpyRows.map(r=>r.fpy),colorscale:[[0,RED],[.5,WARMGRAY],[1,GREEN]],cmin:70,cmax:100,showscale:false},
     customdata:fpyRows.map(r=>[r.name]),
     hovertemplate:'<b>%{y}</b><br>FPY: %{x:.1f}%<extra></extra>',
   }],{
     coloraxis_showscale:false,
-    xaxis:{range:[0,115],title:'FPY %'},yaxis:{autorange:'reversed'},
+    xaxis:{range:[0,118],title:'FPY %'},yaxis:{autorange:'reversed',automargin:true},
     shapes:[{type:'line',x0:90,x1:90,y0:0,y1:1,xref:'x',yref:'paper',line:{color:NAVY,dash:'dash',width:1.5}}],
     annotations:[
       {x:90,y:1.05,xref:'x',yref:'paper',text:'90% target',showarrow:false,font:{color:NAVY,size:11}},
@@ -525,10 +527,10 @@ function renderPersonTab(tabId,roleCol,roleLabel){
        hoverlabel:{bgcolor:NAVY,font:{color:'#fff',family:'Arial',size:12},bordercolor:BLUE}},
     ],
     height:Math.max(300,fpyRows.length*42),
-    margin:{l:10,r:70,t:55,b:20},
+    margin:{l:10,r:80,t:55,b:20},
   });
   document.getElementById(`ch-fpy-${tabId}`).on('plotly_click',d=>{
-    const pt=d.points[0];showPersonDrill(tabId,pt.customdata[0][0],dff,roleCol,roleLabel);
+    const pt=d.points[0];showPersonDrill(tabId,pt.customdata[0],dff,roleCol,roleLabel);
   });
 }
 
@@ -574,14 +576,20 @@ function renderT5({dff}){
   const periodLbl=getPeriodLabel();
   el.innerHTML=`
     <div class="section-hdr">Panels Built — ${periodLbl}</div>
-    <div class="grp-btns" id="tgrp-btns">
-      ${['Day','Week','Month'].map(g=>`<button class="grp-btn${trendsGrp===g?' active':''}" onclick="setTrendsGrp('${g}')">${g}</button>`).join('')}
+    <div style="display:flex;align-items:center;gap:8px;margin-bottom:12px">
+      <label style="font-size:12px;font-weight:600;color:var(--navy)">Group by</label>
+      <select id="tgrp-sel" onchange="setTrendsGrp(this.value)" style="font-size:13px;padding:4px 8px;border:1px solid #c8d0e7;border-radius:6px;color:var(--navy)">
+        ${['Day','Week','Month'].map(g=>`<option value="${g}"${trendsGrp===g?' selected':''}>${g}</option>`).join('')}
+      </select>
     </div>
     <div class="chart-box"><div id="ch-trend" class="plot-div" style="min-height:380px"></div></div>
 
     <div class="section-hdr mt-2">Period Comparison</div>
-    <div class="grp-btns" id="cgrp-btns">
-      ${['Quarter','Month'].map(c=>`<button class="grp-btn${compareBy===c?' active':''}" onclick="setCompare('${c}')">${c}</button>`).join('')}
+    <div style="display:flex;align-items:center;gap:8px;margin-bottom:12px">
+      <label style="font-size:12px;font-weight:600;color:var(--navy)">Compare by</label>
+      <select id="cgrp-sel" onchange="setCompare(this.value)" style="font-size:13px;padding:4px 8px;border:1px solid #c8d0e7;border-radius:6px;color:var(--navy)">
+        ${['Quarter','Month'].map(c=>`<option value="${c}"${compareBy===c?' selected':''}>${c}</option>`).join('')}
+      </select>
     </div>
     <div style="display:grid;grid-template-columns:1fr 1fr;gap:16px">
       <div class="chart-box"><div id="ch-comp-p" class="plot-div"></div></div>
@@ -614,12 +622,12 @@ function drawTrend(dff){
   const lbls=s.map(e=>e[0]),panels=s.map(e=>e[1].panels),fails=s.map(e=>e[1].fails);
   newPlot('ch-trend',[
     {type:'bar',name:'Panels',x:lbls,y:panels,marker:{color:BLUE},
-     text:panels,textposition:'outside',
+     text:panels,textposition:'outside',cliponaxis:false,
      hovertemplate:'<b>%{x}</b><br>%{y} panels<extra></extra>'},
   ],{height:380,
-    margin:{l:10,r:10,t:20,b:20},
-    yaxis:{title:'Panels Built'},
-    xaxis:{tickangle:s.length>12?-35:0},
+    margin:{l:50,r:20,t:30,b:60},
+    yaxis:{title:'Panels Built',automargin:true},
+    xaxis:{tickangle:s.length>12?-35:0,automargin:true},
   });
 }
 
@@ -630,20 +638,20 @@ function drawComparison(){
   const s=Object.entries(grps).sort((a,b)=>a[0].localeCompare(b[0]));
   const lbls=s.map(e=>e[1].label),panels=s.map(e=>e[1].panels);
   const failPcts=s.map(e=>(e[1].fails/e[1].panels*100).toFixed(1));
-  newPlot('ch-comp-p',[{type:'bar',x:lbls,y:panels,text:panels,textposition:'outside',
+  newPlot('ch-comp-p',[{type:'bar',x:lbls,y:panels,text:panels,textposition:'outside',cliponaxis:false,
     marker:{color:BLUE},hovertemplate:'<b>%{x}</b><br>%{y} panels<extra></extra>'}],
     {title:{text:`Total Panels by ${c}`,font:{family:'Georgia',color:NAVY,size:14}},height:320,
-     xaxis:{tickangle:c==='Month'?-35:0},yaxis:{title:'Panels'},
-     margin:{l:10,r:10,t:40,b:20}});
+     xaxis:{tickangle:c==='Month'?-35:0,automargin:true},yaxis:{title:'Panels',automargin:true},
+     margin:{l:50,r:20,t:40,b:60}});
   newPlot('ch-comp-f',[{type:'scatter',x:lbls,y:failPcts,mode:'lines+markers+text',
     text:failPcts.map(v=>v+'%'),textposition:'top center',textfont:{color:RED,size:11},
     line:{color:RED,width:2},marker:{color:RED,size:7},
     fill:'tozeroy',fillcolor:'rgba(192,57,43,.08)',
     hovertemplate:'<b>%{x}</b><br>Fail rate: %{y}%<extra></extra>'}],
     {title:{text:`Fail Rate % by ${c}`,font:{family:'Georgia',color:NAVY,size:14}},height:280,
-     xaxis:{tickangle:c==='Month'?-35:0},
-     yaxis:{title:'Fail Rate %',ticksuffix:'%',rangemode:'tozero'},
-     showlegend:false,margin:{l:10,r:10,t:40,b:20}});
+     xaxis:{tickangle:c==='Month'?-35:0,automargin:true},
+     yaxis:{title:'Fail Rate %',ticksuffix:'%',rangemode:'tozero',automargin:true},
+     showlegend:false,margin:{l:50,r:20,t:40,b:60}});
   document.getElementById('comp-tbl').innerHTML=tbl(
     ['Period','Panels','Fails','Pass Rate%','Fail Rate%'],
     s.map(([,v])=>[v.label,v.panels,v.fails,
@@ -653,11 +661,9 @@ function drawComparison(){
 
 function setTrendsGrp(g){
   trendsGrp=g;const {dff}=getFiltered();drawTrend(dff);
-  document.querySelectorAll('#tgrp-btns .grp-btn').forEach(b=>b.classList.toggle('active',b.textContent===g));
 }
 function setCompare(c){
   compareBy=c;drawComparison();
-  document.querySelectorAll('#cgrp-btns .grp-btn').forEach(b=>b.classList.toggle('active',b.textContent===c));
 }
 
 // ── Person Summary own-period filter ─────────────────────────────────────────
@@ -905,11 +911,11 @@ function drawTA(tm){
   if(stageAvgs.length) newPlot('ch-stages',[{
     type:'bar',orientation:'h',
     y:stageAvgs.map(r=>r.s).reverse(),x:stageAvgs.map(r=>+r.avg.toFixed(3)).reverse(),
-    text:stageAvgs.map(r=>`${r.avg.toFixed(2)}h`).reverse(),textposition:'outside',
+    text:stageAvgs.map(r=>`${r.avg.toFixed(2)}h`).reverse(),textposition:'outside',cliponaxis:false,
     marker:{color:[BLUE,NAVY,'#4A90D9','#7FAFD9'].reverse()},
     hovertemplate:'<b>%{y}</b><br>Avg: %{x:.2f}h<extra></extra>',
   }],{title:{text:'Avg Hours per Stage',font:{family:'Georgia',color:NAVY,size:14}},
-    showlegend:false,height:300,margin:{l:10,r:60,t:40,b:20},xaxis:{title:'Avg Hours'}});
+    showlegend:false,height:300,margin:{l:60,r:80,t:40,b:20},xaxis:{title:'Avg Hours'},yaxis:{automargin:true}});
 
   // ── Worker breakdown ──
   const wRows=[];
@@ -929,11 +935,12 @@ function drawTA(tm){
     newPlot('ch-workers',stages.map(s=>({type:'bar',name:s,x:workers,
       y:workers.map(w=>{const r=wRows.find(x=>x.stage===s&&x.worker===w);return r?+r.avg.toFixed(3):0;}),
       text:workers.map(w=>{const r=wRows.find(x=>x.stage===s&&x.worker===w);return r?`${Math.floor(r.avg*60)}m`:'';}),
-      textposition:'outside',
+      textposition:'outside',cliponaxis:false,
       marker:{color:stC[s]},
       hovertemplate:'<b>%{x}</b><br>'+s+': %{y:.2f}h avg<extra></extra>'})),
       {title:{text:'Avg Stage Time by Worker',font:{family:'Georgia',color:NAVY,size:14}},
-       barmode:'group',height:360,yaxis:{title:'Avg Hours'},margin:{l:10,r:10,t:40,b:20}});
+       barmode:'group',height:360,yaxis:{title:'Avg Hours',automargin:true},
+       xaxis:{automargin:true},margin:{l:50,r:20,t:40,b:80}});
     document.getElementById('worker-tbl').innerHTML=tbl(
       ['Stage','Worker','Panels','Avg H:M:S','Min H:M:S','Max H:M:S'],
       wRows.sort((a,b)=>a.stage.localeCompare(b.stage)||a.worker.localeCompare(b.worker))
