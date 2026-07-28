@@ -202,7 +202,7 @@ let df=[], initMap={}, knownInits=new Set(), failExploded=[];
 let timingData=[], timingLoaded=false;
 const grpState={t2:'Month',t3:'Month',t4:'Month'};
 let activeTab='t1';
-let psGrp='Month', psSel='';   // Person Summary own filter
+let psGrp='Month', psSel='', psPeriodSel='All Time', psDrillIdx=-1;
 
 // ─── Plotly base layout ───────────────────────────────────────────────────────
 const baseLay=()=>({
@@ -614,8 +614,14 @@ function renderT5({dff}){
     <div id="comp-tbl" class="mt-2" style="margin-bottom:16px"></div>
 
     <div class="section-hdr">Person Summary</div>
-    <p style="color:var(--warmgray);font-size:12px;margin:0 0 8px">Panels and fail rate for each person by their role on the panel.</p>
+    <p style="color:var(--warmgray);font-size:12px;margin:0 0 8px">Panels and fail rate per person by role. Click any row to expand their trend.</p>
     <div class="ps-filter-row">
+      <div><label>Period</label>
+        <select id="ps-period" onchange="onPsPeriodChange()">
+          ${['Last 7 Days','Last 30 Days','Last 90 Days','Last 6 Months','Last Year','All Time']
+            .map(v=>`<option${v===psPeriodSel?' selected':''}>${v}</option>`).join('')}
+        </select>
+      </div>
       <div><label>Group by</label>
         <select id="ps-grp" onchange="onPsGrpChange()">
           ${['Day','Week','Month','Quarter','All Time'].map(v=>`<option${v===psGrp?' selected':''}>${v}</option>`).join('')}
@@ -682,8 +688,20 @@ function setCompare(c){
   compareBy=c;drawComparison();
 }
 
-// ── Person Summary own-period filter ─────────────────────────────────────────
+// ── Person Summary filters ────────────────────────────────────────────────────
+function getPsBase(){
+  if(!df.length)return[];
+  const PD={'Last 7 Days':7,'Last 30 Days':30,'Last 90 Days':90,'Last 6 Months':182,'Last Year':365};
+  if(PD[psPeriodSel]){
+    const maxDate=new Date(Math.max(...df.map(r=>r._date)));
+    const cut=new Date(maxDate);cut.setDate(cut.getDate()-PD[psPeriodSel]);
+    return df.filter(r=>r._date>=cut);
+  }
+  return df;
+}
+
 function initPsSel(){
+  const base=getPsBase();
   const wrap=document.getElementById('ps-sel-wrap');
   const lbl=document.getElementById('ps-sel-lbl');
   const sel=document.getElementById('ps-sel');
@@ -692,39 +710,46 @@ function initPsSel(){
   let opts=[];
   if(psGrp==='Day'){
     lbl.textContent='Day';
-    opts=[...new Set(df.map(r=>r.DayStr))].sort().reverse();
+    opts=[...new Set(base.map(r=>r.DayStr))].sort().reverse();
   } else if(psGrp==='Week'){
     lbl.textContent='Week starting';
-    opts=[...new Set(df.map(r=>r.Week))].sort().reverse();
+    opts=[...new Set(base.map(r=>r.Week))].sort().reverse();
   } else if(psGrp==='Month'){
     lbl.textContent='Month';
-    const mm={};df.forEach(r=>mm[r.Month]=r.MonthLabel);
+    const mm={};base.forEach(r=>mm[r.Month]=r.MonthLabel);
     opts=Object.keys(mm).sort().reverse();
     sel.innerHTML=opts.map(v=>`<option value="${v}"${v===psSel?' selected':''}>${mm[v]}</option>`).join('');
     if(!psSel||!opts.includes(psSel))psSel=opts[0]||'';
     return;
   } else if(psGrp==='Quarter'){
     lbl.textContent='Quarter';
-    opts=[...new Set(df.map(r=>r.Quarter))].sort().reverse();
+    opts=[...new Set(base.map(r=>r.Quarter))].sort().reverse();
   }
   sel.innerHTML=opts.map(v=>`<option${v===psSel?' selected':''}>${v}</option>`).join('');
   if(!psSel||!opts.includes(psSel))psSel=opts[0]||'';
 }
 
+function onPsPeriodChange(){
+  psPeriodSel=document.getElementById('ps-period').value;
+  psDrillIdx=-1;psSel='';
+  initPsSel();drawPersonSummary();
+}
+
 function onPsGrpChange(){
-  psGrp=document.getElementById('ps-grp').value;psSel='';
+  psGrp=document.getElementById('ps-grp').value;psSel='';psDrillIdx=-1;
   initPsSel();drawPersonSummary();
 }
 
 function getPsData(){
-  if(psGrp==='All Time')return df;
+  const base=getPsBase();
+  if(psGrp==='All Time')return base;
   const sel=document.getElementById('ps-sel')?.value||psSel;
   psSel=sel;
-  if(psGrp==='Day')return df.filter(r=>r.DayStr===sel);
-  if(psGrp==='Week')return df.filter(r=>r.Week===sel);
-  if(psGrp==='Month')return df.filter(r=>r.Month===sel);
-  if(psGrp==='Quarter')return df.filter(r=>r.Quarter===sel);
-  return df;
+  if(psGrp==='Day')return base.filter(r=>r.DayStr===sel);
+  if(psGrp==='Week')return base.filter(r=>r.Week===sel);
+  if(psGrp==='Month')return base.filter(r=>r.Month===sel);
+  if(psGrp==='Quarter')return base.filter(r=>r.Quarter===sel);
+  return base;
 }
 
 function drawPersonSummary(){
@@ -740,14 +765,144 @@ function drawPersonSummary(){
       const fr=n?mf/n*100:null;
       cols[l+'P']=n;cols[l+'F']=n&&mf>0?+(fr.toFixed(1)):n?0:null;
     }
-    return{nm,...cols};
+    return{nm,init,...cols};
   }).filter(r=>(r.LayoutP||0)+(r.WireP||0)+(r.FinalP||0)>0)
     .sort((a,b)=>(b.LayoutP||0)-(a.LayoutP||0));
+
+  psDrillIdx=-1;
   const fmtP=v=>v===null?'<td>—</td>':`<td class="${pctCls(v)}">${v.toFixed(1)}%</td>`;
+  const rows=pRows.map((r,i)=>`
+    <tr id="psr-${i}" data-person="${r.nm.replace(/"/g,'&quot;')}" style="cursor:pointer;user-select:none"
+        onclick="togglePsDrill(${i})">
+      <td><span id="psa-${i}" style="display:inline-block;width:14px;font-size:10px;color:var(--blue);transition:transform .2s">▶</span> ${r.nm}</td>
+      <td>${r.LayoutP||'—'}</td>${fmtP(r.LayoutF)}
+      <td>${r.WireP||'—'}</td>${fmtP(r.WireF)}
+      <td>${r.FinalP||'—'}</td>${fmtP(r.FinalF)}
+    </tr>
+    <tr id="psd-${i}" style="display:none;background:#f4f6ff">
+      <td colspan="7" style="padding:0">
+        <div id="psd-inner-${i}" style="padding:16px 20px"></div>
+      </td>
+    </tr>`).join('');
+
   document.getElementById('person-summary').innerHTML=`<div class="tbl-wrap"><table class="dash-table">
     <thead><tr><th>Person</th><th>Layout Panels</th><th>Layout Fail%</th><th>Wire Panels</th><th>Wire Fail%</th><th>Final Panels</th><th>Final Fail%</th></tr></thead>
-    <tbody>${pRows.map(r=>`<tr><td>${r.nm}</td><td>${r.LayoutP}</td>${fmtP(r.LayoutF)}<td>${r.WireP}</td>${fmtP(r.WireF)}<td>${r.FinalP}</td>${fmtP(r.FinalF)}</tr>`).join('')}
-    </tbody></table></div>`;
+    <tbody>${rows}</tbody></table></div>`;
+}
+
+function togglePsDrill(idx){
+  const person=document.getElementById(`psr-${idx}`).dataset.person;
+  if(psDrillIdx===idx){
+    document.getElementById(`psd-${idx}`).style.display='none';
+    document.getElementById(`psa-${idx}`).style.transform='';
+    psDrillIdx=-1;return;
+  }
+  if(psDrillIdx>=0){
+    document.getElementById(`psd-${psDrillIdx}`).style.display='none';
+    const prev=document.getElementById(`psa-${psDrillIdx}`);if(prev)prev.style.transform='';
+  }
+  psDrillIdx=idx;
+  const drRow=document.getElementById(`psd-${idx}`);
+  drRow.style.display='';
+  document.getElementById(`psa-${idx}`).style.transform='rotate(90deg)';
+  const inner=document.getElementById(`psd-inner-${idx}`);
+  inner.innerHTML='<div class="spinner-wrap"><div class="spinner"></div> Building trend…</div>';
+  setTimeout(()=>{buildPsTrend(person,inner);drRow.scrollIntoView({behavior:'smooth',block:'nearest'});},60);
+}
+
+function buildPsTrend(person,el){
+  const base=getPsBase();
+  const init=Object.keys(initMap).find(k=>initMap[k]===person)||person;
+  const myRows=base.filter(r=>r.Layout===init||r.Wire===init||r.FA===init);
+  if(!myRows.length){el.innerHTML='<p style="color:var(--warmgray)">No data in selected period.</p>';return;}
+
+  const span=myRows.length>1?(new Date(Math.max(...myRows.map(r=>r._date)))-new Date(Math.min(...myRows.map(r=>r._date))))/86400000:0;
+  const useWeek=span<=90;
+  const keyOf=r=>useWeek?'Wk '+r.Week:r.MonthLabel;
+  const sortOf=r=>useWeek?r.Week:r.Month;
+
+  const buckets={};
+  for(const r of myRows){
+    const k=keyOf(r);
+    if(!buckets[k])buckets[k]={label:k,sort:sortOf(r),oP:0,oF:0,lP:0,lF:0,wP:0,wF:0,fP:0,fF:0,rows:[]};
+    const b=buckets[k];
+    b.rows.push(r);
+    const myFail=r.Is_Fail&&r.Fail_Inits.includes(init);
+    b.oP++;if(myFail)b.oF++;
+    if(r.Layout===init){b.lP++;if(r.Is_Fail&&r.Fail_Inits.includes(init))b.lF++;}
+    if(r.Wire===init){b.wP++;if(r.Is_Fail&&r.Fail_Inits.includes(init))b.wF++;}
+    if(r.FA===init){b.fP++;if(r.Is_Fail&&r.Fail_Inits.includes(init))b.fF++;}
+  }
+  const sorted=Object.values(buckets).sort((a,b)=>a.sort.localeCompare(b.sort));
+  const labels=sorted.map(b=>b.label);
+  const fpyOf=(p,f)=>p?+((p-f)/p*100).toFixed(1):null;
+
+  const overallFpy=sorted.map(b=>fpyOf(b.oP,b.oF));
+  const layoutFpy=sorted.map(b=>b.lP?fpyOf(b.lP,b.lF):null);
+  const wireFpy=sorted.map(b=>b.wP?fpyOf(b.wP,b.wF):null);
+  const finalFpy=sorted.map(b=>b.fP?fpyOf(b.fP,b.fF):null);
+
+  // Trend: compare first half vs last half of valid periods
+  const valid=overallFpy.filter(v=>v!==null);
+  let trendArrow='→',trendColor=WARMGRAY,trendText='Stable';
+  if(valid.length>=2){
+    const h=Math.max(1,Math.floor(valid.length/2));
+    const early=valid.slice(0,h).reduce((s,v)=>s+v,0)/h;
+    const recent=valid.slice(-h).reduce((s,v)=>s+v,0)/h;
+    const diff=recent-early;
+    if(diff>2){trendArrow='↑';trendColor=GREEN;trendText=`+${diff.toFixed(1)}% — Improving`;}
+    else if(diff<-2){trendArrow='↓';trendColor=RED;trendText=`${diff.toFixed(1)}% — Declining`;}
+  }
+
+  const trendId=`ps-tc-${Date.now()}`;
+  const detailId=`ps-det-${Date.now()}`;
+
+  el.innerHTML=`
+    <div style="display:flex;align-items:center;gap:10px;margin-bottom:10px">
+      <span style="font-size:26px;font-weight:700;color:${trendColor};line-height:1">${trendArrow}</span>
+      <span style="font-size:13px;color:${trendColor};font-weight:600">${trendText}</span>
+      <span style="font-size:11px;color:var(--warmgray);margin-left:6px">${myRows.length} panels · ${sorted.length} ${useWeek?'weeks':'months'}</span>
+    </div>
+    <div class="chart-box"><div id="${trendId}" style="min-height:280px"></div></div>
+    <p style="font-size:11px;color:var(--warmgray);margin:6px 0 4px">Click any point on the chart to drill into panels from that period.</p>
+    <div id="${detailId}"></div>`;
+
+  const traces=[];
+  traces.push({type:'scatter',name:'Overall',mode:'lines+markers',x:labels,y:overallFpy,
+    line:{color:NAVY,width:3},marker:{size:8,color:NAVY},connectgaps:true,
+    hovertemplate:'<b>%{x}</b><br>Overall FPY: %{y:.1f}%<extra></extra>'});
+  if(layoutFpy.some(v=>v!==null))traces.push({type:'scatter',name:'Layout',mode:'lines+markers',
+    x:labels,y:layoutFpy,line:{color:BLUE,width:2,dash:'dot'},marker:{size:5,color:BLUE},connectgaps:true,
+    hovertemplate:'<b>%{x}</b><br>Layout FPY: %{y:.1f}%<extra></extra>'});
+  if(wireFpy.some(v=>v!==null))traces.push({type:'scatter',name:'Wire',mode:'lines+markers',
+    x:labels,y:wireFpy,line:{color:BOLD[3],width:2,dash:'dot'},marker:{size:5,color:BOLD[3]},connectgaps:true,
+    hovertemplate:'<b>%{x}</b><br>Wire FPY: %{y:.1f}%<extra></extra>'});
+  if(finalFpy.some(v=>v!==null))traces.push({type:'scatter',name:'Final',mode:'lines+markers',
+    x:labels,y:finalFpy,line:{color:BOLD[4],width:2,dash:'dot'},marker:{size:5,color:BOLD[4]},connectgaps:true,
+    hovertemplate:'<b>%{x}</b><br>Final FPY: %{y:.1f}%<extra></extra>'});
+
+  newPlot(trendId,traces,{
+    height:280,
+    xaxis:{tickangle:labels.length>8?-30:0,automargin:true},
+    yaxis:{title:'FPY %',ticksuffix:'%',range:[0,105],automargin:true},
+    shapes:[{type:'line',x0:0,x1:1,xref:'paper',y0:90,y1:90,yref:'y',line:{color:NAVY,dash:'dash',width:1}}],
+    annotations:[{x:1,xref:'paper',y:90,yref:'y',xanchor:'right',text:'90% target',showarrow:false,font:{color:NAVY,size:10},yanchor:'bottom'}],
+    legend:{orientation:'h',y:-0.35},
+    margin:{l:50,r:20,t:20,b:90},
+  });
+
+  const roleOf=r=>{const rs=[];if(r.Layout===init)rs.push('Layout');if(r.Wire===init)rs.push('Wire');if(r.FA===init)rs.push('Final');return rs.join('/');};
+
+  document.getElementById(trendId).on('plotly_click',d=>{
+    const label=d.points[0].x;
+    const bucket=buckets[label];if(!bucket)return;
+    const bRows=bucket.rows.slice().sort((a,b)=>b._date-a._date);
+    document.getElementById(detailId).innerHTML=`
+      <div class="section-hdr" style="font-size:13px;margin-top:8px">📋 ${person} — ${label} (${bRows.length} panels)</div>
+      ${tbl(['Date','Job #','Panel','Line','Role','Pass/Fail','Reason'],
+        bRows.map(r=>[fmtDate(r._date),r.Sales_Order||'',r.Panel||'',r.Line||'',roleOf(r),r.Pass_Fail||'',r.Reason||'']),
+        i=>bRows[i].Is_Fail&&bRows[i].Fail_Inits.includes(init)?'row-fail':'')}`;
+  });
 }
 
 // ─── TAB 6: Time Analysis ─────────────────────────────────────────────────────
