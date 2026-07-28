@@ -121,7 +121,19 @@ input:checked+.toggle-slider:before{transform:translateX(18px);}
   <small>Kennesaw Panel Assembly · First Pass Performance</small>
 </div>
 
-<div id="upload-section">
+<div id="loading-section">
+  <div class="upload-card" style="cursor:default;border-style:solid;border-color:#e0e4f0">
+    <div class="spinner" style="width:34px;height:34px;border-width:4px;margin:0 auto 18px"></div>
+    <h2>Loading live data…</h2>
+    <p id="loading-status">Connecting to the live feed</p>
+    <p style="margin-top:16px">
+      <a href="#" onclick="showUpload();return false;"
+         style="color:var(--blue);font-size:12px;text-decoration:underline">Upload a file instead</a>
+    </p>
+  </div>
+</div>
+
+<div id="upload-section" style="display:none">
   <div class="upload-card" onclick="document.getElementById('file-input').click()"
        ondragover="event.preventDefault();this.style.background='#d0dcff'"
        ondragleave="this.style.background=''"
@@ -454,7 +466,13 @@ function globalSub(){return document.getElementById('sub-select')?.value||'';}
 // quarter so section dropdowns always show a real, selectable value.
 // A section's effective period, and the bucket it has selected. A section with
 // no override mirrors the top bar exactly — same period, same bucket.
-function periodFor(key){return secPeriod[key]||globalPeriod();}
+// Period Comparison plots buckets against each other, so inheriting a
+// single-bucket period like "Monthly / Jul 2026" would leave it with one bar.
+// It holds a wide default until explicitly changed in its own header.
+const SECTION_DEFAULT={'t5-comp':'Last Year'};
+function periodFor(key){
+  return secPeriod[key]||SECTION_DEFAULT[key]||globalPeriod();
+}
 function subFor(key){
   const p=periodFor(key);
   if(!needsSub(p))return'';
@@ -806,7 +824,7 @@ function showPersonDrill(tabId,person,dff,roleCol,roleLabel){
 }
 
 // ─── TAB 5: Trends ────────────────────────────────────────────────────────────
-let trendsGrp='Week',compareBy='Quarter';
+let trendsGrp='Week',compareBy='Month';
 
 function renderT5(){
   const el=document.getElementById('t5');
@@ -886,15 +904,20 @@ function drawComparison(){
     {title:{text:`Total Panels by ${c}`,font:{family:'Georgia',color:NAVY,size:14}},height:320,
      xaxis:{tickangle:c==='Month'?-35:0,automargin:true},yaxis:{title:'Panels',automargin:true},
      margin:{l:50,r:20,t:40,b:60}});
+  // Labels sit above each marker, so the highest point needs headroom or its
+  // label renders past the top of the plot area and gets clipped.
+  const maxPct=Math.max(0,...failPcts.map(Number));
   newPlot('ch-comp-f',[{type:'scatter',x:lbls,y:failPcts,mode:'lines+markers+text',
     text:failPcts.map(v=>v+'%'),textposition:'top center',textfont:{color:RED,size:11},
+    cliponaxis:false,
     line:{color:RED,width:2},marker:{color:RED,size:7},
     fill:'tozeroy',fillcolor:'rgba(192,57,43,.08)',
     hovertemplate:'<b>%{x}</b><br>Fail rate: %{y}%<extra></extra>'}],
     {title:{text:`Fail Rate % by ${c}`,font:{family:'Georgia',color:NAVY,size:14}},height:280,
      xaxis:{tickangle:c==='Month'?-35:0,automargin:true},
-     yaxis:{title:'Fail Rate %',ticksuffix:'%',rangemode:'tozero',automargin:true},
-     showlegend:false,margin:{l:50,r:20,t:40,b:60}});
+     yaxis:{title:'Fail Rate %',ticksuffix:'%',rangemode:'tozero',automargin:true,
+            range:[0,maxPct>0?maxPct*1.20:10]},
+     showlegend:false,margin:{l:50,r:20,t:62,b:60}});
   document.getElementById('comp-tbl').innerHTML=tbl(
     ['Period','Panels','Fails','Pass Rate%','Fail Rate%'],
     s.map(([,v])=>[v.label,v.panels,v.fails,
@@ -1445,6 +1468,8 @@ function toggleExpander(btn){
 
 // ─── File handling ────────────────────────────────────────────────────────────
 function showDashboard(){
+  const l=document.getElementById('loading-section');
+  if(l)l.style.display='none';
   document.getElementById('upload-section').style.display='none';
   document.getElementById('dashboard').style.display='block';
   populateSubSelect(true);
@@ -1459,6 +1484,7 @@ function handleFile(file){
     try{
       parseExcel(e.target.result);
       dataSource='file';
+      bootAborted=true;   // don't let a late live response replace the file
       stopLivePolling();
       showDashboard();
     }catch(err){
@@ -1554,32 +1580,51 @@ function startLivePolling(){
 }
 function stopLivePolling(){if(liveTimer){clearInterval(liveTimer);liveTimer=null;}}
 
-async function initLive(){
-  try{
-    if(!(await loadLive())){
-      console.info('Live feed reachable but empty — waiting for the first sync.');
-      return false;
-    }
-    dataSource='live';
-    showDashboard();
-    startLivePolling();
-    return true;
-  }catch(e){
-    // Never fail silently: the upload card is the fallback, but say why.
-    console.warn('Live feed unavailable:',e.message);
+// Set once the user opts out of waiting (or loads a file), so a late-arriving
+// live response can't yank them back out of whatever they chose.
+let bootAborted=false;
+
+function setLoadingStatus(t){
+  const el=document.getElementById('loading-status');
+  if(el)el.textContent=t;
+}
+
+function showUpload(msg){
+  bootAborted=true;
+  const l=document.getElementById('loading-section');
+  if(l)l.style.display='none';
+  document.getElementById('upload-section').style.display='';
+  if(msg){
     const ee=document.getElementById('upload-error');
-    if(ee&&document.getElementById('dashboard').style.display==='none'){
-      ee.textContent='Live feed unavailable ('+e.message+') — upload a file to continue.';
-      ee.style.display='block';
-    }
-    return false;
+    ee.textContent=msg;ee.style.display='block';
   }
 }
 
-// Try the live feed first; fall back to the upload card if it's empty or
-// unreachable. One retry covers a transient hiccup on a cold load.
-function bootLive(){
-  initLive().then(ok=>{ if(!ok)setTimeout(()=>initLive(),1500); });
+// Show the spinner while trying the live feed, retrying for a minute — a sync
+// may be part way through, or the network briefly unavailable. Only fall back
+// to the upload card once that minute is up.
+const BOOT_WAIT_MS=60000;
+async function bootLive(){
+  const deadline=Date.now()+BOOT_WAIT_MS;
+  let lastErr='';
+  while(Date.now()<deadline){
+    if(bootAborted)return false;
+    try{
+      if(await loadLive()){
+        if(bootAborted)return false;
+        dataSource='live';showDashboard();startLivePolling();return true;
+      }
+      lastErr='no data published yet';
+    }catch(e){
+      lastErr=e.message;
+    }
+    const left=Math.max(0,Math.ceil((deadline-Date.now())/1000));
+    setLoadingStatus(`Waiting for live data — ${lastErr} · ${left}s`);
+    await new Promise(r=>setTimeout(r,3000));
+  }
+  if(bootAborted)return false;
+  showUpload(`No live data after 60 seconds (${lastErr}). Upload a file to continue.`);
+  return false;
 }
 if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',bootLive);
 else bootLive();
@@ -1587,9 +1632,9 @@ else bootLive();
 function resetDashboard(){
   df=[];failExploded=[];timingLoaded=false;timingData=[];
   dataSource='file';stopLivePolling();
-  document.getElementById('upload-section').style.display='';
   document.getElementById('dashboard').style.display='none';
   document.getElementById('upload-error').style.display='none';
+  showUpload();
   document.getElementById('file-input').value='';
   ['ch-fa','ch-trend','ch-comp-p','ch-comp-f','ch-scatter','ch-stages','ch-workers']
     .forEach(id=>{try{Plotly.purge(id);}catch(e){}});
