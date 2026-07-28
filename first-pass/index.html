@@ -56,10 +56,10 @@ body{background:var(--offwhite);font-family:'Inter',Arial,sans-serif;font-size:1
 .tbl-wrap{overflow-x:auto;border-radius:8px;box-shadow:0 1px 4px rgba(0,0,0,.07);}
 table.dash-table{width:100%;border-collapse:collapse;font-size:12.5px;}
 table.dash-table thead tr{background:var(--navy);color:#fff;}
-table.dash-table thead th{padding:8px 10px;font-weight:500;white-space:nowrap;text-align:center;}
+table.dash-table thead th{padding:8px 10px;font-weight:600;white-space:nowrap;text-align:left;}
 table.dash-table tbody tr{border-bottom:1px solid #eef0f7;transition:background .1s;}
 table.dash-table tbody tr:hover{background:#f4f6ff;}
-table.dash-table tbody td{padding:6px 10px;vertical-align:middle;text-align:left;}
+table.dash-table tbody td{padding:6px 10px;vertical-align:middle;text-align:left;word-break:break-word;}
 table.dash-table tbody tr.row-fail{background:#fff0f0;}
 table.dash-table tbody tr.row-fail:hover{background:#ffe0e0;}
 .badge-over{background:var(--red);color:#fff;border-radius:4px;padding:2px 6px;font-size:11px;}
@@ -90,6 +90,12 @@ table.dash-table tbody tr.row-fail:hover{background:#ffe0e0;}
 .ps-filter-row label{font-size:11px;font-weight:600;color:var(--navy);display:block;margin-bottom:2px;}
 .ps-filter-row select{font-size:13px;border:1px solid #c8d0e7;border-radius:6px;padding:4px 8px;color:var(--navy);}
 
+.toggle-switch{position:relative;display:inline-block;width:42px;height:24px;}
+.toggle-switch input{opacity:0;width:0;height:0;}
+.toggle-slider{position:absolute;cursor:pointer;top:0;left:0;right:0;bottom:0;background:#ccc;border-radius:24px;transition:.3s;}
+.toggle-slider:before{position:absolute;content:"";height:18px;width:18px;left:3px;bottom:3px;background:#fff;border-radius:50%;transition:.3s;}
+input:checked+.toggle-slider{background:var(--green);}
+input:checked+.toggle-slider:before{transform:translateX(18px);}
 .version-history{position:fixed;bottom:12px;left:12px;z-index:9999;font-family:Arial,sans-serif;font-size:10px;color:#aaa;line-height:1.5;max-width:260px;}
 .version-history summary{cursor:pointer;font-size:10px;color:#bbb;user-select:none;}
 .version-history summary:hover{color:#888;}
@@ -379,9 +385,11 @@ function renderT1({dff,dff_fails}){
   el.innerHTML=`
     <div class="section-hdr">Fail Attribution — ${periodLbl}</div>
     <p style="color:var(--warmgray);font-size:12px;margin:0 0 12px">Click a bar to highlight it and see that person's full fail list below.</p>
-    <div class="chart-box"><div id="ch-fa" class="plot-div"></div></div>
-    ${tbl(['Person','Fails Caused','% of Fails','Most Common Issue'],
-        sorted.map(r=>[r.n,r.c,r.pct+'%',r.issue]))}
+    <div style="display:grid;grid-template-columns:3fr 2fr;gap:16px;min-width:0">
+      <div class="chart-box" style="min-width:0"><div id="ch-fa" class="plot-div"></div></div>
+      <div style="min-width:0;overflow:auto">${tbl(['Person','Fails Caused','% of Fails','Most Common Issue'],
+        sorted.map(r=>[r.n,r.c,r.pct+'%',r.issue]))}</div>
+    </div>
     <div id="t1-drilldown"></div>
     <div id="t1-unattr"></div>`;
 
@@ -780,7 +788,7 @@ function buildTA(el){
         dateB=new Date(d.toLocaleString('en-US',{timeZone:'America/New_York'}));
       }
     }
-    const isC=r.is_complete===true||r.is_complete==='true'||r.is_complete===1;
+    const isC=tH>0;
     const isO=r.is_over_time===true||r.is_over_time==='true'||r.is_over_time===1;
     const tail=String(r.job_number||'').trim().slice(-4);
     const key=`${r.panel_number}|${tail}`;
@@ -813,18 +821,21 @@ function buildTA(el){
           ${months.map(m=>`<option>${m}</option>`).join('')}
         </select>
       </div>
-      <div><label>Completed only</label>
-        <input type="checkbox" id="ta-complete" checked onchange="drawTA(tm_ref)" style="width:16px;height:16px;margin-top:4px">
+      <div style="display:flex;flex-direction:column;gap:6px">
+        <label style="font-size:11px;font-weight:600;color:var(--navy)">Completed panels only</label>
+        <label class="toggle-switch">
+          <input type="checkbox" id="ta-complete" checked onchange="drawTA(tm_ref)">
+          <span class="toggle-slider"></span>
+        </label>
       </div>
       <div><label>Filter by worker</label>
-        <select id="ta-workers" multiple style="height:60px;min-width:160px" onchange="drawTA(tm_ref)">
-          ${allW.map(w=>`<option>${w}</option>`).join('')}
+        <select id="ta-workers" onchange="drawTA(tm_ref)" style="font-size:13px;padding:4px 8px;border:1px solid #c8d0e7;border-radius:6px;color:var(--navy);min-width:150px">
+          <option value="">All Workers</option>
+          ${allW.map(w=>`<option value="${w}">${w}</option>`).join('')}
         </select>
       </div>
       <div><label>Panel number</label>
-        <select id="ta-panels" multiple style="height:60px;min-width:130px" onchange="drawTA(tm_ref)">
-          ${allP.map(p=>`<option>${p}</option>`).join('')}
-        </select>
+        <input type="text" id="ta-panels" placeholder="Search panel…" oninput="drawTA(tm_ref)" style="font-size:13px;padding:4px 8px;border:1px solid #c8d0e7;border-radius:6px;color:var(--navy);width:140px">
       </div>
     </div>
     <div id="ta-kpis" style="display:grid;grid-template-columns:repeat(4,1fr);gap:10px;margin-bottom:16px"></div>
@@ -849,8 +860,8 @@ function drawTA(tm){
   const period=document.getElementById('ta-period').value;
   const selMonth=document.getElementById('ta-month')?.value;
   const complete=document.getElementById('ta-complete').checked;
-  const selW=[...document.getElementById('ta-workers').selectedOptions].map(o=>o.value);
-  const selP=[...document.getElementById('ta-panels').selectedOptions].map(o=>o.value);
+  const selW=document.getElementById('ta-workers').value;
+  const selP=(document.getElementById('ta-panels').value||'').trim().toLowerCase();
 
   const PD={'Last 7 Days':7,'Last 30 Days':30,'Last 90 Days':90,'Last 6 Months':182,'Last Year':365};
   const hasDates=tm.filter(r=>r.dateB);
@@ -862,8 +873,8 @@ function drawTA(tm){
   } else if(period!=='All Time'){f=hasDates;}
 
   if(complete)f=f.filter(r=>r.isC);
-  if(selP.length)f=f.filter(r=>selP.includes(r.panel_number));
-  if(selW.length)f=f.filter(r=>selW.some(w=>[r.layout_worker,r.wire_worker,r.final_worker,r.tech_worker].includes(w)));
+  if(selP)f=f.filter(r=>String(r.panel_number||'').toLowerCase().includes(selP));
+  if(selW)f=f.filter(r=>[r.layout_worker,r.wire_worker,r.final_worker,r.tech_worker].includes(selW));
 
   const nW=f.filter(r=>r.rH).length,nO=f.filter(r=>r.isO).length;
   const sumA=f.reduce((s,r)=>s+(r.aH||0),0),sumR=f.reduce((s,r)=>s+(r.rH||0),0);
@@ -911,11 +922,12 @@ function drawTA(tm){
   if(stageAvgs.length) newPlot('ch-stages',[{
     type:'bar',orientation:'h',
     y:stageAvgs.map(r=>r.s).reverse(),x:stageAvgs.map(r=>+r.avg.toFixed(3)).reverse(),
-    text:stageAvgs.map(r=>`${r.avg.toFixed(2)}h`).reverse(),textposition:'outside',cliponaxis:false,
+    text:stageAvgs.map(r=>hms(r.avg)).reverse(),textposition:'outside',cliponaxis:false,
     marker:{color:[BLUE,NAVY,'#4A90D9','#7FAFD9'].reverse()},
-    hovertemplate:'<b>%{y}</b><br>Avg: %{x:.2f}h<extra></extra>',
-  }],{title:{text:'Avg Hours per Stage',font:{family:'Georgia',color:NAVY,size:14}},
-    showlegend:false,height:300,margin:{l:60,r:80,t:40,b:20},xaxis:{title:'Avg Hours'},yaxis:{automargin:true}});
+    hovertemplate:'<b>%{y}</b><br>Avg: %{text}<extra></extra>',
+  }],{title:{text:'Avg Time per Stage',font:{family:'Georgia',color:NAVY,size:14}},
+    showlegend:false,height:300,margin:{l:60,r:100,t:40,b:20},
+    xaxis:{title:'Hours',tickformat:'.2f'},yaxis:{automargin:true}});
 
   // ── Worker breakdown ──
   const wRows=[];
