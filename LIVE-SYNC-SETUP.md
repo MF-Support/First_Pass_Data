@@ -42,12 +42,30 @@ Reads the workbook over Microsoft Graph — no local copy, nothing downloaded. I
 the Graph PowerShell module's *own Microsoft-owned* app registration, so there is
 nothing to register in Azure.
 
+**Open PowerShell first — not Command Prompt.** `Install-Module` is a PowerShell
+cmdlet; in cmd you get *"not recognized as an internal or external command"*. Press
+**Win** → type `powershell` → Enter. (From an open cmd window, typing `powershell`
+switches you over and keeps the current folder.) The prompt should read `PS C:\...>`.
+
+Run this block once. It bootstraps the package provider, allows the gallery for this
+command only, and installs the module — all without prompts:
+
 ```powershell
-Install-Module Microsoft.Graph.Authentication -Scope CurrentUser -Force
+[Net.ServicePointManager]::SecurityProtocol = [Net.SecurityProtocolType]::Tls12
+Install-PackageProvider -Name NuGet -MinimumVersion 2.8.5.201 -Scope CurrentUser -Force
+Install-Module Microsoft.Graph.Authentication -Scope CurrentUser -Force -AllowClobber
 ```
+
+Then:
+
 ```powershell
 .\sync-first-pass-online.ps1
 ```
+
+> No admin rights are needed — `-Scope CurrentUser` installs into your profile.
+> If `Install-PackageProvider` fails with a proxy or TLS error, the machine can't
+> reach PSGallery; use flavour A2 below, which needs no modules from the gallery
+> beyond ImportExcel (or ask IT to allow `www.powershellgallery.com`).
 
 The first run opens Microsoft's own sign-in prompt — you authenticate there, and the
 token is cached for later unattended runs. Site, library and file path are already
