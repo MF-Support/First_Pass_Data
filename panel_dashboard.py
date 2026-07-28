@@ -95,6 +95,22 @@ def load_time_data():
         return pd.DataFrame(_js.loads(r.read()))
 
 
+@st.cache_data(ttl=60, show_spinner=False)
+def _load_debug_sample():
+    """Fetch 8 raw rows for debugging — shows exact API values before any conversion."""
+    import urllib.request as _ur, json as _js
+    url = (_SB_URL + "/rest/v1/panel_time_summary"
+           "?select=panel_number,job_number,layout_started_at,is_complete"
+           "&order=layout_started_at.desc.nullslast&limit=8")
+    req = _ur.Request(url, headers={
+        'apikey': _SB_ANON,
+        'Authorization': f'Bearer {_SB_ANON}',
+        'Accept': 'application/json',
+    })
+    with _ur.urlopen(req, timeout=10) as r:
+        return _js.loads(r.read())
+
+
 # ── Load & process data ───────────────────────────────────────────────────────
 @st.cache_data(show_spinner=False)
 def load_data(file_bytes):
@@ -816,6 +832,20 @@ with tab6:
     with c_info:
         if not ta_err and not tm.empty:
             st.caption(f"📊 {len(tm)} panels loaded from Supabase")
+
+    # ── DEBUG (temporary) ──
+    with st.expander("🔍 Debug — raw API values (click to expand)"):
+        try:
+            _dbg = _load_debug_sample()
+            st.caption("These are the exact values the Supabase REST API returns before any Python processing:")
+            for _r in _dbg:
+                st.write(f"panel={_r.get('panel_number')} | layout_started_at={_r.get('layout_started_at')!r} | is_complete={_r.get('is_complete')!r}")
+        except Exception as _de:
+            st.write(f"Debug fetch error: {_de}")
+        if not ta_err and not tm.empty:
+            _db_null = tm['layout_started_at'].isna().sum()
+            st.write(f"layout_started_at: {len(tm) - _db_null} non-null, {_db_null} null")
+            st.write(f"is_complete True count: {tm['is_complete'].isin([True,'true','True','TRUE',1]).sum()}")
 
     if ta_err:
         st.error(f"Could not reach Supabase: {ta_err}")
