@@ -205,7 +205,7 @@ let df=[], initMap={}, knownInits=new Set(), failExploded=[];
 let timingData=[], timingLoaded=false;
 const grpState={t2:'Month',t3:'Month',t4:'Month'};
 let activeTab='t1';
-let psPeriodSel='All Time', psDrillIdx=-1, psDrillPerson=null, psDrillGrp='auto';
+let psPeriodSel='All Time', psGrp='All Time', psSel='', psDrillIdx=-1, psDrillPerson=null, psDrillGrp='auto';
 
 // ─── Plotly base layout ───────────────────────────────────────────────────────
 const baseLay=()=>({
@@ -327,6 +327,10 @@ function parseExcel(buf){
     row.Quarter=fiscalQ(dt);
     row.Week=weekStart(dt);
     row.DayStr=fmtDate(dt);
+    const hy=dt.getMonth()<6?'H1':'H2';
+    row.HalfYear=`${hy} ${dt.getFullYear()}`;
+    row.HalfYearSort=`${dt.getFullYear()}-${hy}`;
+    row.YearStr=String(dt.getFullYear());
     df.push(row);
     if(pf==='FAIL')for(const init of row.Fail_Inits)
       failExploded.push({...row,Fail_Init:init,Fail_Name:initMap[init]||init});
@@ -622,20 +626,36 @@ function renderT5({dff}){
 
     <div class="section-hdr">Person Summary</div>
     <p style="color:var(--warmgray);font-size:12px;margin:0 0 8px">Panels and fail rate per person by role. Click any row to expand their trend over time.</p>
-    <div class="ps-filter-row">
-      <div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap">
-        <div><label>Period</label>
-          <select id="ps-period" onchange="onPsPeriodChange()">
-            ${['Last 7 Days','Last 30 Days','Last 90 Days','Last 6 Months','Last Year','All Time']
-              .map(v=>`<option${v===psPeriodSel?' selected':''}>${v}</option>`).join('')}
-          </select>
+    <div style="display:flex;gap:0;flex-wrap:wrap;margin-bottom:12px;border:1px solid #e0e4f0;border-radius:8px;overflow:hidden">
+      <div style="padding:10px 14px;background:#f0f3fb;border-right:1px solid #e0e4f0;flex:0 0 auto">
+        <div style="font-size:10px;font-weight:700;color:var(--blue);letter-spacing:.05em;margin-bottom:6px;text-transform:uppercase">Range — table &amp; chart</div>
+        <div class="ps-filter-row" style="margin:0;gap:10px">
+          <div><label>Period</label>
+            <select id="ps-period" onchange="onPsPeriodChange()">
+              ${['Last 7 Days','Last 30 Days','Last 90 Days','Last 6 Months','Last Year','All Time']
+                .map(v=>`<option${v===psPeriodSel?' selected':''}>${v}</option>`).join('')}
+            </select>
+          </div>
         </div>
-        <span style="font-size:11px;color:var(--warmgray);padding-top:18px">↕ applies to table &amp; trend chart</span>
+      </div>
+      <div style="padding:10px 14px;background:#fff;flex:1 1 auto">
+        <div style="font-size:10px;font-weight:700;color:var(--navy);letter-spacing:.05em;margin-bottom:6px;text-transform:uppercase">Table only</div>
+        <div class="ps-filter-row" style="margin:0;gap:10px">
+          <div><label>Group by</label>
+            <select id="ps-grp" onchange="onPsGrpChange()">
+              ${['All Time','Day','Week','Month','Quarter','Half Year','Year']
+                .map(v=>`<option${v===psGrp?' selected':''}>${v}</option>`).join('')}
+            </select>
+          </div>
+          <div id="ps-sel-wrap" style="display:none"><label id="ps-sel-lbl">Period</label>
+            <select id="ps-sel" onchange="drawPersonSummary()"></select>
+          </div>
+        </div>
       </div>
     </div>
     <div id="person-summary"></div>`;
 
-  drawTrend(dff);drawComparison();drawPersonSummary();
+  drawTrend(dff);drawComparison();initPsSel();drawPersonSummary();
 }
 
 function drawTrend(dff){
@@ -704,12 +724,74 @@ function getPsBase(){
 
 function onPsPeriodChange(){
   psPeriodSel=document.getElementById('ps-period').value;
-  // psDrillPerson preserved — open row re-renders after redraw
+  psSel='';
+  initPsSel();
   drawPersonSummary();
 }
 
+function onPsGrpChange(){
+  psGrp=document.getElementById('ps-grp').value;
+  psSel='';
+  initPsSel();
+  drawPersonSummary();
+}
+
+function initPsSel(){
+  const base=getPsBase();
+  const wrap=document.getElementById('ps-sel-wrap');
+  if(!wrap)return;
+  if(psGrp==='All Time'){wrap.style.display='none';return;}
+  wrap.style.display='';
+  const lbl=document.getElementById('ps-sel-lbl');
+  const sel=document.getElementById('ps-sel');
+  let opts=[];
+  if(psGrp==='Day'){
+    lbl.textContent='Day';
+    opts=[...new Set(base.map(r=>r.DayStr))].sort().reverse();
+    sel.innerHTML=opts.map(v=>`<option${v===psSel?' selected':''}>${v}</option>`).join('');
+  } else if(psGrp==='Week'){
+    lbl.textContent='Week starting';
+    opts=[...new Set(base.map(r=>r.Week))].sort().reverse();
+    sel.innerHTML=opts.map(v=>`<option${v===psSel?' selected':''}>${v}</option>`).join('');
+  } else if(psGrp==='Month'){
+    lbl.textContent='Month';
+    const mm={};base.forEach(r=>mm[r.Month]=r.MonthLabel);
+    opts=Object.keys(mm).sort().reverse();
+    sel.innerHTML=opts.map(v=>`<option value="${v}"${v===psSel?' selected':''}>${mm[v]}</option>`).join('');
+  } else if(psGrp==='Quarter'){
+    lbl.textContent='Quarter';
+    opts=[...new Set(base.map(r=>r.Quarter))].sort().reverse();
+    sel.innerHTML=opts.map(v=>`<option${v===psSel?' selected':''}>${v}</option>`).join('');
+  } else if(psGrp==='Half Year'){
+    lbl.textContent='Half year';
+    const hm={};base.forEach(r=>hm[r.HalfYearSort]=r.HalfYear);
+    opts=Object.keys(hm).sort().reverse();
+    sel.innerHTML=opts.map(v=>`<option value="${v}"${v===psSel?' selected':''}>${hm[v]}</option>`).join('');
+  } else if(psGrp==='Year'){
+    lbl.textContent='Year';
+    opts=[...new Set(base.map(r=>r.YearStr))].sort().reverse();
+    sel.innerHTML=opts.map(v=>`<option${v===psSel?' selected':''}>${v}</option>`).join('');
+  }
+  if(!psSel||!opts.includes(psSel))psSel=sel.options[0]?.value||'';
+  if(sel.value!==psSel)sel.value=psSel;
+}
+
+function getPsData(){
+  const base=getPsBase();
+  if(psGrp==='All Time')return base;
+  const sel=document.getElementById('ps-sel')?.value||psSel;
+  psSel=sel;
+  if(psGrp==='Day')return base.filter(r=>r.DayStr===sel);
+  if(psGrp==='Week')return base.filter(r=>r.Week===sel);
+  if(psGrp==='Month')return base.filter(r=>r.Month===sel);
+  if(psGrp==='Quarter')return base.filter(r=>r.Quarter===sel);
+  if(psGrp==='Half Year')return base.filter(r=>r.HalfYearSort===sel);
+  if(psGrp==='Year')return base.filter(r=>r.YearStr===sel);
+  return base;
+}
+
 function drawPersonSummary(){
-  const psData=getPsBase();
+  const psData=getPsData();
   const allInits=new Set();
   for(const r of psData)for(const c of['Layout','Wire','FA'])if(r[c])allInits.add(r[c]);
   const pRows=[...allInits].sort().map(init=>{
@@ -882,7 +964,7 @@ function buildPsTrend(person,el,grp='auto'){
   const traces=traceDefs.map(t=>({
     type:'scatter',name:t.name,mode:'lines+markers',x:labels,y:t.fpy,
     line:{color:t.color,width:t.lineWidth,dash:t.dash},marker:{size:t.markerSize,color:t.color},
-    connectgaps:true,
+    connectgaps:t.name==='Overall',
     hovertemplate:`<b>%{x}</b><br>${t.hover}: %{y:.1f}%<extra></extra>`,
   }));
 
