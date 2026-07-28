@@ -500,11 +500,15 @@ def person_panels_tab(role_col, role_label):
             f"<div class='section-header'>📋 {clicked_person} — {role_label} Panels</div>",
             unsafe_allow_html=True)
         name_col = f"{role_col}_Name"
+
+        # Map full name back to initials so we can check Fail_Inits
+        clicked_init = next((k for k, v in init_map.items() if v == clicked_person), None)
+
         raw = dff[dff[name_col] == clicked_person][
-            ["Date","Sales_Order","Pass_Fail","Panel","Line","Reason","Fail_Inits"]
+            ["Date","Sales_Order","Pass_Fail","Panel","Line","Reason","Fail_Inits",
+             "Layout","Wire","FA"]
         ].sort_values("Date", ascending=False).copy()
 
-        # Show who is actually attributed for each fail (may differ from this person)
         def attr_label(row):
             if row["Pass_Fail"] != "FAIL":
                 return ""
@@ -513,12 +517,59 @@ def person_panels_tab(role_col, role_label):
                 return "— unattributed"
             return ", ".join(init_map.get(i, i) for i in inits)
 
+        def attr_role(row):
+            """Which role(s) are attributed for this fail."""
+            inits = row["Fail_Inits"]
+            if row["Pass_Fail"] != "FAIL" or not isinstance(inits, list) or not inits:
+                return ""
+            roles = []
+            for init in inits:
+                lo = str(row.get("Layout") or "").strip()
+                wi = str(row.get("Wire")   or "").strip()
+                fa = str(row.get("FA")     or "").strip()
+                if lo and lo == init:
+                    roles.append("Layout")
+                if wi and wi == init:
+                    roles.append("Wire")
+                if fa and fa == init:
+                    roles.append("Final")
+            return ", ".join(dict.fromkeys(roles)) if roles else ""
+
         raw["Failure Caused By"] = raw.apply(attr_label, axis=1)
+        raw["Role"] = raw.apply(attr_role, axis=1)
+        # True when THIS person (in their role for this tab) caused the fail
+        raw["_my_fail"] = raw.apply(
+            lambda r: (
+                r["Pass_Fail"] == "FAIL" and
+                isinstance(r["Fail_Inits"], list) and
+                clicked_init is not None and
+                clicked_init in r["Fail_Inits"]
+            ), axis=1
+        )
+
         raw["Date"] = raw["Date"].dt.strftime("%Y-%m-%d")
         raw.rename(columns={"Sales_Order": "Job #", "Pass_Fail": "Pass/Fail"}, inplace=True)
-        person_data = raw.drop(columns=["Fail_Inits"])
-        st.caption("'Failure Caused By' shows whose initials appear in the reason.")
-        st.dataframe(person_data, use_container_width=True, hide_index=True)
+
+        display = raw[
+            ["Date","Job #","Pass/Fail","Panel","Line","Reason","Role","Failure Caused By"]
+        ].reset_index(drop=True)
+        my_fail_mask = raw["_my_fail"].reset_index(drop=True)
+
+        def _hl_role_fails(df):
+            styles = pd.DataFrame("", index=df.index, columns=df.columns)
+            for i in df.index:
+                if my_fail_mask.iloc[i]:
+                    styles.iloc[i] = "background-color: #fff0f0"
+            return styles
+
+        st.caption(
+            f"**Role** = which role caused each fail. "
+            f"Rows highlighted red = fail attributed to {clicked_person} in the {role_label} role."
+        )
+        st.dataframe(
+            display.style.apply(_hl_role_fails, axis=None),
+            use_container_width=True, hide_index=True
+        )
 
 with tab2:
     person_panels_tab("Layout", "Layout")
