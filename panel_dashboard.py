@@ -826,7 +826,7 @@ with tab6:
             ]
 
         if complete_only:
-            tmf = tmf[tmf['is_complete'].fillna(False).astype(bool)]
+            tmf = tmf[tmf['is_complete'].isin([True, 'true', 'True', 'TRUE', 1])]
 
         # ── Content filters ──
         all_ta_workers = sorted({
