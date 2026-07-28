@@ -33,17 +33,45 @@ can't tell the difference. Route B stays documented in case a licence appears la
 
 ## Route A — scheduled script (no licence needed)
 
-OneDrive already keeps the workbook current on your PC. This reads that local copy on a
-timer and pushes it up. No password, no app registration, no premium connector.
+Two flavours. **A1 reads the online file directly** and is the better fit if you'd
+rather not depend on a synced copy.
 
-Run these three lines once, from the folder containing the scripts:
+### A1 — straight from SharePoint Online (`sync-first-pass-online.ps1`)
+
+Reads the workbook over Microsoft Graph — no local copy, nothing downloaded. It uses
+the Graph PowerShell module's *own Microsoft-owned* app registration, so there is
+nothing to register in Azure.
+
+```powershell
+Install-Module Microsoft.Graph.Authentication -Scope CurrentUser -Force
+```
+```powershell
+.\sync-first-pass-online.ps1
+```
+
+The first run opens Microsoft's own sign-in prompt — you authenticate there, and the
+token is cached for later unattended runs. Site, library and file path are already
+filled in at the top of the script.
+
+Each run first asks Graph when the workbook last changed and exits immediately if it
+hasn't, so you can poll every couple of minutes for almost nothing. Set
+`$IntervalMin = 2` in `register-sync-task.ps1` and point its `$Script` at this file.
+
+> If sign-in is refused with a consent error, the tenant restricts the Graph CLI app
+> and this flavour needs admin approval. Use A2 instead — it needs no sign-in at all.
+
+### A2 — from the OneDrive-synced copy (`sync-first-pass.ps1`)
+
+No sign-in, ever. OneDrive already keeps the file current on your PC; this reads that
+copy. Nobody downloads anything by hand — the sync client does it continuously.
 
 ```powershell
 Install-Module ImportExcel -Scope CurrentUser -Force
 ```
 
-Then open `sync-first-pass.ps1` and set `$Workbook` to the file's local path — in
-Explorer, Shift+Right-click the workbook and choose **Copy as path**.
+Then set `$Workbook` to the file's local path — Shift+Right-click it in Explorer and
+choose **Copy as path**. In OneDrive, right-click the file and tick **Always keep on
+this device** so it isn't a cloud-only placeholder.
 
 ```powershell
 .\sync-first-pass.ps1          # verify it works, check the output
