@@ -47,7 +47,12 @@ body{background:var(--offwhite);font-family:'Inter',Arial,sans-serif;font-size:1
 .tab-pane{display:none;padding:16px 20px 80px;}
 .tab-pane.active{display:block;}
 
-.section-hdr{background:var(--navy);color:#fff;padding:8px 16px;border-radius:4px;font-family:Georgia;font-size:15px;font-weight:bold;margin:20px 0 10px;}
+.section-hdr{background:var(--navy);color:#fff;padding:8px 16px;border-radius:4px;font-family:Georgia;font-size:15px;font-weight:bold;margin:20px 0 10px;display:flex;align-items:center;flex-wrap:wrap;gap:2px;}
+.section-hdr .sec-dash{opacity:.6;font-weight:normal;margin:0 7px;}
+.section-hdr .sec-period{background:rgba(255,255,255,.14);color:#fff;border:1px solid rgba(255,255,255,.35);border-radius:5px;padding:2px 8px;font-family:Arial;font-size:12px;font-weight:600;cursor:pointer;max-width:100%;}
+.section-hdr .sec-period:hover{background:rgba(255,255,255,.26);}
+.section-hdr .sec-period:focus{outline:2px solid rgba(255,255,255,.5);outline-offset:1px;}
+.section-hdr .sec-period option{background:#fff;color:var(--navy);font-weight:500;}
 
 .grp-btns{display:flex;gap:6px;margin-bottom:12px;}
 .grp-btn{background:#fff;border:1px solid #c8d0e7;border-radius:6px;padding:4px 12px;font-size:12px;font-weight:500;color:var(--navy);cursor:pointer;transition:background .15s;}
@@ -113,7 +118,7 @@ input:checked+.toggle-slider:before{transform:translateX(18px);}
 
 <div class="top-nav">
   <h1>🏭 First Pass Quality Dashboard</h1>
-  <small>Kennesaw Panel Assembly · First Pass Yield & Technician Performance</small>
+  <small>Kennesaw Panel Assembly · First Pass Performance</small>
 </div>
 
 <div id="upload-section">
@@ -134,11 +139,14 @@ input:checked+.toggle-slider:before{transform:translateX(18px);}
   <div id="controls-bar">
     <label>Period:</label>
     <select id="period-select" onchange="onPeriodChange()">
-      <option>Last 7 Days</option><option>Last 30 Days</option>
-      <option selected>Last 90 Days</option><option>Last 6 Months</option>
-      <option>Last Year</option><option>By Quarter</option><option>All Time</option>
+      <option>Daily</option><option>Weekly</option>
+      <option selected>This Month</option><option>Last Month</option>
+      <option>Last 3 Months</option><option>Last 6 Months</option>
+      <option>Last Year</option><option>Monthly</option>
+      <option>Quarterly (Fiscal)</option><option>All Time</option>
     </select>
-    <select id="quarter-select" style="display:none" onchange="render()"></select>
+    <select id="quarter-select" style="display:none" onchange="onPeriodChange()"></select>
+    <select id="month-select" style="display:none" onchange="onPeriodChange()"></select>
     <span id="period-badge"></span>
     <span id="data-summary"></span>
     <button class="reset-btn" onclick="resetDashboard()">⬆ New file</button>
@@ -156,7 +164,7 @@ input:checked+.toggle-slider:before{transform:translateX(18px);}
     <button class="tab-btn active" data-tab="t1">📛 Fail Attribution</button>
     <button class="tab-btn" data-tab="t2">🔧 Layout by Person</button>
     <button class="tab-btn" data-tab="t3">🔌 Wire by Person</button>
-    <button class="tab-btn" data-tab="t4">✅ Final by Person</button>
+    <button class="tab-btn" data-tab="t4">🪛 Final by Person</button>
     <button class="tab-btn" data-tab="t5">📈 Trends</button>
     <button class="tab-btn" data-tab="t6">⏱ Time Analysis</button>
   </div>
@@ -172,7 +180,12 @@ input:checked+.toggle-slider:before{transform:translateX(18px);}
 <!-- Version changelog -->
 <div class="version-history">
   <details>
-    <summary>v1.12 — changelog</summary>
+    <summary>v1.14 — changelog (updated 2026-07-28)</summary>
+    <b>v1.14</b> New period set: Daily, Weekly, This Month, Last Month, Last 3/6 Months, Last Year, Monthly (pick a month), Quarterly (Fiscal), All Time — default is now This Month. Header renamed to First Pass Performance; Final by Person icon changed; FPY tooltip now reads "personnel" instead of "technician"<br>
+    <b>v1.13</b> Period dropdown built into every section header — each section can be filtered independently; changing the top Period resets them all<br>
+    <b>v1.12.3</b> Fixed FPY chart title clipped in Layout/Wire/Final (scaled with headcount); fixed drilldown table hidden behind the bar chart after visiting another tab<br>
+    <b>v1.12.2</b> Person Summary and Person Trend split into separate sections, each with its own filters<br>
+    <b>v1.12.1</b> Person Summary table grouping Day→Year; role trend lines now break instead of bridging periods with no work in that role<br>
     <b>v1.12</b> Time Analysis tab: actual vs routing hours, worker breakdown, over-time flag<br>
     <b>v1.11</b> Only attributed fails count against FPY% &amp; fail rates per person<br>
     <b>v1.10</b> Person Summary: own Day/Week/Month/Quarter filter<br>
@@ -206,6 +219,31 @@ let timingData=[], timingLoaded=false;
 const grpState={t2:'Month',t3:'Month',t4:'Month'};
 let activeTab='t1';
 let psGrp='All Time', psSel='', psTrendPerson='', psTrendGrp='auto';
+// Per-section period overrides, keyed by section id (see periodFor/secHdr).
+let secPeriod={};
+const PERIOD_OPTS=['Daily','Weekly','This Month','Last Month','Last 3 Months',
+                   'Last 6 Months','Last Year','Monthly','Quarterly (Fiscal)','All Time'];
+const MONTH_KEY=/^\d{4}-\d{2}$/; // concrete month value, e.g. "2026-07"
+const DEFAULT_PERIOD='This Month';
+
+// Window for a period. Anchored to the newest record in the data rather than
+// wall-clock, so an uploaded file always lands on real rows even if the last
+// build was a few days ago. end is exclusive; null means "up to the anchor".
+function periodRange(period,anchor){
+  const a=anchor||new Date();
+  const sod=d=>{const x=new Date(d);x.setHours(0,0,0,0);return x;};
+  switch(period){
+    case 'Daily':         return{start:sod(a),end:null};
+    case 'Weekly':        {const s=sod(a);s.setDate(s.getDate()-s.getDay());return{start:s,end:null};}
+    case 'This Month':    return{start:new Date(a.getFullYear(),a.getMonth(),1),end:null};
+    case 'Last Month':    return{start:new Date(a.getFullYear(),a.getMonth()-1,1),
+                                 end:new Date(a.getFullYear(),a.getMonth(),1)};
+    case 'Last 3 Months': {const s=sod(a);s.setMonth(s.getMonth()-3);return{start:s,end:null};}
+    case 'Last 6 Months': {const s=sod(a);s.setMonth(s.getMonth()-6);return{start:s,end:null};}
+    case 'Last Year':     {const s=sod(a);s.setFullYear(s.getFullYear()-1);return{start:s,end:null};}
+  }
+  return null;
+}
 
 // ─── Plotly base layout ───────────────────────────────────────────────────────
 const baseLay=()=>({
@@ -274,18 +312,23 @@ function tbl(cols,rows,rowCls){
     </tbody></table></div>`;
 }
 
-function getPeriodLabel(){
-  const period=document.getElementById('period-select').value;
-  const selQ=document.getElementById('quarter-select').value;
-  const PD={'Last 7 Days':7,'Last 30 Days':30,'Last 90 Days':90,'Last 6 Months':182,'Last Year':365};
+function getPeriodLabel(period,selQ){
+  period=period||globalPeriod();
+  selQ=selQ===undefined?globalQuarter():selQ;
   if(!df.length)return period;
-  const maxDate=new Date(Math.max(...df.map(r=>r._date)));
-  if(PD[period]){
-    const cut=new Date(maxDate);cut.setDate(cut.getDate()-PD[period]);
-    const fmt=d=>d.toLocaleDateString('en-US',{month:'short',day:'numeric'});
-    return `${period}  (${fmt(cut)} – ${fmt(maxDate)}, ${maxDate.getFullYear()})`;
-  }
-  return period==='By Quarter'?selQ:'All Time';
+  if(period==='All Time')return 'All Time';
+  if(period==='Quarterly (Fiscal)')return selQ||period;
+  if(period==='Monthly')return monthLabelOf(globalMonth())||period;
+  if(MONTH_KEY.test(period))return monthLabelOf(period);
+  const anchor=dataAnchor();
+  const rg=periodRange(period,anchor);
+  if(!rg)return period; // concrete quarter label
+  const last=rg.end?new Date(rg.end.getTime()-86400000):anchor;
+  const fmt=d=>d.toLocaleDateString('en-US',{month:'short',day:'numeric'});
+  // Spell out the start year when the window straddles a year boundary.
+  const start=rg.start.getFullYear()===last.getFullYear()
+    ? fmt(rg.start) : `${fmt(rg.start)}, ${rg.start.getFullYear()}`;
+  return `${period}  (${start} – ${fmt(last)}, ${last.getFullYear()})`;
 }
 
 function topIssue(personName,dff_fails){
@@ -349,21 +392,97 @@ function parseExcel(buf){
 }
 
 // ─── Period filter ────────────────────────────────────────────────────────────
-function getFiltered(){
-  const period=document.getElementById('period-select').value;
-  const selQ=document.getElementById('quarter-select').value;
+// The top-of-page Period is the master. Each section may override it via the
+// dropdown in its own header; those overrides live in secPeriod and are cleared
+// whenever the top-of-page Period changes.
+function globalPeriod(){return document.getElementById('period-select')?.value||'All Time';}
+function globalQuarter(){return document.getElementById('quarter-select')?.value||'';}
+function globalMonth(){return document.getElementById('month-select')?.value||'';}
+function monthLabelOf(key){
+  const hit=df.find(r=>r.Month===key);
+  return hit?hit.MonthLabel:key;
+}
+
+// A section's effective period. A global 'By Quarter' resolves to the concrete
+// quarter so section dropdowns always show a real, selectable value.
+// A section's effective period. Global "Quarterly (Fiscal)"/"Monthly" resolve to
+// the concrete quarter/month so section dropdowns show a real, selectable value.
+function periodFor(key){
+  if(secPeriod[key])return secPeriod[key];
+  const g=globalPeriod();
+  if(g==='Quarterly (Fiscal)')return globalQuarter()||'All Time';
+  if(g==='Monthly')return globalMonth()||'All Time';
+  return g;
+}
+
+function dataAnchor(){
+  return df.length?new Date(Math.max(...df.map(r=>r._date))):new Date();
+}
+
+function filterRowsByPeriod(rows,period,selQ){
+  if(!rows.length||period==='All Time')return rows;
+  if(period==='Quarterly (Fiscal)')return rows.filter(r=>r.Quarter===selQ);
+  if(period==='Monthly')return rows.filter(r=>r.Month===globalMonth());
+  const rg=periodRange(period,dataAnchor());
+  if(rg)return rows.filter(r=>r._date>=rg.start&&(!rg.end||r._date<rg.end));
+  if(MONTH_KEY.test(period))return rows.filter(r=>r.Month===period); // concrete month
+  return rows.filter(r=>r.Quarter===period);                        // concrete quarter
+}
+
+function getFiltered(period,selQ){
+  period=period||globalPeriod();
+  selQ=selQ===undefined?globalQuarter():selQ;
   if(!df.length)return{dff:[],dff_fails:[],maxDate:new Date(),period};
   const maxDate=new Date(Math.max(...df.map(r=>r._date)));
-  const PD={'Last 7 Days':7,'Last 30 Days':30,'Last 90 Days':90,'Last 6 Months':182,'Last Year':365};
-  let dff,dff_fails;
-  if(PD[period]){
-    const cut=new Date(maxDate);cut.setDate(cut.getDate()-PD[period]);
-    dff=df.filter(r=>r._date>=cut);dff_fails=failExploded.filter(r=>r._date>=cut);
-  } else if(period==='By Quarter'){
-    dff=df.filter(r=>r.Quarter===selQ);dff_fails=failExploded.filter(r=>r.Quarter===selQ);
-  } else {dff=[...df];dff_fails=[...failExploded];}
+  const dff=filterRowsByPeriod(df,period,selQ);
+  const dff_fails=filterRowsByPeriod(failExploded,period,selQ);
   const minDate=dff.length?new Date(Math.min(...dff.map(r=>r._date))):maxDate;
   return{dff,dff_fails,maxDate,minDate,period};
+}
+
+// Data for one section, honouring its own period override.
+function getFilteredFor(key){return getFiltered(periodFor(key),globalQuarter());}
+
+// Section header with an inline period dropdown: "Title — [period ▾]"
+function secHdr(title,key,extraCls){
+  const cur=periodFor(key);
+  // Sections list concrete months and fiscal quarters inline, instead of the top
+  // bar's "Monthly"/"Quarterly (Fiscal)" + separate picker, so one dropdown covers
+  // everything. Grouped so the list stays scannable as history grows.
+  const rel=PERIOD_OPTS.filter(p=>p!=='Monthly'&&p!=='Quarterly (Fiscal)'&&p!=='All Time');
+  const ms=[...new Set(df.map(r=>r.Month))].sort().reverse();
+  const qs=[...new Set(df.map(r=>r.Quarter))].sort().reverse();
+  const opt=(v,t)=>`<option value="${v}"${v===cur?' selected':''}>${t||v}</option>`;
+  const known=[...rel,'All Time',...ms,...qs];
+  return `<div class="section-hdr${extraCls?' '+extraCls:''}"><span>${title}</span><span class="sec-dash">—</span>`+
+    `<select class="sec-period" title="Period for this section" onchange="onSecPeriodChange('${key}',this.value)">`+
+    (known.includes(cur)?'':opt(cur))+
+    rel.map(o=>opt(o)).join('')+opt('All Time')+
+    (ms.length?`<optgroup label="Month">${ms.map(m=>opt(m,monthLabelOf(m))).join('')}</optgroup>`:'')+
+    (qs.length?`<optgroup label="Fiscal quarter">${qs.map(q=>opt(q)).join('')}</optgroup>`:'')+
+    `</select></div>`;
+}
+
+function onSecPeriodChange(key,val){
+  secPeriod[key]=val;
+  renderTab(activeTab);
+}
+
+// Time Analysis sub-sections are all views of one Supabase-backed filter, so they
+// display the period owned by the Time Analysis header rather than their own picker.
+function taPeriodLabel(){
+  const v=document.getElementById('ta-period')?.value||DEFAULT_PERIOD;
+  if(v==='Quarterly (Fiscal)')return document.getElementById('ta-qtr')?.value||v;
+  if(v==='Monthly'){
+    const m=document.getElementById('ta-month')?.value;
+    return m?new Date(m+'-02').toLocaleDateString('en-US',{month:'short',year:'numeric'}):v;
+  }
+  return v;
+}
+function subHdr(title,label,extraCls){
+  return `<div class="section-hdr${extraCls?' '+extraCls:''}"><span>${title}</span>`+
+    `<span class="sec-dash">—</span>`+
+    `<span style="font-family:Arial;font-size:12px;font-weight:600;opacity:.85">${label}</span></div>`;
 }
 
 // ─── KPIs ─────────────────────────────────────────────────────────────────────
@@ -391,20 +510,20 @@ function renderKPIs({dff,dff_fails,maxDate}){
 }
 
 // ─── TAB 1: Fail Attribution ──────────────────────────────────────────────────
-function renderT1({dff,dff_fails}){
+function renderT1(){
   const el=document.getElementById('t1');
   purgePlots(el);
+  const {dff,dff_fails}=getFilteredFor('t1');
   const totalFails=dff.filter(r=>r.Is_Fail).length;
-  const periodLbl=getPeriodLabel();
   if(!dff_fails.length){
-    el.innerHTML=`<div class="section-hdr">Fail Attribution — ${periodLbl}</div><div style="padding:20px;color:var(--warmgray)">No attributed fails in this period.</div>`;return;
+    el.innerHTML=`${secHdr('Fail Attribution','t1')}<div style="padding:20px;color:var(--warmgray)">No attributed fails in this period.</div>`;return;
   }
   const bp={};for(const r of dff_fails)bp[r.Fail_Name]=(bp[r.Fail_Name]||0)+1;
   const sorted=Object.entries(bp)
     .map(([n,c])=>({n,c,pct:(c/totalFails*100).toFixed(1),issue:topIssue(n,dff_fails)}))
     .sort((a,b)=>b.c-a.c);
   el.innerHTML=`
-    <div class="section-hdr">Fail Attribution — ${periodLbl}</div>
+    ${secHdr('Fail Attribution','t1')}
     <p style="color:var(--warmgray);font-size:12px;margin:0 0 12px">Click a bar to highlight it and see that person's full fail list below.</p>
     <div style="display:grid;grid-template-columns:3fr 2fr;gap:16px;min-width:0">
       <div class="chart-box" style="min-width:0"><div id="ch-fa" class="plot-div"></div></div>
@@ -471,9 +590,8 @@ function showT1Drill(person,dff_fails){
 function renderPersonTab(tabId,roleCol,roleLabel){
   const el=document.getElementById(tabId);
   purgePlots(el);
-  const {dff}=getFiltered();
+  const {dff}=getFilteredFor(tabId);
   const g=grpState[tabId];
-  const periodLbl=getPeriodLabel();
   const sub=dff.filter(r=>r[roleCol]);
   if(!sub.length){el.innerHTML='<div style="padding:20px;color:var(--warmgray)">No data.</div>';return;}
 
@@ -519,10 +637,10 @@ function renderPersonTab(tabId,roleCol,roleLabel){
     return[nm,...periods,periods.reduce((s,v)=>s+v,0)];
   });
 
-  const fpyTooltip=`First Pass Yield (FPY) = panels that passed inspection on the first attempt ÷ total panels built, shown per ${roleLabel.toLowerCase()} technician. A panel 'fails' if it required any rework or correction before passing. Higher is better — 90% is the target.`;
+  const fpyTooltip=`First Pass Yield (FPY) = panels that passed inspection on the first attempt ÷ total panels built, shown per ${roleLabel.toLowerCase()} personnel. A panel 'fails' if it required any rework or correction before passing. Higher is better — 90% is the target.`;
 
   el.innerHTML=`
-    <div class="section-hdr">${roleLabel} Panels by Person — ${periodLbl}</div>
+    ${secHdr(`${roleLabel} Panels by Person`,tabId)}
     <div class="grp-btns">
       ${['Day','Week','Month'].map(g2=>`<button class="grp-btn${g===g2?' active':''}" onclick="setGrp('${tabId}','${g2}','${roleCol}','${roleLabel}')">${g2}</button>`).join('')}
     </div>
@@ -617,12 +735,12 @@ function showPersonDrill(tabId,person,dff,roleCol,roleLabel){
 // ─── TAB 5: Trends ────────────────────────────────────────────────────────────
 let trendsGrp='Week',compareBy='Quarter';
 
-function renderT5({dff}){
+function renderT5(){
   const el=document.getElementById('t5');
   purgePlots(el);
-  const periodLbl=getPeriodLabel();
+  const ptRows=getFilteredFor('t5-pt').dff;
   el.innerHTML=`
-    <div class="section-hdr">Panels Built — ${periodLbl}</div>
+    ${secHdr('Panels Built','t5-built')}
     <div style="display:flex;align-items:center;gap:8px;margin-bottom:12px">
       <label style="font-size:12px;font-weight:600;color:var(--navy)">Group by</label>
       <select id="tgrp-sel" onchange="setTrendsGrp(this.value)" style="font-size:13px;padding:4px 8px;border:1px solid #c8d0e7;border-radius:6px;color:var(--navy)">
@@ -631,7 +749,7 @@ function renderT5({dff}){
     </div>
     <div class="chart-box"><div id="ch-trend" class="plot-div" style="min-height:380px"></div></div>
 
-    <div class="section-hdr mt-2">Period Comparison</div>
+    ${secHdr('Period Comparison','t5-comp','mt-2')}
     <div style="display:flex;align-items:center;gap:8px;margin-bottom:12px">
       <label style="font-size:12px;font-weight:600;color:var(--navy)">Compare by</label>
       <select id="cgrp-sel" onchange="setCompare(this.value)" style="font-size:13px;padding:4px 8px;border:1px solid #c8d0e7;border-radius:6px;color:var(--navy)">
@@ -644,7 +762,7 @@ function renderT5({dff}){
     </div>
     <div id="comp-tbl" class="mt-2" style="margin-bottom:16px"></div>
 
-    <div class="section-hdr">Person Summary — ${periodLbl}</div>
+    ${secHdr('Person Summary','t5-ps')}
     <p style="color:var(--warmgray);font-size:12px;margin:0 0 8px">Panels built and fail rate by person for the selected period. Use Group by to drill into a specific time slice.</p>
     <div class="ps-filter-row" style="margin-bottom:12px">
       <div><label>Group by</label>
@@ -659,23 +777,24 @@ function renderT5({dff}){
     </div>
     <div id="person-summary"></div>
 
-    <div class="section-hdr mt-2">Person Trend — ${periodLbl}</div>
+    ${secHdr('Person Trend','t5-pt','mt-2')}
     <p style="color:var(--warmgray);font-size:12px;margin:0 0 8px">First Pass Yield % over time for a selected person. Layout, Wire, and Final lines show gaps when not active in that role.</p>
     <div class="ps-filter-row" style="margin-bottom:12px">
       <div><label>Person</label>
         <select id="ps-trend-name" onchange="onPsTrendPersonChange()">
           <option value="">— Select a person —</option>
-          ${[...new Set(dff.flatMap(r=>[r.Layout_Name,r.Wire_Name,r.FA_Name].filter(Boolean)))].sort()
+          ${[...new Set(ptRows.flatMap(r=>[r.Layout_Name,r.Wire_Name,r.FA_Name].filter(Boolean)))].sort()
             .map(nm=>`<option value="${nm}"${nm===psTrendPerson?' selected':''}>${nm}</option>`).join('')}
         </select>
       </div>
     </div>
     <div id="ps-trend-chart"></div>`;
 
-  drawTrend(dff);drawComparison();initPsSel();drawPersonSummary();drawPsTrend();
+  drawTrend();drawComparison();initPsSel();drawPersonSummary();drawPsTrend();
 }
 
-function drawTrend(dff){
+function drawTrend(){
+  const dff=getFilteredFor('t5-built').dff;
   const g=trendsGrp;
   const keyOf=r=>g==='Month'?r.MonthLabel:g==='Week'?'Wk '+r.Week:r._date.toLocaleDateString('en-US',{month:'short',day:'numeric'});
   const grps={};for(const r of dff){const k=keyOf(r);if(!grps[k])grps[k]={panels:0,fails:0,sort:r._date};grps[k].panels++;grps[k].fails+=r.Is_Fail;}
@@ -694,8 +813,9 @@ function drawTrend(dff){
 
 function drawComparison(){
   const c=compareBy;
+  const cmpRows=getFilteredFor('t5-comp').dff;
   const keyOf=r=>c==='Quarter'?r.Quarter:r.Month;
-  const grps={};for(const r of df){const k=keyOf(r),lbl=c==='Quarter'?r.Quarter:r.MonthLabel;if(!grps[k])grps[k]={panels:0,fails:0,label:lbl,sort:r._date};grps[k].panels++;grps[k].fails+=r.Is_Fail;}
+  const grps={};for(const r of cmpRows){const k=keyOf(r),lbl=c==='Quarter'?r.Quarter:r.MonthLabel;if(!grps[k])grps[k]={panels:0,fails:0,label:lbl,sort:r._date};grps[k].panels++;grps[k].fails+=r.Is_Fail;}
   const s=Object.entries(grps).sort((a,b)=>a[0].localeCompare(b[0]));
   const lbls=s.map(e=>e[1].label),panels=s.map(e=>e[1].panels);
   const failPcts=s.map(e=>(e[1].fails/e[1].panels*100).toFixed(1));
@@ -721,16 +841,17 @@ function drawComparison(){
 }
 
 function setTrendsGrp(g){
-  trendsGrp=g;const {dff}=getFiltered();drawTrend(dff);
+  trendsGrp=g;drawTrend();
 }
 function setCompare(c){
   compareBy=c;drawComparison();
 }
 
 // ── Person Summary filters ────────────────────────────────────────────────────
-function getPsBase(){
-  return getFiltered().dff;
-}
+// Person Summary table and Person Trend chart are independent sections, each
+// with its own period dropdown in its header.
+function getPsBase(){return getFilteredFor('t5-ps').dff;}
+function getPtBase(){return getFilteredFor('t5-pt').dff;}
 
 function onPsGrpChange(){
   psGrp=document.getElementById('ps-grp').value;
@@ -853,7 +974,7 @@ function rebuildPsTrend(grp){
 }
 
 function buildPsTrend(person,el,grp='auto'){
-  const base=getPsBase();
+  const base=getPtBase();
   const init=Object.keys(initMap).find(k=>initMap[k]===person)||person;
   const myRows=base.filter(r=>r.Layout===init||r.Wire===init||r.FA===init);
   if(!myRows.length){el.innerHTML='<p style="color:var(--warmgray)">No data in selected period.</p>';return;}
@@ -1041,29 +1162,33 @@ function buildTA(el){
     return{...r,lH,wH,fH,tH,aH,rH,dateB,isC,isO,Q_Result:joined.Pass_Fail||null,panFamily};
   });
 
-  const months=[...new Set(tm.filter(r=>r.dateB).map(r=>{
-    const d=r.dateB;return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}`;
-  }))].sort().reverse();
+  const quarters=[...new Set(tm.filter(r=>r.dateB).map(r=>fiscalQ(r.dateB)))].sort().reverse();
+  const taMonths=[...new Set(tm.filter(r=>r.dateB).map(r=>
+    `${r.dateB.getFullYear()}-${String(r.dateB.getMonth()+1).padStart(2,'0')}`))].sort().reverse();
   const allW=[...new Set(['layout_worker','wire_worker','final_worker','tech_worker'].flatMap(c=>tm.map(r=>r[c]).filter(Boolean)))].sort();
   const allP=[...new Set(tm.map(r=>r.panel_number).filter(Boolean))].sort();
 
   purgePlots(el);
+  const taCur=document.getElementById('ta-period')?.value||DEFAULT_PERIOD;
   el.innerHTML=`
-    <div class="section-hdr">⏱ Time Analysis — Actual vs Routing Hours</div>
+    <div class="section-hdr"><span>⏱ Time Analysis — Actual vs Routing Hours</span><span class="sec-dash">—</span>
+      <select class="sec-period" id="ta-period" title="Period for this section" onchange="onTaPeriodChange()">
+        ${PERIOD_OPTS.map(o=>`<option${o===taCur?' selected':''}>${o}</option>`).join('')}
+      </select>
+    </div>
     <div style="display:flex;gap:8px;align-items:center;margin-bottom:12px">
       <button class="grp-btn active" onclick="timingLoaded=false;renderT6()">🔄 Refresh tracker data</button>
       <span style="font-size:12px;color:var(--warmgray)">📊 ${tm.length} panels loaded from Supabase</span>
     </div>
     <div class="ta-filters">
-      <div><label>Time Period</label>
-        <select id="ta-period" onchange="onTaPeriodChange()">
-          ${['Last 7 Days','Last 30 Days','Last 90 Days','Last 6 Months','Last Year','By Month','All Time']
-            .map(o=>`<option${o==='Last 90 Days'?' selected':''}>${o}</option>`).join('')}
+      <div id="ta-qtr-wrap" style="display:none"><label>Fiscal quarter</label>
+        <select id="ta-qtr" onchange="drawTA(tm_ref)">
+          ${quarters.map(q=>`<option>${q}</option>`).join('')}
         </select>
       </div>
       <div id="ta-month-wrap" style="display:none"><label>Month</label>
         <select id="ta-month" onchange="drawTA(tm_ref)">
-          ${months.map(m=>`<option>${m}</option>`).join('')}
+          ${taMonths.map(m=>`<option value="${m}">${new Date(m+'-02').toLocaleDateString('en-US',{month:'short',year:'numeric'})}</option>`).join('')}
         </select>
       </div>
       <div style="display:flex;flex-direction:column;gap:6px">
@@ -1097,25 +1222,30 @@ function buildTA(el){
 
 function onTaPeriodChange(){
   const v=document.getElementById('ta-period').value;
-  document.getElementById('ta-month-wrap').style.display=v==='By Month'?'':'none';
+  document.getElementById('ta-qtr-wrap').style.display=v==='Quarterly (Fiscal)'?'':'none';
+  document.getElementById('ta-month-wrap').style.display=v==='Monthly'?'':'none';
   drawTA(window.tm_ref||[]);
 }
 
 function drawTA(tm){
   const period=document.getElementById('ta-period').value;
-  const selMonth=document.getElementById('ta-month')?.value;
+  const selQtr=document.getElementById('ta-qtr')?.value;
   const complete=document.getElementById('ta-complete').checked;
   const selW=document.getElementById('ta-workers').value;
   const selP=(document.getElementById('ta-panels').value||'').trim().toLowerCase();
 
-  const PD={'Last 7 Days':7,'Last 30 Days':30,'Last 90 Days':90,'Last 6 Months':182,'Last Year':365};
   const hasDates=tm.filter(r=>r.dateB);
   const maxD=hasDates.length?new Date(Math.max(...hasDates.map(r=>r.dateB))):new Date();
   let f=hasDates;
-  if(PD[period]){const c=new Date(maxD);c.setDate(c.getDate()-PD[period]);f=f.filter(r=>r.dateB>=c);}
-  else if(period==='By Month'){
-    f=f.filter(r=>{const d=r.dateB;return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}`===selMonth;});
-  } else if(period!=='All Time'){f=hasDates;}
+  if(period==='Quarterly (Fiscal)'){
+    f=f.filter(r=>fiscalQ(r.dateB)===selQtr);
+  } else if(period==='Monthly'){
+    const selM=document.getElementById('ta-month')?.value;
+    f=f.filter(r=>`${r.dateB.getFullYear()}-${String(r.dateB.getMonth()+1).padStart(2,'0')}`===selM);
+  } else if(period!=='All Time'){
+    const rg=periodRange(period,maxD);
+    if(rg)f=f.filter(r=>r.dateB>=rg.start&&(!rg.end||r.dateB<rg.end));
+  }
 
   if(complete)f=f.filter(r=>r.isC);
   if(selP)f=f.filter(r=>String(r.panel_number||'').toLowerCase().includes(selP));
@@ -1189,7 +1319,7 @@ function drawTA(tm){
     const workers=[...new Set(wRows.map(r=>r.worker))].sort();
     const stC={Layout:BLUE,Wire:NAVY,Final:'#4A90D9',Tech:'#7FAFD9'};
     purgePlots(wSec);
-    wSec.innerHTML=`<div class="section-hdr">Worker Time Breakdown</div>
+    wSec.innerHTML=`${subHdr('Worker Time Breakdown',taPeriodLabel())}
       <div class="chart-box"><div id="ch-workers" class="plot-div" style="min-height:360px"></div></div>
       <div id="worker-tbl" class="mt-2" style="margin-bottom:16px"></div>`;
     newPlot('ch-workers',stages.map(s=>({type:'bar',name:s,x:workers,
@@ -1223,7 +1353,7 @@ function drawTA(tm){
   const taColor=isOver?RED:GREEN,taBg=isOver?'#fff0f0':'#f0fff4';
 
   bdEl.innerHTML=`
-    <div class="section-hdr">Time Breakdown</div>
+    ${subHdr('Time Breakdown',taPeriodLabel())}
     <div style="display:grid;grid-template-columns:repeat(4,1fr);gap:10px;margin-bottom:16px">
       ${[['Avg Layout',aL],['Avg Wire',aW],['Avg Final',aF],['Avg Tech',aT]].map(([l,v])=>
         `<div class="kpi-card"><div class="kpi-label">${l}</div><div class="kpi-value" style="font-size:22px">${hms(v)||'—'}</div></div>`).join('')}
@@ -1245,7 +1375,7 @@ function drawTA(tm){
 
     <div id="quickest-teams"></div>
 
-    <div class="section-hdr">Panel Detail</div>
+    ${subHdr('Panel Detail',taPeriodLabel())}
     <div id="panel-detail"></div>`;
 
   // ── Quickest Teams ──
@@ -1337,6 +1467,9 @@ function handleFile(file){
       document.getElementById('dashboard').style.display='block';
       const quarters=[...new Set(df.map(r=>r.Quarter))].sort().reverse();
       document.getElementById('quarter-select').innerHTML=quarters.map(q=>`<option>${q}</option>`).join('');
+      const monthKeys=[...new Set(df.map(r=>r.Month))].sort().reverse();
+      document.getElementById('month-select').innerHTML=
+        monthKeys.map(m=>`<option value="${m}">${monthLabelOf(m)}</option>`).join('');
       render();
     }catch(err){
       const ee=document.getElementById('upload-error');
@@ -1375,8 +1508,10 @@ document.querySelectorAll('.tab-btn').forEach(btn=>{
 });
 
 function onPeriodChange(){
-  document.getElementById('quarter-select').style.display=
-    document.getElementById('period-select').value==='By Quarter'?'':'none';
+  const p=document.getElementById('period-select').value;
+  document.getElementById('quarter-select').style.display=p==='Quarterly (Fiscal)'?'':'none';
+  document.getElementById('month-select').style.display=p==='Monthly'?'':'none';
+  secPeriod={}; // top-of-page Period is master — drop per-section overrides
   render();
 }
 
@@ -1389,11 +1524,11 @@ function render(){
 
 function renderTab(tab){
   const data=getFiltered();
-  if(tab==='t1')renderT1(data);
+  if(tab==='t1')renderT1();
   else if(tab==='t2')renderPersonTab('t2','Layout','Layout');
   else if(tab==='t3')renderPersonTab('t3','Wire','Wire');
   else if(tab==='t4')renderPersonTab('t4','FA','Final');
-  else if(tab==='t5')renderT5(data);
+  else if(tab==='t5')renderT5();
   else if(tab==='t6')renderT6();
 }
 </script>
