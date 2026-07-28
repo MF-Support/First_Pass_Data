@@ -744,7 +744,7 @@ with tab6:
         "<div class='section-header'>⏱ Time Analysis — Actual vs Routing Hours</div>",
         unsafe_allow_html=True)
 
-    c_ref, _ = st.columns([1, 5])
+    c_ref, c_info, _ = st.columns([1, 3, 2])
     with c_ref:
         if st.button("🔄 Refresh tracker data", key="ta_refresh"):
             load_time_data.clear()
@@ -753,10 +753,18 @@ with tab6:
     try:
         with st.spinner("Loading tracker data…"):
             tm = load_time_data()
+            # Auto-clear stale cache if too few rows (e.g. cached before GRANT was applied)
+            if len(tm) < 10 and not tm.empty:
+                load_time_data.clear()
+                tm = load_time_data()
         ta_err = None
     except Exception as _e:
         tm = pd.DataFrame()
         ta_err = str(_e)
+
+    with c_info:
+        if not ta_err and not tm.empty:
+            st.caption(f"📊 {len(tm)} panels loaded from Supabase")
 
     if ta_err:
         st.error(f"Could not reach Supabase: {ta_err}")
