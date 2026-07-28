@@ -850,16 +850,6 @@ with tab6:
             right_on=['Panel', 'job_tail'], how='left'
         )
 
-        # ── DEBUG (temporary) ──
-        with st.expander("🔍 Debug — click to expand"):
-            st.write(f"Rows after fetch: {len(tm)}")
-            st.write(f"date_built null: {pd.to_datetime(tm['date_built']).isna().sum()}, non-null: {pd.to_datetime(tm['date_built']).notna().sum()}")
-            st.write(f"date_built sample: {tm['date_built'].head(5).tolist()}")
-            st.write(f"is_complete sample: {tm['is_complete'].head(5).tolist()}")
-            st.write(f"is_complete True count: {tm['is_complete'].isin([True,'true','True','TRUE',1]).sum()}")
-            _dbg_max = pd.to_datetime(tm['date_built']).max()
-            st.write(f"ta_max_date={_dbg_max}, cutoff (Last 90 Days)={_dbg_max - pd.Timedelta(days=90) if pd.notna(_dbg_max) else 'NaT'}")
-
         # ── Date filter ──
         ta_max_date = pd.to_datetime(tm['date_built']).max()
         ta_min_date = pd.to_datetime(tm['date_built']).min()
