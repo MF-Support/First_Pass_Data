@@ -191,6 +191,7 @@
       <button class="line-btn" onclick="selectLine('B')">B</button>
       <button class="line-btn" onclick="selectLine('C')">C</button>
       <button class="line-btn" onclick="selectLine('D')">D</button>
+      <button class="line-btn" onclick="selectLine('E')">E</button>
     </div>
     <label>How many panels on this job?</label>
     <input type="number" id="cf-job-qty" min="1" placeholder="e.g. 5" inputmode="numeric">
@@ -778,7 +779,7 @@ async function startStage() {
   }
 
   if (currentPanel._isFirstOfJob) {
-    if (!selectedLine) { toast('Select a production line (A, B, C, or D)'); return; }
+    if (!selectedLine) { toast('Select a production line (A, B, C, D, or E)'); return; }
     const qtyVal = parseInt(document.getElementById('cf-job-qty').value);
     if (!qtyVal || qtyVal < 1) { toast('Enter how many panels are on this job'); return; }
     currentPanel._pendingQty = qtyVal;

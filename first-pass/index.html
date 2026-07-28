@@ -141,13 +141,12 @@ input:checked+.toggle-slider:before{transform:translateX(18px);}
     <label>Period:</label>
     <select id="period-select" onchange="onPeriodChange()">
       <option>Daily</option><option>Weekly</option>
-      <option selected>This Month</option><option>Last Month</option>
+      <option selected>Monthly</option>
       <option>Last 3 Months</option><option>Last 6 Months</option>
-      <option>Last Year</option><option>Monthly</option>
+      <option>Last Year</option>
       <option>Quarterly (Fiscal)</option><option>All Time</option>
     </select>
-    <select id="quarter-select" style="display:none" onchange="onPeriodChange()"></select>
-    <select id="month-select" style="display:none" onchange="onPeriodChange()"></select>
+    <select id="sub-select" style="display:none" onchange="onSubChange()"></select>
     <span id="period-badge"></span>
     <span id="live-status" style="font-size:11px;margin-left:6px"></span>
     <button class="reset-btn" id="live-refresh" onclick="refreshLive()" title="Re-read the live feed now" style="display:none">⟳ Refresh</button>
@@ -183,7 +182,8 @@ input:checked+.toggle-slider:before{transform:translateX(18px);}
 <!-- Version changelog -->
 <div class="version-history">
   <details>
-    <summary>v1.15 — changelog (updated 2026-07-28)</summary>
+    <summary>v1.16 — changelog (updated 2026-07-28)</summary>
+    <b>v1.16</b> Daily, Weekly and Monthly now each get a second dropdown to pick exactly which day, which week (dated from its Sunday) or which month — same as Quarterly. Section headers work identically to the top bar. "This Month"/"Last Month" replaced by "Monthly". Panel tracker: added Line E<br>
     <b>v1.15</b> Live data: the dashboard now loads straight from the synced report and refreshes itself when the workbook changes — no upload needed. Status shown next to the period. Uploading a file still works as a fallback<br>
     <b>v1.14</b> New period set: Daily, Weekly, This Month, Last Month, Last 3/6 Months, Last Year, Monthly (pick a month), Quarterly (Fiscal), All Time — default is now This Month. Header renamed to First Pass Performance; Final by Person icon changed; FPY tooltip now reads "personnel" instead of "technician"<br>
     <b>v1.13</b> Period dropdown built into every section header — each section can be filtered independently; changing the top Period resets them all<br>
@@ -227,11 +227,26 @@ let psGrp='All Time', psSel='', psTrendPerson='', psTrendGrp='auto';
 // 'file' (manual upload fallback).
 let dataSource='file', liveTimer=null, liveLastSync=null;
 // Per-section period overrides, keyed by section id (see periodFor/secHdr).
-let secPeriod={};
-const PERIOD_OPTS=['Daily','Weekly','This Month','Last Month','Last 3 Months',
-                   'Last 6 Months','Last Year','Monthly','Quarterly (Fiscal)','All Time'];
-const MONTH_KEY=/^\d{4}-\d{2}$/; // concrete month value, e.g. "2026-07"
-const DEFAULT_PERIOD='This Month';
+// secPeriod holds the period name, secSub the chosen bucket for picker periods.
+let secPeriod={},secSub={};
+const PERIOD_OPTS=['Daily','Weekly','Monthly','Last 3 Months',
+                   'Last 6 Months','Last Year','Quarterly (Fiscal)','All Time'];
+const DEFAULT_PERIOD='Monthly';
+// Periods that select one exact bucket via a second dropdown, mapped to the row
+// field they match on. Anything not listed is a rolling window instead.
+const SUB_FIELD={'Daily':'DayStr','Weekly':'Week','Monthly':'Month','Quarterly (Fiscal)':'Quarter'};
+const SUB_NOUN={'Daily':'day','Weekly':'week','Monthly':'month','Quarterly (Fiscal)':'quarter'};
+function needsSub(p){return !!SUB_FIELD[p];}
+
+// Bucket key for an arbitrary Date — lets the Supabase-backed Time Analysis tab
+// reuse the exact same period logic as the workbook-backed tabs.
+function bucketKey(period,d){
+  if(period==='Daily')return fmtDate(d);
+  if(period==='Weekly')return weekStart(d);
+  if(period==='Monthly')return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}`;
+  if(period==='Quarterly (Fiscal)')return fiscalQ(d);
+  return '';
+}
 
 // Window for a period. Anchored to the newest record in the data rather than
 // wall-clock, so an uploaded file always lands on real rows even if the last
@@ -240,17 +255,40 @@ function periodRange(period,anchor){
   const a=anchor||new Date();
   const sod=d=>{const x=new Date(d);x.setHours(0,0,0,0);return x;};
   switch(period){
-    case 'Daily':         return{start:sod(a),end:null};
-    case 'Weekly':        {const s=sod(a);s.setDate(s.getDate()-s.getDay());return{start:s,end:null};}
-    case 'This Month':    return{start:new Date(a.getFullYear(),a.getMonth(),1),end:null};
-    case 'Last Month':    return{start:new Date(a.getFullYear(),a.getMonth()-1,1),
-                                 end:new Date(a.getFullYear(),a.getMonth(),1)};
     case 'Last 3 Months': {const s=sod(a);s.setMonth(s.getMonth()-3);return{start:s,end:null};}
     case 'Last 6 Months': {const s=sod(a);s.setMonth(s.getMonth()-6);return{start:s,end:null};}
     case 'Last Year':     {const s=sod(a);s.setFullYear(s.getFullYear()-1);return{start:s,end:null};}
   }
-  return null;
+  return null; // picker period — see SUB_FIELD
 }
+
+// Options for the second dropdown, newest first.
+function subOptions(period,rows){
+  const src=rows||df;
+  if(!src.length||!needsSub(period))return[];
+  const f=SUB_FIELD[period],seen=new Map();
+  for(const r of src)if(r[f]&&!seen.has(r[f]))seen.set(r[f],subLabel(period,r[f],r));
+  return[...seen.entries()].sort((a,b)=>String(b[0]).localeCompare(String(a[0])))
+    .map(([value,label])=>({value,label}));
+}
+
+function subLabel(period,v,row){
+  if(period==='Quarterly (Fiscal)')return v;
+  if(period==='Monthly'){
+    if(row&&row.MonthLabel)return row.MonthLabel;
+    const mm=String(v).match(/^(\d{4})-(\d{2})$/);
+    return mm?new Date(+mm[1],+mm[2]-1,1)
+      .toLocaleDateString('en-US',{month:'short',year:'numeric'}):v;
+  }
+  const m=String(v).match(/^(\d{4})-(\d{2})-(\d{2})$/);
+  if(!m)return v;
+  const d=new Date(+m[1],+m[2]-1,+m[3]);
+  if(period==='Weekly')
+    return 'Week of '+d.toLocaleDateString('en-US',{month:'short',day:'numeric',year:'numeric'});
+  return d.toLocaleDateString('en-US',{weekday:'short',month:'short',day:'numeric',year:'numeric'});
+}
+
+function defaultSub(period){const o=subOptions(period);return o.length?o[0].value:'';}
 
 // ─── Plotly base layout ───────────────────────────────────────────────────────
 const baseLay=()=>({
@@ -319,14 +357,15 @@ function tbl(cols,rows,rowCls){
     </tbody></table></div>`;
 }
 
-function getPeriodLabel(period,selQ){
+function getPeriodLabel(period,sub){
   period=period||globalPeriod();
-  selQ=selQ===undefined?globalQuarter():selQ;
+  if(sub===undefined)sub=needsSub(period)?(globalSub()||defaultSub(period)):'';
   if(!df.length)return period;
   if(period==='All Time')return 'All Time';
-  if(period==='Quarterly (Fiscal)')return selQ||period;
-  if(period==='Monthly')return monthLabelOf(globalMonth())||period;
-  if(MONTH_KEY.test(period))return monthLabelOf(period);
+  if(needsSub(period)){
+    if(!sub)return period;
+    return subLabel(period,sub,df.find(r=>r[SUB_FIELD[period]]===sub));
+  }
   const anchor=dataAnchor();
   const rg=periodRange(period,anchor);
   if(!rg)return period; // concrete quarter label
@@ -424,75 +463,71 @@ function parseExcel(buf){
 // dropdown in its own header; those overrides live in secPeriod and are cleared
 // whenever the top-of-page Period changes.
 function globalPeriod(){return document.getElementById('period-select')?.value||'All Time';}
-function globalQuarter(){return document.getElementById('quarter-select')?.value||'';}
-function globalMonth(){return document.getElementById('month-select')?.value||'';}
-function monthLabelOf(key){
-  const hit=df.find(r=>r.Month===key);
-  return hit?hit.MonthLabel:key;
-}
+function globalSub(){return document.getElementById('sub-select')?.value||'';}
 
 // A section's effective period. A global 'By Quarter' resolves to the concrete
 // quarter so section dropdowns always show a real, selectable value.
-// A section's effective period. Global "Quarterly (Fiscal)"/"Monthly" resolve to
-// the concrete quarter/month so section dropdowns show a real, selectable value.
-function periodFor(key){
-  if(secPeriod[key])return secPeriod[key];
-  const g=globalPeriod();
-  if(g==='Quarterly (Fiscal)')return globalQuarter()||'All Time';
-  if(g==='Monthly')return globalMonth()||'All Time';
-  return g;
+// A section's effective period, and the bucket it has selected. A section with
+// no override mirrors the top bar exactly — same period, same bucket.
+function periodFor(key){return secPeriod[key]||globalPeriod();}
+function subFor(key){
+  const p=periodFor(key);
+  if(!needsSub(p))return'';
+  if(secPeriod[key])return secSub[key]||defaultSub(p);
+  return globalSub()||defaultSub(p);
 }
 
 function dataAnchor(){
   return df.length?new Date(Math.max(...df.map(r=>r._date))):new Date();
 }
 
-function filterRowsByPeriod(rows,period,selQ){
+function filterRowsByPeriod(rows,period,sub){
   if(!rows.length||period==='All Time')return rows;
-  if(period==='Quarterly (Fiscal)')return rows.filter(r=>r.Quarter===selQ);
-  if(period==='Monthly')return rows.filter(r=>r.Month===globalMonth());
+  const f=SUB_FIELD[period];
+  if(f)return sub?rows.filter(r=>r[f]===sub):rows;
   const rg=periodRange(period,dataAnchor());
-  if(rg)return rows.filter(r=>r._date>=rg.start&&(!rg.end||r._date<rg.end));
-  if(MONTH_KEY.test(period))return rows.filter(r=>r.Month===period); // concrete month
-  return rows.filter(r=>r.Quarter===period);                        // concrete quarter
+  return rg?rows.filter(r=>r._date>=rg.start&&(!rg.end||r._date<rg.end)):rows;
 }
 
-function getFiltered(period,selQ){
+function getFiltered(period,sub){
   period=period||globalPeriod();
-  selQ=selQ===undefined?globalQuarter():selQ;
+  if(sub===undefined)sub=needsSub(period)?(globalSub()||defaultSub(period)):'';
   if(!df.length)return{dff:[],dff_fails:[],maxDate:new Date(),period};
-  const maxDate=new Date(Math.max(...df.map(r=>r._date)));
-  const dff=filterRowsByPeriod(df,period,selQ);
-  const dff_fails=filterRowsByPeriod(failExploded,period,selQ);
+  const maxDate=dataAnchor();
+  const dff=filterRowsByPeriod(df,period,sub);
+  const dff_fails=filterRowsByPeriod(failExploded,period,sub);
   const minDate=dff.length?new Date(Math.min(...dff.map(r=>r._date))):maxDate;
   return{dff,dff_fails,maxDate,minDate,period};
 }
 
 // Data for one section, honouring its own period override.
-function getFilteredFor(key){return getFiltered(periodFor(key),globalQuarter());}
+function getFilteredFor(key){return getFiltered(periodFor(key),subFor(key));}
 
 // Section header with an inline period dropdown: "Title — [period ▾]"
 function secHdr(title,key,extraCls){
-  const cur=periodFor(key);
-  // Sections list concrete months and fiscal quarters inline, instead of the top
-  // bar's "Monthly"/"Quarterly (Fiscal)" + separate picker, so one dropdown covers
-  // everything. Grouped so the list stays scannable as history grows.
-  const rel=PERIOD_OPTS.filter(p=>p!=='Monthly'&&p!=='Quarterly (Fiscal)'&&p!=='All Time');
-  const ms=[...new Set(df.map(r=>r.Month))].sort().reverse();
-  const qs=[...new Set(df.map(r=>r.Quarter))].sort().reverse();
-  const opt=(v,t)=>`<option value="${v}"${v===cur?' selected':''}>${t||v}</option>`;
-  const known=[...rel,'All Time',...ms,...qs];
+  // Same two-dropdown model as the top bar: period, then which bucket.
+  const cur=periodFor(key),sub=subFor(key);
+  const opt=(v,t,sel)=>`<option value="${v}"${sel?' selected':''}>${t||v}</option>`;
+  let subSel='';
+  if(needsSub(cur)){
+    const opts=subOptions(cur);
+    subSel=`<select class="sec-period sec-sub" title="Which ${SUB_NOUN[cur]}" `+
+      `onchange="onSecSubChange('${key}',this.value)">`+
+      opts.map(o=>opt(o.value,o.label,o.value===sub)).join('')+`</select>`;
+  }
   return `<div class="section-hdr${extraCls?' '+extraCls:''}"><span>${title}</span><span class="sec-dash">—</span>`+
     `<select class="sec-period" title="Period for this section" onchange="onSecPeriodChange('${key}',this.value)">`+
-    (known.includes(cur)?'':opt(cur))+
-    rel.map(o=>opt(o)).join('')+opt('All Time')+
-    (ms.length?`<optgroup label="Month">${ms.map(m=>opt(m,monthLabelOf(m))).join('')}</optgroup>`:'')+
-    (qs.length?`<optgroup label="Fiscal quarter">${qs.map(q=>opt(q)).join('')}</optgroup>`:'')+
-    `</select></div>`;
+    PERIOD_OPTS.map(p=>opt(p,p,p===cur)).join('')+
+    `</select>`+subSel+`</div>`;
 }
 
 function onSecPeriodChange(key,val){
   secPeriod[key]=val;
+  secSub[key]=defaultSub(val); // newest bucket of the newly chosen period
+  renderTab(activeTab);
+}
+function onSecSubChange(key,val){
+  secSub[key]=val;
   renderTab(activeTab);
 }
 
@@ -500,12 +535,34 @@ function onSecPeriodChange(key,val){
 // display the period owned by the Time Analysis header rather than their own picker.
 function taPeriodLabel(){
   const v=document.getElementById('ta-period')?.value||DEFAULT_PERIOD;
-  if(v==='Quarterly (Fiscal)')return document.getElementById('ta-qtr')?.value||v;
-  if(v==='Monthly'){
-    const m=document.getElementById('ta-month')?.value;
-    return m?new Date(m+'-02').toLocaleDateString('en-US',{month:'short',year:'numeric'}):v;
+  if(!needsSub(v))return v;
+  const sel=document.getElementById('ta-sub');
+  return sel&&sel.value?subLabel(v,sel.value,null):v;
+}
+
+// Buckets present in the tracker data for the chosen period.
+function taSubOptions(tm,period){
+  if(!needsSub(period))return[];
+  const seen=new Map();
+  for(const r of tm||[]){
+    if(!r.dateB)continue;
+    const k=bucketKey(period,r.dateB);
+    if(k&&!seen.has(k))seen.set(k,subLabel(period,k,null));
   }
-  return v;
+  return[...seen.entries()].sort((a,b)=>String(b[0]).localeCompare(String(a[0])))
+    .map(([value,label])=>({value,label}));
+}
+
+function populateTaSub(tm,keep){
+  const sel=document.getElementById('ta-sub');
+  if(!sel)return;
+  const p=document.getElementById('ta-period')?.value||DEFAULT_PERIOD;
+  const opts=taSubOptions(tm,p);
+  if(!opts.length){sel.style.display='none';sel.innerHTML='';return;}
+  sel.innerHTML=opts.map(o=>`<option value="${o.value}">${o.label}</option>`).join('');
+  if(keep&&opts.some(o=>o.value===keep))sel.value=keep;
+  sel.style.display='';
+  sel.title='Which '+SUB_NOUN[p];
 }
 function subHdr(title,label,extraCls){
   return `<div class="section-hdr${extraCls?' '+extraCls:''}"><span>${title}</span>`+
@@ -1190,35 +1247,24 @@ function buildTA(el){
     return{...r,lH,wH,fH,tH,aH,rH,dateB,isC,isO,Q_Result:joined.Pass_Fail||null,panFamily};
   });
 
-  const quarters=[...new Set(tm.filter(r=>r.dateB).map(r=>fiscalQ(r.dateB)))].sort().reverse();
-  const taMonths=[...new Set(tm.filter(r=>r.dateB).map(r=>
-    `${r.dateB.getFullYear()}-${String(r.dateB.getMonth()+1).padStart(2,'0')}`))].sort().reverse();
   const allW=[...new Set(['layout_worker','wire_worker','final_worker','tech_worker'].flatMap(c=>tm.map(r=>r[c]).filter(Boolean)))].sort();
   const allP=[...new Set(tm.map(r=>r.panel_number).filter(Boolean))].sort();
 
   purgePlots(el);
   const taCur=document.getElementById('ta-period')?.value||DEFAULT_PERIOD;
+  const taSubKeep=document.getElementById('ta-sub')?.value||'';
   el.innerHTML=`
     <div class="section-hdr"><span>⏱ Time Analysis — Actual vs Routing Hours</span><span class="sec-dash">—</span>
       <select class="sec-period" id="ta-period" title="Period for this section" onchange="onTaPeriodChange()">
         ${PERIOD_OPTS.map(o=>`<option${o===taCur?' selected':''}>${o}</option>`).join('')}
       </select>
+      <select class="sec-period sec-sub" id="ta-sub" style="display:none" onchange="drawTA(tm_ref)"></select>
     </div>
     <div style="display:flex;gap:8px;align-items:center;margin-bottom:12px">
       <button class="grp-btn active" onclick="timingLoaded=false;renderT6()">🔄 Refresh tracker data</button>
       <span style="font-size:12px;color:var(--warmgray)">📊 ${tm.length} panels loaded from Supabase</span>
     </div>
     <div class="ta-filters">
-      <div id="ta-qtr-wrap" style="display:none"><label>Fiscal quarter</label>
-        <select id="ta-qtr" onchange="drawTA(tm_ref)">
-          ${quarters.map(q=>`<option>${q}</option>`).join('')}
-        </select>
-      </div>
-      <div id="ta-month-wrap" style="display:none"><label>Month</label>
-        <select id="ta-month" onchange="drawTA(tm_ref)">
-          ${taMonths.map(m=>`<option value="${m}">${new Date(m+'-02').toLocaleDateString('en-US',{month:'short',year:'numeric'})}</option>`).join('')}
-        </select>
-      </div>
       <div style="display:flex;flex-direction:column;gap:6px">
         <label style="font-size:11px;font-weight:600;color:var(--navy)">Completed panels only</label>
         <label class="toggle-switch">
@@ -1245,19 +1291,18 @@ function buildTA(el){
     <div id="ta-breakdown"></div>`;
 
   window.tm_ref=tm;
+  populateTaSub(tm,taSubKeep);
   drawTA(tm);
 }
 
 function onTaPeriodChange(){
-  const v=document.getElementById('ta-period').value;
-  document.getElementById('ta-qtr-wrap').style.display=v==='Quarterly (Fiscal)'?'':'none';
-  document.getElementById('ta-month-wrap').style.display=v==='Monthly'?'':'none';
+  populateTaSub(window.tm_ref||[]);
   drawTA(window.tm_ref||[]);
 }
 
 function drawTA(tm){
   const period=document.getElementById('ta-period').value;
-  const selQtr=document.getElementById('ta-qtr')?.value;
+  const taSub=document.getElementById('ta-sub')?.value||'';
   const complete=document.getElementById('ta-complete').checked;
   const selW=document.getElementById('ta-workers').value;
   const selP=(document.getElementById('ta-panels').value||'').trim().toLowerCase();
@@ -1265,11 +1310,8 @@ function drawTA(tm){
   const hasDates=tm.filter(r=>r.dateB);
   const maxD=hasDates.length?new Date(Math.max(...hasDates.map(r=>r.dateB))):new Date();
   let f=hasDates;
-  if(period==='Quarterly (Fiscal)'){
-    f=f.filter(r=>fiscalQ(r.dateB)===selQtr);
-  } else if(period==='Monthly'){
-    const selM=document.getElementById('ta-month')?.value;
-    f=f.filter(r=>`${r.dateB.getFullYear()}-${String(r.dateB.getMonth()+1).padStart(2,'0')}`===selM);
+  if(needsSub(period)){
+    if(taSub)f=f.filter(r=>bucketKey(period,r.dateB)===taSub);
   } else if(period!=='All Time'){
     const rg=periodRange(period,maxD);
     if(rg)f=f.filter(r=>r.dateB>=rg.start&&(!rg.end||r.dateB<rg.end));
@@ -1488,11 +1530,7 @@ function toggleExpander(btn){
 function showDashboard(){
   document.getElementById('upload-section').style.display='none';
   document.getElementById('dashboard').style.display='block';
-  const quarters=[...new Set(df.map(r=>r.Quarter))].sort().reverse();
-  document.getElementById('quarter-select').innerHTML=quarters.map(q=>`<option>${q}</option>`).join('');
-  const monthKeys=[...new Set(df.map(r=>r.Month))].sort().reverse();
-  document.getElementById('month-select').innerHTML=
-    monthKeys.map(m=>`<option value="${m}">${monthLabelOf(m)}</option>`).join('');
+  populateSubSelect(true);
   updateLiveBadge();
   render();
 }
@@ -1644,11 +1682,28 @@ document.querySelectorAll('.tab-btn').forEach(btn=>{
 });
 
 function onPeriodChange(){
-  const p=document.getElementById('period-select').value;
-  document.getElementById('quarter-select').style.display=p==='Quarterly (Fiscal)'?'':'none';
-  document.getElementById('month-select').style.display=p==='Monthly'?'':'none';
-  secPeriod={}; // top-of-page Period is master — drop per-section overrides
+  populateSubSelect(true);
+  secPeriod={};secSub={}; // top-of-page Period is master — drop section overrides
   render();
+}
+
+function onSubChange(){
+  secPeriod={};secSub={};
+  render();
+}
+
+// Fill the top bar's second dropdown for the current period. reset=true selects
+// the newest bucket (period just changed); otherwise the selection is preserved.
+function populateSubSelect(reset){
+  const sel=document.getElementById('sub-select');
+  if(!sel)return;
+  const p=globalPeriod();
+  if(!needsSub(p)){sel.style.display='none';sel.innerHTML='';return;}
+  const prev=sel.value,opts=subOptions(p);
+  sel.innerHTML=opts.map(o=>`<option value="${o.value}">${o.label}</option>`).join('');
+  if(!reset&&opts.some(o=>o.value===prev))sel.value=prev;
+  sel.style.display=opts.length?'':'none';
+  sel.title='Which '+SUB_NOUN[p];
 }
 
 function render(){
