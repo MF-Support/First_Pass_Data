@@ -219,6 +219,10 @@ const baseLay=()=>({
 const pCfg={responsive:true,displayModeBar:true,
   modeBarButtonsToRemove:['select2d','lasso2d','autoScale2d'],displaylogo:false};
 function newPlot(id,data,lay){Plotly.newPlot(id,data,Object.assign(baseLay(),lay),pCfg);}
+function scrollToDrill(el){
+  const top=el.getBoundingClientRect().top+window.pageYOffset-80;
+  window.scrollTo({top:Math.max(0,top),behavior:'smooth'});
+}
 
 // ─── Utilities ────────────────────────────────────────────────────────────────
 const fmtDate=d=>d instanceof Date?d.toISOString().slice(0,10):'';
@@ -446,7 +450,7 @@ function showT1Drill(person,dff_fails){
       <div class="section-hdr">📋 ${person} — All Attributed Fails</div>
       ${tbl(['Date','Job #','Panel','Line','Role','Reason'],rows.map(r=>[fmtDate(r._date),r.Sales_Order||'',r.Panel||'',r.Line||'',roleOf(r),r.Reason||'']))}
     </div>`;
-  document.getElementById('t1-drilldown').scrollIntoView({behavior:'smooth',block:'nearest'});
+  scrollToDrill(document.getElementById('t1-drilldown'));
 }
 
 // ─── TABS 2/3/4: Person Panels ────────────────────────────────────────────────
@@ -584,7 +588,7 @@ function showPersonDrill(tabId,person,dff,roleCol,roleLabel){
       ${tbl(['Date','Job #','Pass/Fail','Panel','Line','Reason','Role','Failure Caused By'],
         roleRows.map(r=>r.cells),i=>roleRows[i].myFail?'row-fail':'')}
     </div>`;
-  drEl.scrollIntoView({behavior:'smooth',block:'nearest'});
+  scrollToDrill(drEl);
 }
 
 // ─── TAB 5: Trends ────────────────────────────────────────────────────────────
@@ -774,7 +778,7 @@ function togglePsDrill(idx){
   document.getElementById(`psa-${idx}`).style.transform='rotate(90deg)';
   const inner=document.getElementById(`psd-inner-${idx}`);
   inner.innerHTML='<div class="spinner-wrap"><div class="spinner"></div> Building trend…</div>';
-  setTimeout(()=>{buildPsTrend(person,inner,'auto');drRow.scrollIntoView({behavior:'smooth',block:'nearest'});},60);
+  setTimeout(()=>{buildPsTrend(person,inner,'auto');scrollToDrill(drRow);},60);
 }
 
 function rebuildPsTrend(grp,container){
@@ -1291,6 +1295,7 @@ document.querySelectorAll('.tab-btn').forEach(btn=>{
     btn.classList.add('active');
     const tab=btn.dataset.tab;activeTab=tab;
     document.getElementById(tab).classList.add('active');
+    window.scrollTo({top:0});
     if(tab==='t6'&&!timingLoaded)renderT6();
     else if(tab==='t6')buildTA(document.getElementById('t6'));
     else if(df.length)renderTab(tab);
