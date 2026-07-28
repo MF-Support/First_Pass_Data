@@ -12,11 +12,63 @@ Nobody logs in. No password is stored anywhere.
 
 ---
 
-## Before you start
+## Pick your route
 
-Check one thing: in Power Automate, create a flow and search actions for **HTTP**.
-If the plain `HTTP` action is greyed out or blocked, that tenant lacks the premium
-connector and this route stops here — tell me and I'll switch to a different approach.
+> **Power Automate's `HTTP` action needs a Premium licence**, which this tenant doesn't
+> have. That blocks Route B below unless a licence or the 90-day trial is enabled.
+
+| | **Route A · Scheduled script** | **Route B · Power Automate** |
+|---|---|---|
+| Premium licence | Not needed | **Required** |
+| Admin rights | Not needed | Not needed |
+| Runs when | PC is logged in | Always (cloud) |
+| Setup | 3 commands | ~10 flow actions |
+
+**Route A is the working option today** — jump to
+[Route A](#route-a--scheduled-script-no-licence-needed). It reads the same
+OneDrive-synced workbook and calls the same database functions, so the dashboard
+can't tell the difference. Route B stays documented in case a licence appears later.
+
+---
+
+## Route A — scheduled script (no licence needed)
+
+OneDrive already keeps the workbook current on your PC. This reads that local copy on a
+timer and pushes it up. No password, no app registration, no premium connector.
+
+Run these three lines once, from the folder containing the scripts:
+
+```powershell
+Install-Module ImportExcel -Scope CurrentUser -Force
+```
+
+Then open `sync-first-pass.ps1` and set `$Workbook` to the file's local path — in
+Explorer, Shift+Right-click the workbook and choose **Copy as path**.
+
+```powershell
+.\sync-first-pass.ps1          # verify it works, check the output
+.\register-sync-task.ps1       # schedule it every 15 minutes
+```
+
+`register-sync-task.ps1` creates a **per-user** scheduled task, so it needs no admin
+rights. It runs while you're logged in — fine for a shop-floor PC that stays signed in.
+
+Progress and errors go to `sync-first-pass.log` next to the scripts. To change the
+cadence, edit `$IntervalMin`; to remove it:
+
+```powershell
+Unregister-ScheduledTask -TaskName 'First Pass Sync' -Confirm:$false
+```
+
+The script reads columns **by position**, exactly like the dashboard's own parser, and
+loads through the staged path — so live data is only replaced once a full run succeeds.
+
+---
+
+## Route B — Power Automate
+
+Everything below applies to the flow route. Check first: create a flow and search
+actions for **HTTP**. If it's flagged Premium and blocked, use Route A instead.
 
 **Your ingest secret** (treat like a password — it's the only thing guarding writes):
 
@@ -229,7 +281,11 @@ serial numbers and `M/D/YYYY`, all verified.
   |---|---|
   | `Content-Type` | `application/json` |
   | `apikey` | *(anon key — Step 3)* |
-  | `Authorization` | `Bearer` + *(same anon key)* |
+  | `Authorization` | `Bearer ` followed by the same anon key |
+
+  > ⚠️ In the `Authorization` value, `Bearer` and the key are separated by **one space** —
+  > `Bearer eyJhbGci…`. Not a `+`, not a newline. A `+` makes it an unknown auth scheme
+  > and the call fails with `401`.
 
 - **Body** *(Option 1A — from the Run script action's dynamic content)*:
   ```json
