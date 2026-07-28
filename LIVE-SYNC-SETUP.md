@@ -38,15 +38,21 @@ where key = 'fp_ingest_secret';
 Two ways. **The flow needs one of them** — this step isn't optional, it's how the data
 gets read at all.
 
-| | **1A · Office Script** *(recommended)* | **1B · Connector only** |
+| | **1A · Office Script** ✅ **recommended** | **1B · Connector only** |
 |---|---|---|
-| Workbook must be an Excel **Table** | No — reads any sheet | **Yes** |
-| Row limit | None | 256 unless pagination is enabled |
-| Column changes | Handled by position | Re-map by header name |
+| Row limit | **None** — reads the whole sheet | 256 unless pagination is configured |
+| Changes your workbook | No | **Yes** — sheet must become an Excel Table |
+| Column headers renamed | Still works (reads by position) | **Breaks** — mapping is by header text |
+| Date conversion | Done in the script | Depends on a connector setting |
 | Extra flow actions | 0 | 2 (`Select`) |
 
-Pick **1B** if you'd rather not create a script. Pick **1A** if the sheet isn't a
-formatted Table, or if it's large.
+**Use 1A.** For handling every row it's the safer choice: no cap to configure, and it
+reads by column position exactly like the dashboard's own parser — so a renamed header
+can't silently break the sync. It also leaves the workbook untouched, which matters
+since other people use that file.
+
+1B's 256-row cap is *configurable*, not removable, and getting it wrong fails quietly
+rather than loudly. That's the main reason to avoid it here.
 
 ---
 
@@ -252,6 +258,42 @@ period. It re-checks every 60 seconds and redraws only when the workbook actuall
 changed. **⟳ Refresh** forces an immediate re-read.
 
 ---
+
+## Handling very large sheets (optional)
+
+The single POST in Step 2 is fine for typical volumes. If the sheet grows large enough
+that one request gets unwieldy, switch to the chunked path — it has **no row limit**,
+and live data is never partially replaced.
+
+Three calls, same URL pattern and headers as Step 2:
+
+**1. Begin** → `POST /rest/v1/rpc/fp_ingest_begin`
+```json
+{ "p_secret": "…" }
+```
+Returns `{ "ok": true, "token": "…" }`. Save `token` in a variable.
+
+**2. Send batches** → `POST /rest/v1/rpc/fp_ingest_chunk`
+
+Initialize an integer variable `idx = 0`, then **Do until** `idx >= length(<your rows>)`:
+```json
+{ "p_secret": "…", "p_token": "<token>",
+  "p_rows": @{take(skip(<your rows>, variables('idx')), 5000)} }
+```
+Increment `idx` by 5000 at the end of each loop. Batch size is yours to tune.
+
+**3. Commit** → `POST /rest/v1/rpc/fp_ingest_commit`
+```json
+{ "p_secret": "…", "p_token": "<token>", "p_names": <names array> }
+```
+
+Only this last call touches live data, and it does so in one transaction. Until it
+runs, the dashboard keeps serving the previous sync — so a flow that dies halfway
+leaves the last good data in place rather than a half-loaded table. Tokens are
+single-use, so a retried or duplicated run can't double-apply.
+
+Verified: 1200 rows over 3 batches, live data intact mid-load, wrong and reused tokens
+both rejected.
 
 ## Security notes
 
