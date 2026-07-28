@@ -31,7 +31,9 @@ body{background:var(--offwhite);font-family:'Inter',Arial,sans-serif;font-size:1
 .rp-sub{font-size:12px;color:var(--warmgray);margin:0 0 16px;line-height:1.55;}
 .rp-label{display:block;font-size:11px;font-weight:700;color:var(--navy);
   text-transform:uppercase;letter-spacing:.04em;margin-bottom:5px;}
-.rp-checks{display:grid;grid-template-columns:1fr 1fr;gap:6px 14px;margin-bottom:16px;}
+/* Column-major: fills the first column top-to-bottom, then the second. */
+.rp-checks{display:grid;grid-template-columns:1fr 1fr;grid-template-rows:repeat(3,auto);
+  grid-auto-flow:column;gap:6px 14px;margin-bottom:16px;}
 .rp-checks label{display:flex;align-items:center;gap:7px;font-size:13px;color:var(--navy);cursor:pointer;}
 .rp-row{display:flex;gap:14px;flex-wrap:wrap;margin-bottom:16px;}
 .rp-dialog select{width:100%;font-size:13px;padding:6px 8px;border:1px solid #c8d0e7;
@@ -79,6 +81,7 @@ body{background:var(--offwhite);font-family:'Inter',Arial,sans-serif;font-size:1
 .section-hdr .sec-period:hover{background:rgba(255,255,255,.26);}
 .section-hdr .sec-period:focus{outline:2px solid rgba(255,255,255,.5);outline-offset:1px;}
 .section-hdr .sec-period option{background:#fff;color:var(--navy);font-weight:500;}
+.section-hdr .sec-span{font-family:Arial;font-size:11.5px;font-weight:400;opacity:.72;margin-left:8px;white-space:nowrap;}
 
 .grp-btns{display:flex;gap:6px;margin-bottom:12px;}
 .grp-btn{background:#fff;border:1px solid #c8d0e7;border-radius:6px;padding:4px 12px;font-size:12px;font-weight:500;color:var(--navy);cursor:pointer;transition:background .15s;}
@@ -362,6 +365,54 @@ function subLabel(period,v,row){
 
 function defaultSub(period){const o=subOptions(period);return o.length?o[0].value:'';}
 
+// Calendar bounds a period actually covers, so a header can spell out the dates
+// behind a label like "FY26 Q4". Returns null when the label already IS the date
+// (Daily) or when there is nothing to resolve.
+function periodDateSpan(period,sub){
+  if(!df.length)return null;
+  const anchor=dataAnchor();
+  if(period==='All Time')
+    return{start:new Date(Math.min(...df.map(r=>r._date))),
+           end:new Date(Math.max(...df.map(r=>r._date)))};
+
+  if(needsSub(period)){
+    if(!sub||period==='Daily')return null;  // Daily's label is the date itself
+    if(period==='Weekly'){
+      const m=sub.match(/^(\d{4})-(\d{2})-(\d{2})$/);if(!m)return null;
+      const s=new Date(+m[1],+m[2]-1,+m[3]),e=new Date(s);e.setDate(e.getDate()+6);
+      return{start:s,end:e};
+    }
+    if(period==='Monthly'){
+      const m=sub.match(/^(\d{4})-(\d{2})$/);if(!m)return null;
+      return{start:new Date(+m[1],+m[2]-1,1),end:new Date(+m[1],+m[2],0)};
+    }
+    if(period==='Quarterly (Fiscal)'){
+      // Fiscal year starts Oct 1: Q1 Oct-Dec (prior calendar year), Q2 Jan-Mar,
+      // Q3 Apr-Jun, Q4 Jul-Sep — mirrors fiscalQ().
+      const m=sub.match(/^FY(\d{2})\s*Q(\d)$/);if(!m)return null;
+      const fy=2000+ +m[1],q=+m[2];
+      const startMonth={1:9,2:0,3:3,4:6}[q];
+      const year=q===1?fy-1:fy;
+      return{start:new Date(year,startMonth,1),end:new Date(year,startMonth+3,0)};
+    }
+    return null;
+  }
+
+  const rg=periodRange(period,anchor);
+  if(!rg)return null;
+  return{start:rg.start,end:rg.end?new Date(rg.end.getTime()-86400000):anchor};
+}
+
+function spanLabel(period,sub){
+  const sp=periodDateSpan(period,sub);
+  if(!sp)return'';
+  const f=d=>d.toLocaleDateString('en-US',{month:'short',day:'numeric'});
+  const sameYear=sp.start.getFullYear()===sp.end.getFullYear();
+  return sameYear
+    ? `${f(sp.start)} – ${f(sp.end)}, ${sp.end.getFullYear()}`
+    : `${f(sp.start)}, ${sp.start.getFullYear()} – ${f(sp.end)}, ${sp.end.getFullYear()}`;
+}
+
 // ─── Plotly base layout ───────────────────────────────────────────────────────
 const baseLay=()=>({
   plot_bgcolor:OFFWHITE, paper_bgcolor:OFFWHITE,
@@ -624,10 +675,12 @@ function secHdr(title,key,extraCls){
       `onchange="onSecSubChange('${key}',this.value)">`+
       opts.map(o=>opt(o.value,o.label,o.value===sub)).join('')+`</select>`;
   }
+  const span=spanLabel(cur,sub);
   return `<div class="section-hdr${extraCls?' '+extraCls:''}"><span>${title}</span><span class="sec-dash">—</span>`+
     `<select class="sec-period" title="Period for this section" onchange="onSecPeriodChange('${key}',this.value)">`+
     PERIOD_OPTS.map(p=>opt(p,p,p===cur)).join('')+
-    `</select>`+subSel+`</div>`;
+    `</select>`+subSel+
+    (span?`<span class="sec-span">(${esc(span)})</span>`:'')+`</div>`;
 }
 
 function onSecPeriodChange(key,val){
@@ -1770,8 +1823,12 @@ const REPORT_TABS=[
 
 function openReportDialog(){
   if(!df.length){alert('No data loaded yet.');return;}
-  document.getElementById('rp-tabs').innerHTML=REPORT_TABS.map(t=>
-    `<label><input type="checkbox" value="${t.id}" ${t.id==='t6'?'':'checked'}> ${esc(t.name)}</label>`).join('');
+  // Left column: the whole-shop views. Right column: the per-role breakdowns.
+  const dialogOrder=['t1','t5','t6','t2','t3','t4'];
+  document.getElementById('rp-tabs').innerHTML=dialogOrder.map(id=>{
+    const t=REPORT_TABS.find(x=>x.id===id);
+    return `<label><input type="checkbox" value="${t.id}" ${t.id==='t6'?'':'checked'}> ${esc(t.name)}</label>`;
+  }).join('');
 
   const ps=document.getElementById('rp-period');
   ps.innerHTML=PERIOD_OPTS.map(p=>`<option${p===globalPeriod()?' selected':''}>${esc(p)}</option>`).join('');
