@@ -96,6 +96,9 @@ table.dash-table tbody tr.row-fail:hover{background:#ffe0e0;}
 .toggle-slider:before{position:absolute;content:"";height:18px;width:18px;left:3px;bottom:3px;background:#fff;border-radius:50%;transition:.3s;}
 input:checked+.toggle-slider{background:var(--green);}
 input:checked+.toggle-slider:before{transform:translateX(18px);}
+.trace-card{cursor:pointer;background:#fff;border:1px solid #e0e4f0;border-radius:8px;padding:8px 14px;text-align:center;transition:opacity .2s,box-shadow .15s;user-select:none;min-width:80px;}
+.trace-card:hover{box-shadow:0 2px 8px rgba(0,0,0,.12);}
+.trace-card.off{opacity:.45;}
 .version-history{position:fixed;bottom:12px;left:12px;z-index:9999;font-family:Arial,sans-serif;font-size:10px;color:#aaa;line-height:1.5;max-width:260px;}
 .version-history summary{cursor:pointer;font-size:10px;color:#bbb;user-select:none;}
 .version-history summary:hover{color:#888;}
@@ -202,7 +205,7 @@ let df=[], initMap={}, knownInits=new Set(), failExploded=[];
 let timingData=[], timingLoaded=false;
 const grpState={t2:'Month',t3:'Month',t4:'Month'};
 let activeTab='t1';
-let psGrp='Month', psSel='', psPeriodSel='All Time', psDrillIdx=-1;
+let psGrp='Month', psSel='', psPeriodSel='All Time', psDrillIdx=-1, psDrillPerson=null;
 
 // ─── Plotly base layout ───────────────────────────────────────────────────────
 const baseLay=()=>({
@@ -732,6 +735,7 @@ function initPsSel(){
 function onPsPeriodChange(){
   psPeriodSel=document.getElementById('ps-period').value;
   psDrillIdx=-1;psSel='';
+  // psDrillPerson preserved — open row re-renders after redraw
   initPsSel();drawPersonSummary();
 }
 
@@ -788,6 +792,21 @@ function drawPersonSummary(){
   document.getElementById('person-summary').innerHTML=`<div class="tbl-wrap"><table class="dash-table">
     <thead><tr><th>Person</th><th>Layout Panels</th><th>Layout Fail%</th><th>Wire Panels</th><th>Wire Fail%</th><th>Final Panels</th><th>Final Fail%</th></tr></thead>
     <tbody>${rows}</tbody></table></div>`;
+
+  // Restore previously open person after filter change
+  if(psDrillPerson){
+    const newIdx=pRows.findIndex(r=>r.nm===psDrillPerson);
+    if(newIdx>=0){
+      document.getElementById(`psd-${newIdx}`).style.display='';
+      document.getElementById(`psa-${newIdx}`).style.transform='rotate(90deg)';
+      psDrillIdx=newIdx;
+      const inner=document.getElementById(`psd-inner-${newIdx}`);
+      inner.innerHTML='<div class="spinner-wrap"><div class="spinner"></div> Updating…</div>';
+      setTimeout(()=>buildPsTrend(psDrillPerson,inner),60);
+    } else {
+      psDrillPerson=null;
+    }
+  }
 }
 
 function togglePsDrill(idx){
@@ -795,13 +814,13 @@ function togglePsDrill(idx){
   if(psDrillIdx===idx){
     document.getElementById(`psd-${idx}`).style.display='none';
     document.getElementById(`psa-${idx}`).style.transform='';
-    psDrillIdx=-1;return;
+    psDrillIdx=-1;psDrillPerson=null;return;
   }
   if(psDrillIdx>=0){
     document.getElementById(`psd-${psDrillIdx}`).style.display='none';
     const prev=document.getElementById(`psa-${psDrillIdx}`);if(prev)prev.style.transform='';
   }
-  psDrillIdx=idx;
+  psDrillIdx=idx;psDrillPerson=person;
   const drRow=document.getElementById(`psd-${idx}`);
   drRow.style.display='';
   document.getElementById(`psa-${idx}`).style.transform='rotate(90deg)';
@@ -854,8 +873,30 @@ function buildPsTrend(person,el){
     else if(diff<-2){trendArrow='↓';trendColor=RED;trendText=`${diff.toFixed(1)}% — Declining`;}
   }
 
-  const trendId=`ps-tc-${Date.now()}`;
-  const detailId=`ps-det-${Date.now()}`;
+  const ts=Date.now();
+  const trendId=`ps-tc-${ts}`;
+  const detailId=`ps-det-${ts}`;
+  const legendId=`ps-lg-${ts}`;
+
+  // Build trace list with metadata
+  const traceDefs=[];
+  traceDefs.push({name:'Overall',color:NAVY,lineWidth:3,dash:'solid',markerSize:8,fpy:overallFpy,hover:'Overall FPY'});
+  if(layoutFpy.some(v=>v!==null))traceDefs.push({name:'Layout',color:BLUE,lineWidth:2,dash:'dot',markerSize:5,fpy:layoutFpy,hover:'Layout FPY'});
+  if(wireFpy.some(v=>v!==null))traceDefs.push({name:'Wire',color:BOLD[3],lineWidth:2,dash:'dot',markerSize:5,fpy:wireFpy,hover:'Wire FPY'});
+  if(finalFpy.some(v=>v!==null))traceDefs.push({name:'Final',color:BOLD[4],lineWidth:2,dash:'dot',markerSize:5,fpy:finalFpy,hover:'Final FPY'});
+
+  // Custom legend cards HTML
+  const legendCards=traceDefs.map((t,i)=>`
+    <div class="trace-card" id="tc-${ts}-${i}" data-plot-id="${trendId}" data-idx="${i}" data-color="${t.color}" onclick="toggleTrace(this)">
+      <div style="display:flex;align-items:center;gap:6px;justify-content:center;margin-bottom:6px">
+        <span style="display:inline-block;width:20px;height:${t.lineWidth+1}px;background:${t.color};border-radius:2px;${t.dash==='dot'?'background:repeating-linear-gradient(to right,'+t.color+' 0,'+t.color+' 4px,transparent 4px,transparent 7px)':''}"></span>
+        <span style="font-size:12px;font-weight:600;color:${t.color}">${t.name}</span>
+      </div>
+      <label class="toggle-switch" style="pointer-events:none;transform:scale(0.8);transform-origin:center">
+        <input type="checkbox" checked>
+        <span class="toggle-slider" style="background:${t.color}"></span>
+      </label>
+    </div>`).join('');
 
   el.innerHTML=`
     <div style="display:flex;align-items:center;gap:10px;margin-bottom:10px">
@@ -863,32 +904,25 @@ function buildPsTrend(person,el){
       <span style="font-size:13px;color:${trendColor};font-weight:600">${trendText}</span>
       <span style="font-size:11px;color:var(--warmgray);margin-left:6px">${myRows.length} panels · ${sorted.length} ${useWeek?'weeks':'months'}</span>
     </div>
+    <div style="display:flex;gap:8px;flex-wrap:wrap;margin-bottom:10px" id="${legendId}">${legendCards}</div>
     <div class="chart-box"><div id="${trendId}" style="min-height:280px"></div></div>
     <p style="font-size:11px;color:var(--warmgray);margin:6px 0 4px">Click any point on the chart to drill into panels from that period.</p>
     <div id="${detailId}"></div>`;
 
-  const traces=[];
-  traces.push({type:'scatter',name:'Overall',mode:'lines+markers',x:labels,y:overallFpy,
-    line:{color:NAVY,width:3},marker:{size:8,color:NAVY},connectgaps:true,
-    hovertemplate:'<b>%{x}</b><br>Overall FPY: %{y:.1f}%<extra></extra>'});
-  if(layoutFpy.some(v=>v!==null))traces.push({type:'scatter',name:'Layout',mode:'lines+markers',
-    x:labels,y:layoutFpy,line:{color:BLUE,width:2,dash:'dot'},marker:{size:5,color:BLUE},connectgaps:true,
-    hovertemplate:'<b>%{x}</b><br>Layout FPY: %{y:.1f}%<extra></extra>'});
-  if(wireFpy.some(v=>v!==null))traces.push({type:'scatter',name:'Wire',mode:'lines+markers',
-    x:labels,y:wireFpy,line:{color:BOLD[3],width:2,dash:'dot'},marker:{size:5,color:BOLD[3]},connectgaps:true,
-    hovertemplate:'<b>%{x}</b><br>Wire FPY: %{y:.1f}%<extra></extra>'});
-  if(finalFpy.some(v=>v!==null))traces.push({type:'scatter',name:'Final',mode:'lines+markers',
-    x:labels,y:finalFpy,line:{color:BOLD[4],width:2,dash:'dot'},marker:{size:5,color:BOLD[4]},connectgaps:true,
-    hovertemplate:'<b>%{x}</b><br>Final FPY: %{y:.1f}%<extra></extra>'});
+  const traces=traceDefs.map(t=>({
+    type:'scatter',name:t.name,mode:'lines+markers',x:labels,y:t.fpy,
+    line:{color:t.color,width:t.lineWidth,dash:t.dash},marker:{size:t.markerSize,color:t.color},
+    connectgaps:true,
+    hovertemplate:`<b>%{x}</b><br>${t.hover}: %{y:.1f}%<extra></extra>`,
+  }));
 
   newPlot(trendId,traces,{
-    height:280,
+    height:280,showlegend:false,
     xaxis:{tickangle:labels.length>8?-30:0,automargin:true},
     yaxis:{title:'FPY %',ticksuffix:'%',range:[0,105],automargin:true},
     shapes:[{type:'line',x0:0,x1:1,xref:'paper',y0:90,y1:90,yref:'y',line:{color:NAVY,dash:'dash',width:1}}],
     annotations:[{x:1,xref:'paper',y:90,yref:'y',xanchor:'right',text:'90% target',showarrow:false,font:{color:NAVY,size:10},yanchor:'bottom'}],
-    legend:{orientation:'h',y:-0.35},
-    margin:{l:50,r:20,t:20,b:90},
+    margin:{l:50,r:20,t:20,b:50},
   });
 
   const roleOf=r=>{const rs=[];if(r.Layout===init)rs.push('Layout');if(r.Wire===init)rs.push('Wire');if(r.FA===init)rs.push('Final');return rs.join('/');};
@@ -903,6 +937,19 @@ function buildPsTrend(person,el){
         bRows.map(r=>[fmtDate(r._date),r.Sales_Order||'',r.Panel||'',r.Line||'',roleOf(r),r.Pass_Fail||'',r.Reason||'']),
         i=>bRows[i].Is_Fail&&bRows[i].Fail_Inits.includes(init)?'row-fail':'')}`;
   });
+}
+
+function toggleTrace(card){
+  const plotId=card.dataset.plotId;
+  const idx=+card.dataset.idx;
+  const color=card.dataset.color;
+  const cb=card.querySelector('input');
+  const slider=card.querySelector('.toggle-slider');
+  const nowOn=!cb.checked;
+  cb.checked=nowOn;
+  slider.style.background=nowOn?color:'#ccc';
+  card.classList.toggle('off',!nowOn);
+  Plotly.restyle(plotId,{visible:nowOn?true:'legendonly'},[idx]);
 }
 
 // ─── TAB 6: Time Analysis ─────────────────────────────────────────────────────
