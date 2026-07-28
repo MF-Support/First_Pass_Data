@@ -194,12 +194,12 @@ input:checked+.toggle-slider:before{transform:translateX(18px);}
 <!-- Version changelog -->
 <div class="version-history">
   <details>
-    <summary>v1.17 — changelog (updated 2026-07-28)</summary>
+    <summary>v1.18 — changelog (updated 2026-07-28)</summary>
+    <b>v1.18</b> Layout/Wire/Final tables show “—” instead of 0 when someone did no work in that role for a period — totals are unchanged. Security hardening: tracker history can no longer be deleted by anyone outside the shop, and report text is now escaped before display<br>
     <b>v1.17</b> Live data is now fed automatically from the SharePoint report — the dashboard loads it on open and refreshes when the workbook changes. Fixed a limit that only showed the newest 1,000 records; the full history now loads<br>
     <b>v1.16</b> Daily, Weekly and Monthly now each get a second dropdown to pick exactly which day, which week (dated from its Sunday) or which month — same as Quarterly. Section headers work identically to the top bar. "This Month"/"Last Month" replaced by "Monthly". Panel tracker: added Line E<br>
     <b>v1.15</b> Live data: the dashboard now loads straight from the synced report and refreshes itself when the workbook changes — no upload needed. Status shown next to the period. Uploading a file still works as a fallback<br>
     <b>v1.14</b> New period set: Daily, Weekly, This Month, Last Month, Last 3/6 Months, Last Year, Monthly (pick a month), Quarterly (Fiscal), All Time — default is now This Month. Header renamed to First Pass Performance; Final by Person icon changed; FPY tooltip now reads "personnel" instead of "technician"<br>
-    <b>v1.13</b> Period dropdown built into every section header — each section can be filtered independently; changing the top Period resets them all
   </details>
 </div>
 
@@ -732,8 +732,10 @@ function renderPersonTab(tabId,roleCol,roleLabel){
   const pivotCols=['Person',...periodOrder,'Total'];
   const pivotRows=pivotTotals.map(({init})=>{
     const nm=initMap[init]||init;
-    const periods=periodOrder.map(pd=>(pppMap[nm]&&pppMap[nm][pd])||0);
-    return[nm,...periods,periods.reduce((s,v)=>s+v,0)];
+    const counts=periodOrder.map(pd=>(pppMap[nm]&&pppMap[nm][pd])||0);
+    // A period with no work in this role reads as "—", not 0: they weren't idle,
+    // they weren't in the role. The total still sums the real counts.
+    return[nm,...counts.map(v=>v||'—'),counts.reduce((s,v)=>s+v,0)];
   });
 
   const fpyTooltip=`First Pass Yield (FPY) = panels that passed inspection on the first attempt ÷ total panels built, shown per ${roleLabel.toLowerCase()} personnel. A panel 'fails' if it required any rework or correction before passing. Higher is better — 90% is the target.`;
