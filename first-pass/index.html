@@ -205,7 +205,7 @@ let df=[], initMap={}, knownInits=new Set(), failExploded=[];
 let timingData=[], timingLoaded=false;
 const grpState={t2:'Month',t3:'Month',t4:'Month'};
 let activeTab='t1';
-let psGrp='Month', psSel='', psPeriodSel='All Time', psDrillIdx=-1, psDrillPerson=null;
+let psPeriodSel='All Time', psDrillIdx=-1, psDrillPerson=null, psDrillGrp='auto';
 
 // ─── Plotly base layout ───────────────────────────────────────────────────────
 const baseLay=()=>({
@@ -617,26 +617,21 @@ function renderT5({dff}){
     <div id="comp-tbl" class="mt-2" style="margin-bottom:16px"></div>
 
     <div class="section-hdr">Person Summary</div>
-    <p style="color:var(--warmgray);font-size:12px;margin:0 0 8px">Panels and fail rate per person by role. Click any row to expand their trend.</p>
+    <p style="color:var(--warmgray);font-size:12px;margin:0 0 8px">Panels and fail rate per person by role. Click any row to expand their trend over time.</p>
     <div class="ps-filter-row">
-      <div><label>Period</label>
-        <select id="ps-period" onchange="onPsPeriodChange()">
-          ${['Last 7 Days','Last 30 Days','Last 90 Days','Last 6 Months','Last Year','All Time']
-            .map(v=>`<option${v===psPeriodSel?' selected':''}>${v}</option>`).join('')}
-        </select>
-      </div>
-      <div><label>Group by</label>
-        <select id="ps-grp" onchange="onPsGrpChange()">
-          ${['Day','Week','Month','Quarter','All Time'].map(v=>`<option${v===psGrp?' selected':''}>${v}</option>`).join('')}
-        </select>
-      </div>
-      <div id="ps-sel-wrap"><label id="ps-sel-lbl">Period</label>
-        <select id="ps-sel" onchange="drawPersonSummary()"></select>
+      <div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap">
+        <div><label>Period</label>
+          <select id="ps-period" onchange="onPsPeriodChange()">
+            ${['Last 7 Days','Last 30 Days','Last 90 Days','Last 6 Months','Last Year','All Time']
+              .map(v=>`<option${v===psPeriodSel?' selected':''}>${v}</option>`).join('')}
+          </select>
+        </div>
+        <span style="font-size:11px;color:var(--warmgray);padding-top:18px">↕ applies to table &amp; trend chart</span>
       </div>
     </div>
     <div id="person-summary"></div>`;
 
-  drawTrend(dff);drawComparison();initPsSel();drawPersonSummary();
+  drawTrend(dff);drawComparison();drawPersonSummary();
 }
 
 function drawTrend(dff){
@@ -703,61 +698,14 @@ function getPsBase(){
   return df;
 }
 
-function initPsSel(){
-  const base=getPsBase();
-  const wrap=document.getElementById('ps-sel-wrap');
-  const lbl=document.getElementById('ps-sel-lbl');
-  const sel=document.getElementById('ps-sel');
-  if(psGrp==='All Time'){wrap.style.display='none';return;}
-  wrap.style.display='';
-  let opts=[];
-  if(psGrp==='Day'){
-    lbl.textContent='Day';
-    opts=[...new Set(base.map(r=>r.DayStr))].sort().reverse();
-  } else if(psGrp==='Week'){
-    lbl.textContent='Week starting';
-    opts=[...new Set(base.map(r=>r.Week))].sort().reverse();
-  } else if(psGrp==='Month'){
-    lbl.textContent='Month';
-    const mm={};base.forEach(r=>mm[r.Month]=r.MonthLabel);
-    opts=Object.keys(mm).sort().reverse();
-    sel.innerHTML=opts.map(v=>`<option value="${v}"${v===psSel?' selected':''}>${mm[v]}</option>`).join('');
-    if(!psSel||!opts.includes(psSel))psSel=opts[0]||'';
-    return;
-  } else if(psGrp==='Quarter'){
-    lbl.textContent='Quarter';
-    opts=[...new Set(base.map(r=>r.Quarter))].sort().reverse();
-  }
-  sel.innerHTML=opts.map(v=>`<option${v===psSel?' selected':''}>${v}</option>`).join('');
-  if(!psSel||!opts.includes(psSel))psSel=opts[0]||'';
-}
-
 function onPsPeriodChange(){
   psPeriodSel=document.getElementById('ps-period').value;
-  psDrillIdx=-1;psSel='';
   // psDrillPerson preserved — open row re-renders after redraw
-  initPsSel();drawPersonSummary();
-}
-
-function onPsGrpChange(){
-  psGrp=document.getElementById('ps-grp').value;psSel='';psDrillIdx=-1;
-  initPsSel();drawPersonSummary();
-}
-
-function getPsData(){
-  const base=getPsBase();
-  if(psGrp==='All Time')return base;
-  const sel=document.getElementById('ps-sel')?.value||psSel;
-  psSel=sel;
-  if(psGrp==='Day')return base.filter(r=>r.DayStr===sel);
-  if(psGrp==='Week')return base.filter(r=>r.Week===sel);
-  if(psGrp==='Month')return base.filter(r=>r.Month===sel);
-  if(psGrp==='Quarter')return base.filter(r=>r.Quarter===sel);
-  return base;
+  drawPersonSummary();
 }
 
 function drawPersonSummary(){
-  const psData=getPsData();
+  const psData=getPsBase();
   const allInits=new Set();
   for(const r of psData)for(const c of['Layout','Wire','FA'])if(r[c])allInits.add(r[c]);
   const pRows=[...allInits].sort().map(init=>{
@@ -802,7 +750,7 @@ function drawPersonSummary(){
       psDrillIdx=newIdx;
       const inner=document.getElementById(`psd-inner-${newIdx}`);
       inner.innerHTML='<div class="spinner-wrap"><div class="spinner"></div> Updating…</div>';
-      setTimeout(()=>buildPsTrend(psDrillPerson,inner),60);
+      setTimeout(()=>buildPsTrend(psDrillPerson,inner,psDrillGrp),60);
     } else {
       psDrillPerson=null;
     }
@@ -820,25 +768,33 @@ function togglePsDrill(idx){
     document.getElementById(`psd-${psDrillIdx}`).style.display='none';
     const prev=document.getElementById(`psa-${psDrillIdx}`);if(prev)prev.style.transform='';
   }
-  psDrillIdx=idx;psDrillPerson=person;
+  psDrillIdx=idx;psDrillPerson=person;psDrillGrp='auto';
   const drRow=document.getElementById(`psd-${idx}`);
   drRow.style.display='';
   document.getElementById(`psa-${idx}`).style.transform='rotate(90deg)';
   const inner=document.getElementById(`psd-inner-${idx}`);
   inner.innerHTML='<div class="spinner-wrap"><div class="spinner"></div> Building trend…</div>';
-  setTimeout(()=>{buildPsTrend(person,inner);drRow.scrollIntoView({behavior:'smooth',block:'nearest'});},60);
+  setTimeout(()=>{buildPsTrend(person,inner,'auto');drRow.scrollIntoView({behavior:'smooth',block:'nearest'});},60);
 }
 
-function buildPsTrend(person,el){
+function rebuildPsTrend(grp,container){
+  if(!container||!psDrillPerson)return;
+  psDrillGrp=grp;
+  container.innerHTML='<div class="spinner-wrap"><div class="spinner"></div> Regrouping…</div>';
+  setTimeout(()=>buildPsTrend(psDrillPerson,container,grp),50);
+}
+
+function buildPsTrend(person,el,grp='auto'){
   const base=getPsBase();
   const init=Object.keys(initMap).find(k=>initMap[k]===person)||person;
   const myRows=base.filter(r=>r.Layout===init||r.Wire===init||r.FA===init);
   if(!myRows.length){el.innerHTML='<p style="color:var(--warmgray)">No data in selected period.</p>';return;}
 
   const span=myRows.length>1?(new Date(Math.max(...myRows.map(r=>r._date)))-new Date(Math.min(...myRows.map(r=>r._date))))/86400000:0;
-  const useWeek=span<=90;
-  const keyOf=r=>useWeek?'Wk '+r.Week:r.MonthLabel;
-  const sortOf=r=>useWeek?r.Week:r.Month;
+  const autoGrp=span<=30?'Day':span<=90?'Week':'Month';
+  const useGrp=grp==='auto'?autoGrp:grp;
+  const keyOf=r=>useGrp==='Day'?r.DayStr:useGrp==='Week'?'Wk '+r.Week:r.MonthLabel;
+  const sortOf=r=>useGrp==='Day'?r.DayStr:useGrp==='Week'?r.Week:r.Month;
 
   const buckets={};
   for(const r of myRows){
@@ -899,10 +855,20 @@ function buildPsTrend(person,el){
     </div>`).join('');
 
   el.innerHTML=`
-    <div style="display:flex;align-items:center;gap:10px;margin-bottom:10px">
+    <div style="display:flex;align-items:center;gap:10px;margin-bottom:10px;flex-wrap:wrap">
       <span style="font-size:26px;font-weight:700;color:${trendColor};line-height:1">${trendArrow}</span>
       <span style="font-size:13px;color:${trendColor};font-weight:600">${trendText}</span>
-      <span style="font-size:11px;color:var(--warmgray);margin-left:6px">${myRows.length} panels · ${sorted.length} ${useWeek?'weeks':'months'}</span>
+      <span style="font-size:11px;color:var(--warmgray);margin-left:4px">${myRows.length} panels · ${sorted.length} ${useGrp.toLowerCase()}s</span>
+      <div style="margin-left:auto;display:flex;align-items:center;gap:5px">
+        <label style="font-size:11px;color:var(--warmgray);white-space:nowrap">Chart groups by</label>
+        <select style="font-size:12px;padding:2px 6px;border:1px solid #c8d0e7;border-radius:5px;background:#fff"
+                onchange="rebuildPsTrend(this.value,this.closest('[id^=psd-inner]'))">
+          <option value="auto"${grp==='auto'?' selected':''}>Auto (${autoGrp})</option>
+          <option value="Day"${grp==='Day'?' selected':''}>Day</option>
+          <option value="Week"${grp==='Week'?' selected':''}>Week</option>
+          <option value="Month"${grp==='Month'?' selected':''}>Month</option>
+        </select>
+      </div>
     </div>
     <div style="display:flex;gap:8px;flex-wrap:wrap;margin-bottom:10px" id="${legendId}">${legendCards}</div>
     <div class="chart-box"><div id="${trendId}" style="min-height:280px"></div></div>
