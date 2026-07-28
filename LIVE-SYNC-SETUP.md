@@ -116,18 +116,24 @@ loads through the staged path — so live data is only replaced once a full run 
 Everything below applies to the flow route. Check first: create a flow and search
 actions for **HTTP**. If it's flagged Premium and blocked, use Route A instead.
 
-**Your ingest secret** (treat like a password — it's the only thing guarding writes):
+**Your ingest secret** guards all writes — treat it like a password.
 
-```
-2769cca6ec7318717d562a43548d1428a3babe3d85ced4cf
-```
+> ⚠️ **This repo is public** (it serves the tracker via GitHub Pages). The secret must
+> never appear in a tracked file. It lives in `sync-config.local.ps1`, which is
+> gitignored; the sync scripts read it from there and fail loudly if it's absent.
 
-Rotate any time with:
+To rotate — do this whenever it may have been exposed:
 ```sql
 update app_secrets
 set value = encode(gen_random_bytes(24),'hex')
 where key = 'fp_ingest_secret';
 ```
+Then put the new value in `sync-config.local.ps1`:
+```powershell
+$IngestSecret = '<new value>'
+```
+Rotating instantly invalidates the old one — no other cleanup needed, and any copy
+that leaked becomes worthless.
 
 ---
 
@@ -276,7 +282,7 @@ In Step 2's HTTP body, use the two `Select` outputs in place of the script resul
 
 ```json
 {
-  "p_secret": "2769cca6ec7318717d562a43548d1428a3babe3d85ced4cf",
+  "p_secret": "SEE-sync-config.local.ps1-NOT-STORED-IN-THIS-REPO",
   "p_rows":   @{body('Select')},
   "p_names":  @{body('Select_2')}
 }
@@ -336,7 +342,7 @@ serial numbers and `M/D/YYYY`, all verified.
 - **Body** *(Option 1A — from the Run script action's dynamic content)*:
   ```json
   {
-    "p_secret": "2769cca6ec7318717d562a43548d1428a3babe3d85ced4cf",
+    "p_secret": "SEE-sync-config.local.ps1-NOT-STORED-IN-THIS-REPO",
     "p_rows":   @{outputs('Run_script')?['body/result']?['rows']},
     "p_names":  @{outputs('Run_script')?['body/result']?['names']}
   }

@@ -347,10 +347,18 @@ function fiscalQ(d){
 
 function weekStart(d){const w=new Date(d);w.setDate(d.getDate()-d.getDay());return fmtDate(w);}
 
+// Table values come from the workbook and from Supabase, so they are untrusted
+// input rendered via innerHTML. Escape by default; a caller that genuinely needs
+// markup in a cell must opt in with rawHtml().
+const esc=v=>v==null?'':String(v).replace(/[&<>"']/g,
+  c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+const rawHtml=h=>({__html:h});
+const cellHtml=c=>(c&&typeof c==='object'&&'__html' in c)?c.__html:esc(c);
+
 function tbl(cols,rows,rowCls){
   return `<div class="tbl-wrap"><table class="dash-table">
-    <thead><tr>${cols.map(c=>`<th>${c}</th>`).join('')}</tr></thead>
-    <tbody>${rows.map((r,i)=>`<tr class="${rowCls?rowCls(i):''}">${r.map(c=>`<td>${c??''}</td>`).join('')}</tr>`).join('')}
+    <thead><tr>${cols.map(c=>`<th>${esc(c)}</th>`).join('')}</tr></thead>
+    <tbody>${rows.map((r,i)=>`<tr class="${rowCls?rowCls(i):''}">${r.map(c=>`<td>${cellHtml(c)}</td>`).join('')}</tr>`).join('')}
     </tbody></table></div>`;
 }
 
@@ -864,7 +872,7 @@ function renderT5(){
         <select id="ps-trend-name" onchange="onPsTrendPersonChange()">
           <option value="">— Select a person —</option>
           ${[...new Set(ptRows.flatMap(r=>[r.Layout_Name,r.Wire_Name,r.FA_Name].filter(Boolean)))].sort()
-            .map(nm=>`<option value="${nm}"${nm===psTrendPerson?' selected':''}>${nm}</option>`).join('')}
+            .map(nm=>`<option value="${esc(nm)}"${nm===psTrendPerson?' selected':''}>${esc(nm)}</option>`).join('')}
         </select>
       </div>
     </div>
@@ -959,7 +967,7 @@ function drawPersonSummary(){
   const fmtP=v=>v===null?'<td>—</td>':`<td class="${pctCls(v)}">${v.toFixed(1)}%</td>`;
   const rows=pRows.map(r=>`
     <tr>
-      <td>${r.nm}</td>
+      <td>${esc(r.nm)}</td>
       <td>${r.LayoutP||'—'}</td>${fmtP(r.LayoutF)}
       <td>${r.WireP||'—'}</td>${fmtP(r.WireF)}
       <td>${r.FinalP||'—'}</td>${fmtP(r.FinalF)}
@@ -1215,7 +1223,7 @@ function buildTA(el){
       <div><label>Filter by worker</label>
         <select id="ta-workers" onchange="drawTA(tm_ref)" style="font-size:13px;padding:4px 8px;border:1px solid #c8d0e7;border-radius:6px;color:var(--navy);min-width:150px">
           <option value="">All Workers</option>
-          ${allW.map(w=>`<option value="${w}">${w}</option>`).join('')}
+          ${allW.map(w=>`<option value="${esc(w)}">${esc(w)}</option>`).join('')}
         </select>
       </div>
       <div><label>Panel number</label>
@@ -1424,8 +1432,8 @@ function drawTA(tm){
       <div style="font-family:Georgia;font-size:14px;font-weight:bold;color:var(--navy);margin:8px 0 4px">Quickest Teams</div>
       <p style="color:var(--warmgray);font-size:12px;margin:0 0 8px">Layout by / Wire by / Final by / Tech by — sorted by avg completion time. Green = fastest.</p>
       <div class="tbl-wrap"><table class="dash-table">
-        <thead><tr>${tCols.map(c=>`<th>${c}</th>`).join('')}</tr></thead>
-        <tbody>${teamRows.map(r=>`<tr style="background:${r.bg}">${r.cells.map(c=>`<td>${c??''}</td>`).join('')}</tr>`).join('')}
+        <thead><tr>${tCols.map(c=>`<th>${esc(c)}</th>`).join('')}</tr></thead>
+        <tbody>${teamRows.map(r=>`<tr style="background:${r.bg}">${r.cells.map(c=>`<td>${cellHtml(c)}</td>`).join('')}</tr>`).join('')}
         </tbody></table></div>`;
   }
 
@@ -1448,7 +1456,7 @@ function drawTA(tm){
         ...(hasSeq?[r.panel_seq??'—']:[]),
         r.dateB?r.dateB.toLocaleDateString('en-CA'):'—',
         r.Q_Result||'—',
-        `<span class="${r.isO?'badge-over':'badge-ok'}">${r.isO?'Yes':'No'}</span>`,
+        rawHtml(`<span class="${r.isO?'badge-over':'badge-ok'}">${r.isO?'Yes':'No'}</span>`),
         r.layout_worker||'—',hms(r.lH),
         r.wire_worker||'—',hms(r.wH),
         r.final_worker||'—',hms(r.fH),

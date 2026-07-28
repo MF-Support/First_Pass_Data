@@ -26,7 +26,9 @@ $SheetNames   = 'Names'
 
 $SupabaseUrl  = 'https://ptbhguthosenkffjhbry.supabase.co'
 $AnonKey      = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InB0YmhndXRob3NlbmtmZmpoYnJ5Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODQ5MDkzNzAsImV4cCI6MjEwMDQ4NTM3MH0.y71yXWsIUjzFBqC4itzZ36w9ixw_QDej2RaBPh8MLPI'
-$IngestSecret = '2769cca6ec7318717d562a43548d1428a3babe3d85ced4cf'
+# Loaded from sync-config.local.ps1, which is gitignored. This repo is public,
+# so the secret must never be written into a tracked file.
+$IngestSecret = $null
 
 $BatchSize    = 5000
 $LogPath      = Join-Path $PSScriptRoot 'sync-first-pass.log'
@@ -35,6 +37,13 @@ $ForceSync    = $false     # set $true to sync even when unchanged
 
 # --- Helpers -----------------------------------------------------------------
 $ErrorActionPreference = 'Stop'
+
+# Pull the secret from the machine-local, untracked config.
+$cfg = Join-Path $PSScriptRoot 'sync-config.local.ps1'
+if (Test-Path $cfg) { . $cfg }
+if (-not $IngestSecret) {
+    throw "No ingest secret. Create $cfg containing:  `$IngestSecret = '<secret>'"
+}
 
 function Write-Log {
     param([string]$Message, [string]$Level = 'INFO')

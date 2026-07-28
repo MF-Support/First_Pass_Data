@@ -1,2 +1,6 @@
 sync-first-pass.log
 .last-modified
+
+# Never commit: holds the ingest secret. Machine-local only.
+sync-config.local.ps1
+.mcp.json
