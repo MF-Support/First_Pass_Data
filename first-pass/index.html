@@ -403,9 +403,9 @@ function renderT1({dff,dff_fails}){
   }],{
     title:{text:'Fails Attributed by Person',font:{family:'Georgia',color:NAVY,size:15}},
     coloraxis_showscale:false,
-    xaxis:{title:{text:'Fails Attributed',standoff:15}},
+    xaxis:{title:{text:'Fails Attributed',standoff:10},automargin:true},
     yaxis:{autorange:'reversed',tickfont:{size:11},automargin:true},
-    height:Math.max(300,sorted.length*42),margin:{l:10,r:70,t:40,b:20},
+    height:Math.max(300,sorted.length*42),margin:{l:10,r:70,t:40,b:60},
   });
 
   document.getElementById('ch-fa').on('plotly_click',d=>{
@@ -935,7 +935,7 @@ function drawTA(tm){
     hovertemplate:'<b>%{y}</b><br>Avg: %{text}<extra></extra>',
   }],{title:{text:'Avg Time per Stage',font:{family:'Georgia',color:NAVY,size:14}},
     showlegend:false,height:300,margin:{l:60,r:100,t:40,b:20},
-    xaxis:{title:{text:'Hours',standoff:15},tickformat:'.2f'},yaxis:{automargin:true}});
+    xaxis:{title:{text:'Hours',standoff:10},tickformat:'.2f',automargin:true},yaxis:{automargin:true},margin:{l:60,r:100,t:40,b:60}});
 
   // ── Worker breakdown ──
   const wRows=[];
