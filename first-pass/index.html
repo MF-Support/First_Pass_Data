@@ -207,7 +207,7 @@ let df=[], initMap={}, knownInits=new Set(), failExploded=[];
 let timingData=[], timingLoaded=false;
 const grpState={t2:'Month',t3:'Month',t4:'Month'};
 let activeTab='t1';
-let psGrp='All Time', psSel='', psTrendPerson='', psTrendGrp='auto';
+let psTrendPerson='', psTrendGrp='auto';
 // Live feed state. dataSource is 'live' (Supabase, fed by Power Automate) or
 // 'file' (manual upload fallback).
 let dataSource='file', liveTimer=null, liveLastSync=null;
@@ -836,18 +836,7 @@ function renderT5(){
     <div id="comp-tbl" class="mt-2" style="margin-bottom:16px"></div>
 
     ${secHdr('Person Summary','t5-ps')}
-    <p style="color:var(--warmgray);font-size:12px;margin:0 0 8px">Panels built and fail rate by person for the selected period. Use Group by to drill into a specific time slice.</p>
-    <div class="ps-filter-row" style="margin-bottom:12px">
-      <div><label>Group by</label>
-        <select id="ps-grp" onchange="onPsGrpChange()">
-          ${['All Time','Day','Week','Month','Quarter','Half Year','Year']
-            .map(v=>`<option${v===psGrp?' selected':''}>${v}</option>`).join('')}
-        </select>
-      </div>
-      <div id="ps-sel-wrap" style="display:none"><label id="ps-sel-lbl">Period</label>
-        <select id="ps-sel" onchange="drawPersonSummary()"></select>
-      </div>
-    </div>
+    <p style="color:var(--warmgray);font-size:12px;margin:0 0 8px">Panels built and fail rate by person for the period selected above.</p>
     <div id="person-summary"></div>
 
     ${secHdr('Person Trend','t5-pt','mt-2')}
@@ -863,7 +852,7 @@ function renderT5(){
     </div>
     <div id="ps-trend-chart"></div>`;
 
-  drawTrend();drawComparison();initPsSel();drawPersonSummary();drawPsTrend();
+  drawTrend();drawComparison();drawPersonSummary();drawPsTrend();
 }
 
 function drawTrend(){
@@ -926,69 +915,9 @@ function setCompare(c){
 function getPsBase(){return getFilteredFor('t5-ps').dff;}
 function getPtBase(){return getFilteredFor('t5-pt').dff;}
 
-function onPsGrpChange(){
-  psGrp=document.getElementById('ps-grp').value;
-  psSel='';
-  initPsSel();
-  drawPersonSummary();
-}
-
-function initPsSel(){
-  const base=getPsBase();
-  const wrap=document.getElementById('ps-sel-wrap');
-  if(!wrap)return;
-  if(psGrp==='All Time'){wrap.style.display='none';return;}
-  wrap.style.display='';
-  const lbl=document.getElementById('ps-sel-lbl');
-  const sel=document.getElementById('ps-sel');
-  let opts=[];
-  if(psGrp==='Day'){
-    lbl.textContent='Day';
-    opts=[...new Set(base.map(r=>r.DayStr))].sort().reverse();
-    sel.innerHTML=opts.map(v=>`<option${v===psSel?' selected':''}>${v}</option>`).join('');
-  } else if(psGrp==='Week'){
-    lbl.textContent='Week starting';
-    opts=[...new Set(base.map(r=>r.Week))].sort().reverse();
-    sel.innerHTML=opts.map(v=>`<option${v===psSel?' selected':''}>${v}</option>`).join('');
-  } else if(psGrp==='Month'){
-    lbl.textContent='Month';
-    const mm={};base.forEach(r=>mm[r.Month]=r.MonthLabel);
-    opts=Object.keys(mm).sort().reverse();
-    sel.innerHTML=opts.map(v=>`<option value="${v}"${v===psSel?' selected':''}>${mm[v]}</option>`).join('');
-  } else if(psGrp==='Quarter'){
-    lbl.textContent='Quarter';
-    opts=[...new Set(base.map(r=>r.Quarter))].sort().reverse();
-    sel.innerHTML=opts.map(v=>`<option${v===psSel?' selected':''}>${v}</option>`).join('');
-  } else if(psGrp==='Half Year'){
-    lbl.textContent='Half year';
-    const hm={};base.forEach(r=>hm[r.HalfYearSort]=r.HalfYear);
-    opts=Object.keys(hm).sort().reverse();
-    sel.innerHTML=opts.map(v=>`<option value="${v}"${v===psSel?' selected':''}>${hm[v]}</option>`).join('');
-  } else if(psGrp==='Year'){
-    lbl.textContent='Year';
-    opts=[...new Set(base.map(r=>r.YearStr))].sort().reverse();
-    sel.innerHTML=opts.map(v=>`<option${v===psSel?' selected':''}>${v}</option>`).join('');
-  }
-  if(!psSel||!opts.includes(psSel))psSel=sel.options[0]?.value||'';
-  if(sel.value!==psSel)sel.value=psSel;
-}
-
-function getPsData(){
-  const base=getPsBase();
-  if(psGrp==='All Time')return base;
-  const sel=document.getElementById('ps-sel')?.value||psSel;
-  psSel=sel;
-  if(psGrp==='Day')return base.filter(r=>r.DayStr===sel);
-  if(psGrp==='Week')return base.filter(r=>r.Week===sel);
-  if(psGrp==='Month')return base.filter(r=>r.Month===sel);
-  if(psGrp==='Quarter')return base.filter(r=>r.Quarter===sel);
-  if(psGrp==='Half Year')return base.filter(r=>r.HalfYearSort===sel);
-  if(psGrp==='Year')return base.filter(r=>r.YearStr===sel);
-  return base;
-}
 
 function drawPersonSummary(){
-  const psData=getPsData();
+  const psData=getPsBase();
   const allInits=new Set();
   for(const r of psData)for(const c of['Layout','Wire','FA'])if(r[c])allInits.add(r[c]);
   const pRows=[...allInits].sort().map(init=>{
