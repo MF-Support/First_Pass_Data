@@ -219,6 +219,14 @@ const baseLay=()=>({
 const pCfg={responsive:true,displayModeBar:true,
   modeBarButtonsToRemove:['select2d','lasso2d','autoScale2d'],displaylogo:false};
 function newPlot(id,data,lay){Plotly.newPlot(id,data,Object.assign(baseLay(),lay),pCfg);}
+// Replacing a pane's innerHTML detaches Plotly divs without tearing down their
+// internal state, leaving orphaned responsive-resize handlers bound to window.
+// Those orphans corrupt live chart geometry on the next resize (SVG overflows its
+// box and covers content below). Always purge before wiping a pane.
+function purgePlots(root){
+  if(!root||!window.Plotly)return;
+  root.querySelectorAll('.js-plotly-plot').forEach(d=>{try{Plotly.purge(d);}catch(e){}});
+}
 function scrollToDrill(el){
   const margin=Math.min(Math.round(window.innerHeight*0.5),480);
   const top=el.getBoundingClientRect().top+window.pageYOffset-margin;
@@ -385,6 +393,7 @@ function renderKPIs({dff,dff_fails,maxDate}){
 // ─── TAB 1: Fail Attribution ──────────────────────────────────────────────────
 function renderT1({dff,dff_fails}){
   const el=document.getElementById('t1');
+  purgePlots(el);
   const totalFails=dff.filter(r=>r.Is_Fail).length;
   const periodLbl=getPeriodLabel();
   if(!dff_fails.length){
@@ -461,6 +470,7 @@ function showT1Drill(person,dff_fails){
 // ─── TABS 2/3/4: Person Panels ────────────────────────────────────────────────
 function renderPersonTab(tabId,roleCol,roleLabel){
   const el=document.getElementById(tabId);
+  purgePlots(el);
   const {dff}=getFiltered();
   const g=grpState[tabId];
   const periodLbl=getPeriodLabel();
@@ -535,6 +545,13 @@ function renderPersonTab(tabId,roleCol,roleLabel){
     const pt=d.points[0];showPersonDrill(tabId,pt.customdata[0],dff,roleCol,roleLabel);
   });
 
+  // Paper y-units are a fraction of PLOT-AREA height, so a fixed y like 1.12 drifts
+  // further above the chart as the chart grows taller (more people). Convert a fixed
+  // pixel offset into paper units against the real plot area so it never clips.
+  const fpyH=Math.max(300,fpyRows.length*42),fpyT=62,fpyB=20;
+  const fpyPlotH=Math.max(1,fpyH-fpyT-fpyB);
+  const yAbove=px=>1+px/fpyPlotH;
+
   newPlot(`ch-fpy-${tabId}`,[{
     type:'bar',orientation:'h',
     y:fpyRows.map(r=>r.name),x:fpyRows.map(r=>r.fpy),
@@ -547,15 +564,16 @@ function renderPersonTab(tabId,roleCol,roleLabel){
     xaxis:{range:[0,118],title:'FPY %'},yaxis:{autorange:'reversed',automargin:true},
     shapes:[{type:'line',x0:90,x1:90,y0:0,y1:1,xref:'x',yref:'paper',line:{color:NAVY,dash:'dash',width:1.5}}],
     annotations:[
-      {x:90,y:1.05,xref:'x',yref:'paper',text:'90% target',showarrow:false,font:{color:NAVY,size:11}},
-      {x:0,y:1.12,xref:'paper',yref:'paper',
+      {x:90,y:yAbove(8),xref:'x',yref:'paper',text:'90% target',showarrow:false,
+       font:{color:NAVY,size:11},yanchor:'bottom'},
+      {x:0,y:yAbove(26),xref:'paper',yref:'paper',
        text:`First Pass Yield % — by ${roleLabel} Person  <b>ⓘ</b>`,
-       font:{size:15,color:NAVY,family:'Georgia'},showarrow:false,xanchor:'left',
+       font:{size:15,color:NAVY,family:'Georgia'},showarrow:false,xanchor:'left',yanchor:'bottom',
        hovertext:fpyTooltip,
        hoverlabel:{bgcolor:NAVY,font:{color:'#fff',family:'Arial',size:12},bordercolor:BLUE}},
     ],
-    height:Math.max(300,fpyRows.length*42),
-    margin:{l:10,r:80,t:55,b:20},
+    height:fpyH,
+    margin:{l:10,r:80,t:fpyT,b:fpyB},
   });
   document.getElementById(`ch-fpy-${tabId}`).on('plotly_click',d=>{
     const pt=d.points[0];showPersonDrill(tabId,pt.customdata[0],dff,roleCol,roleLabel);
@@ -601,6 +619,7 @@ let trendsGrp='Week',compareBy='Quarter';
 
 function renderT5({dff}){
   const el=document.getElementById('t5');
+  purgePlots(el);
   const periodLbl=getPeriodLabel();
   el.innerHTML=`
     <div class="section-hdr">Panels Built — ${periodLbl}</div>
@@ -814,6 +833,7 @@ function onPsTrendPersonChange(){
 function drawPsTrend(){
   const el=document.getElementById('ps-trend-chart');
   if(!el)return;
+  purgePlots(el);
   if(!psTrendPerson){
     el.innerHTML='<p style="color:var(--warmgray);padding:16px 0">Select a person above to view their FPY trend.</p>';
     return;
@@ -827,6 +847,7 @@ function rebuildPsTrend(grp){
   psTrendGrp=grp;
   const el=document.getElementById('ps-trend-chart');
   if(!el)return;
+  purgePlots(el);
   el.innerHTML='<div class="spinner-wrap"><div class="spinner"></div> Regrouping…</div>';
   setTimeout(()=>buildPsTrend(psTrendPerson,el,grp),50);
 }
@@ -1026,6 +1047,7 @@ function buildTA(el){
   const allW=[...new Set(['layout_worker','wire_worker','final_worker','tech_worker'].flatMap(c=>tm.map(r=>r[c]).filter(Boolean)))].sort();
   const allP=[...new Set(tm.map(r=>r.panel_number).filter(Boolean))].sort();
 
+  purgePlots(el);
   el.innerHTML=`
     <div class="section-hdr">⏱ Time Analysis — Actual vs Routing Hours</div>
     <div style="display:flex;gap:8px;align-items:center;margin-bottom:12px">
@@ -1112,8 +1134,10 @@ function drawTA(tm){
 
   if(!f.length){
     ['ch-scatter','ch-stages'].forEach(id=>{try{Plotly.purge(id);}catch(e){}});
-    document.getElementById('ta-worker-section').innerHTML='<div style="padding:16px;color:var(--warmgray)">No data matches the selected filters.</div>';
-    document.getElementById('ta-breakdown').innerHTML='';return;
+    const wS=document.getElementById('ta-worker-section'),bE=document.getElementById('ta-breakdown');
+    purgePlots(wS);purgePlots(bE);
+    wS.innerHTML='<div style="padding:16px;color:var(--warmgray)">No data matches the selected filters.</div>';
+    bE.innerHTML='';return;
   }
 
   // ── Scatter: actual vs routing ──
@@ -1164,6 +1188,7 @@ function drawTA(tm){
     const stages=[...new Set(wRows.map(r=>r.stage))];
     const workers=[...new Set(wRows.map(r=>r.worker))].sort();
     const stC={Layout:BLUE,Wire:NAVY,Final:'#4A90D9',Tech:'#7FAFD9'};
+    purgePlots(wSec);
     wSec.innerHTML=`<div class="section-hdr">Worker Time Breakdown</div>
       <div class="chart-box"><div id="ch-workers" class="plot-div" style="min-height:360px"></div></div>
       <div id="worker-tbl" class="mt-2" style="margin-bottom:16px"></div>`;
@@ -1180,11 +1205,12 @@ function drawTA(tm){
       ['Stage','Worker','Panels','Avg H:M:S','Min H:M:S','Max H:M:S'],
       wRows.sort((a,b)=>a.stage.localeCompare(b.stage)||a.worker.localeCompare(b.worker))
         .map(r=>[r.stage,r.worker,r.panels,hms(r.avg),hms(r.min),hms(r.max)]));
-  } else wSec.innerHTML='';
+  } else {purgePlots(wSec);wSec.innerHTML='';}
 
   // ── Time Breakdown ──
   const completed=f.filter(r=>r.aH);
   const bdEl=document.getElementById('ta-breakdown');
+  purgePlots(bdEl);
   if(!completed.length){bdEl.innerHTML='';return;}
 
   const mean=(arr,k)=>{const v=arr.map(r=>r[k]).filter(v=>v>0);return v.length?v.reduce((a,b)=>a+b,0)/v.length:null;};
@@ -1339,10 +1365,12 @@ document.querySelectorAll('.tab-btn').forEach(btn=>{
     const tab=btn.dataset.tab;activeTab=tab;
     document.getElementById(tab).classList.add('active');
     document.documentElement.scrollTop=0;document.body.scrollTop=0;
+    // Each tab re-plots its own charts below while the pane is visible, so no
+    // resize dispatch is needed. Firing one here also resized stale/detached
+    // plots, which corrupted live chart geometry.
     if(tab==='t6'&&!timingLoaded)renderT6();
     else if(tab==='t6')buildTA(document.getElementById('t6'));
     else if(df.length)renderTab(tab);
-    setTimeout(()=>window.dispatchEvent(new Event('resize')),50);
   });
 });
 
