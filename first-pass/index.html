@@ -394,11 +394,11 @@ function renderT1({dff,dff_fails}){
     <div id="t1-unattr"></div>`;
 
   newPlot('ch-fa',[{type:'bar',orientation:'h',
-    y:sorted.map(r=>r.n).reverse(),x:sorted.map(r=>r.c).reverse(),
-    text:sorted.map(r=>r.c).reverse(),textposition:'outside',cliponaxis:false,
-    marker:{color:sorted.map(r=>r.c).reverse(),colorscale:[[0,TINT],[.5,BLUE],[1,NAVY]],showscale:false},
+    y:sorted.map(r=>r.n),x:sorted.map(r=>r.c),
+    text:sorted.map(r=>r.c),textposition:'outside',cliponaxis:false,
+    marker:{color:sorted.map(r=>r.c),colorscale:[[0,TINT],[.5,BLUE],[1,NAVY]],showscale:false},
     selected:{marker:{opacity:1}},unselected:{marker:{opacity:0.3}},
-    customdata:sorted.map(r=>[r.n]).reverse(),
+    customdata:sorted.map(r=>[r.n]),
     hovertemplate:'<b>%{y}</b><br>%{x} fails<extra></extra>',
   }],{
     title:{text:'Fails Attributed by Person',font:{family:'Georgia',color:NAVY,size:15}},
