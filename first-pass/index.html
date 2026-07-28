@@ -128,7 +128,8 @@ input:checked+.toggle-slider:before{transform:translateX(18px);}
        ondrop="event.preventDefault();this.style.background='';handleFile(event.dataTransfer.files[0])">
     <div class="upload-icon">📂</div>
     <h2>Upload your report to get started</h2>
-    <p>Download the <b>First Pass Q Report</b> from Excel Online,<br>then drag it onto the uploader in the sidebar.</p>
+    <p>No live data yet — once the sync flow runs, this dashboard loads automatically.<br>
+       Until then, drop the <b>First Pass Q Report</b> .xlsx here.</p>
     <p style="color:#aaa;font-size:11px">Supports .xlsx files</p>
   </div>
   <input type="file" id="file-input" accept=".xlsx" style="display:none" onchange="handleFile(this.files[0])">
@@ -148,8 +149,10 @@ input:checked+.toggle-slider:before{transform:translateX(18px);}
     <select id="quarter-select" style="display:none" onchange="onPeriodChange()"></select>
     <select id="month-select" style="display:none" onchange="onPeriodChange()"></select>
     <span id="period-badge"></span>
+    <span id="live-status" style="font-size:11px;margin-left:6px"></span>
+    <button class="reset-btn" id="live-refresh" onclick="refreshLive()" title="Re-read the live feed now" style="display:none">⟳ Refresh</button>
     <span id="data-summary"></span>
-    <button class="reset-btn" onclick="resetDashboard()">⬆ New file</button>
+    <button class="reset-btn" onclick="resetDashboard()">⬆ Use a file instead</button>
   </div>
 
   <div id="kpi-row">
@@ -180,7 +183,8 @@ input:checked+.toggle-slider:before{transform:translateX(18px);}
 <!-- Version changelog -->
 <div class="version-history">
   <details>
-    <summary>v1.14 — changelog (updated 2026-07-28)</summary>
+    <summary>v1.15 — changelog (updated 2026-07-28)</summary>
+    <b>v1.15</b> Live data: the dashboard now loads straight from the synced report and refreshes itself when the workbook changes — no upload needed. Status shown next to the period. Uploading a file still works as a fallback<br>
     <b>v1.14</b> New period set: Daily, Weekly, This Month, Last Month, Last 3/6 Months, Last Year, Monthly (pick a month), Quarterly (Fiscal), All Time — default is now This Month. Header renamed to First Pass Performance; Final by Person icon changed; FPY tooltip now reads "personnel" instead of "technician"<br>
     <b>v1.13</b> Period dropdown built into every section header — each section can be filtered independently; changing the top Period resets them all<br>
     <b>v1.12.3</b> Fixed FPY chart title clipped in Layout/Wire/Final (scaled with headcount); fixed drilldown table hidden behind the bar chart after visiting another tab<br>
@@ -219,6 +223,9 @@ let timingData=[], timingLoaded=false;
 const grpState={t2:'Month',t3:'Month',t4:'Month'};
 let activeTab='t1';
 let psGrp='All Time', psSel='', psTrendPerson='', psTrendGrp='auto';
+// Live feed state. dataSource is 'live' (Supabase, fed by Power Automate) or
+// 'file' (manual upload fallback).
+let dataSource='file', liveTimer=null, liveLastSync=null;
 // Per-section period overrides, keyed by section id (see periodFor/secHdr).
 let secPeriod={};
 const PERIOD_OPTS=['Daily','Weekly','This Month','Last Month','Last 3 Months',
@@ -341,28 +348,28 @@ function topIssue(personName,dff_fails){
   return top?top[0].slice(0,70):'—';
 }
 
-// ─── Excel Parse ──────────────────────────────────────────────────────────────
-function parseExcel(buf){
-  const wb=XLSX.read(buf,{type:'array',cellDates:true});
-  initMap={};knownInits=new Set();
-  const ns=wb.Sheets['Names'];
-  if(ns) for(const r of XLSX.utils.sheet_to_json(ns)){
-    const i=String(r['Initials']||'').trim();
-    if(i&&r['Name']){initMap[i]=shortName(r['Name']);knownInits.add(i);}
-  }
-  const drName=wb.SheetNames.find(n=>n==='Daily Results')||wb.SheetNames.find(n=>n==='old daily results');
-  if(!drName)throw new Error('Could not find "Daily Results" sheet');
-  const COLS=['Panel','Date','Pass_Fail','Reason','Line','Emp','Routing_Hours','Tech','Layout','Wire','FA','Sales_Order'];
-  const raw=XLSX.utils.sheet_to_json(wb.Sheets[drName],{header:1});
+// ─── Row enrichment ───────────────────────────────────────────────────────────
+// Shared by the live Supabase feed and the file upload so both produce an
+// identical df/failExploded. Input rows use the workbook's column names.
+function toLocalDate(d){
+  if(!d)return null;
+  if(d instanceof Date)return d;
+  if(typeof d==='number')return new Date((d-25569)*86400*1000); // Excel serial
+  const s=String(d).trim();
+  // "2026-07-01" parses as UTC midnight, which lands on the previous day in
+  // US/Eastern. Build it in local time instead so the day never shifts.
+  const m=s.match(/^(\d{4})-(\d{2})-(\d{2})/);
+  if(m)return new Date(+m[1],+m[2]-1,+m[3]);
+  const dt=new Date(s);
+  return isNaN(dt)?null:dt;
+}
+
+function hydrateRows(records){
   df=[];failExploded=[];
-  for(let i=1;i<raw.length;i++){
-    const r=raw[i];if(!r||r.length<2)continue;
-    const row={};COLS.forEach((c,j)=>row[c]=r[j]);
-    let d=row['Date'];if(!d)continue;
-    if(d instanceof Date)row._date=d;
-    else if(typeof d==='number')row._date=new Date((d-25569)*86400*1000);
-    else row._date=new Date(d);
-    if(isNaN(row._date))continue;
+  for(const row of records){
+    const dt=toLocalDate(row.Date);
+    if(!dt||isNaN(dt))continue;
+    row._date=dt;
     const pf=String(row.Pass_Fail||'').trim().toUpperCase()
       .replace('FALL','FAIL').replace(/^PAS$/,'PASS').replace('FAIL ','FAIL');
     row.Pass_Fail=pf;
@@ -373,7 +380,6 @@ function parseExcel(buf){
     row.FA_Name=nm(row.FA);row.Tech_Name=nm(row.Tech);
     row.Fail_Inits=extractAllInitials(String(row.Reason||''),knownInits);
     row.Is_Fail=pf==='FAIL'?1:0;row.Is_Pass=pf==='PASS'?1:0;
-    const dt=row._date;
     row.Month=`${dt.getFullYear()}-${String(dt.getMonth()+1).padStart(2,'0')}`;
     row.MonthLabel=dt.toLocaleDateString('en-US',{month:'short',year:'numeric'});
     row.Quarter=fiscalQ(dt);
@@ -387,6 +393,28 @@ function parseExcel(buf){
     if(pf==='FAIL')for(const init of row.Fail_Inits)
       failExploded.push({...row,Fail_Init:init,Fail_Name:initMap[init]||init});
   }
+}
+
+// ─── Excel Parse ──────────────────────────────────────────────────────────────
+function parseExcel(buf){
+  const wb=XLSX.read(buf,{type:'array',cellDates:true});
+  initMap={};knownInits=new Set();
+  const ns=wb.Sheets['Names'];
+  if(ns) for(const r of XLSX.utils.sheet_to_json(ns)){
+    const i=String(r['Initials']||'').trim();
+    if(i&&r['Name']){initMap[i]=shortName(r['Name']);knownInits.add(i);}
+  }
+  const drName=wb.SheetNames.find(n=>n==='Daily Results')||wb.SheetNames.find(n=>n==='old daily results');
+  if(!drName)throw new Error('Could not find "Daily Results" sheet');
+  const COLS=['Panel','Date','Pass_Fail','Reason','Line','Emp','Routing_Hours','Tech','Layout','Wire','FA','Sales_Order'];
+  const raw=XLSX.utils.sheet_to_json(wb.Sheets[drName],{header:1});
+  const records=[];
+  for(let i=1;i<raw.length;i++){
+    const r=raw[i];if(!r||r.length<2)continue;
+    const row={};COLS.forEach((c,j)=>row[c]=r[j]);
+    records.push(row);
+  }
+  hydrateRows(records);
   if(!df.length)throw new Error('No data rows in Daily Results');
   df.sort((a,b)=>a._date-b._date);
 }
@@ -1457,20 +1485,27 @@ function toggleExpander(btn){
 }
 
 // ─── File handling ────────────────────────────────────────────────────────────
+function showDashboard(){
+  document.getElementById('upload-section').style.display='none';
+  document.getElementById('dashboard').style.display='block';
+  const quarters=[...new Set(df.map(r=>r.Quarter))].sort().reverse();
+  document.getElementById('quarter-select').innerHTML=quarters.map(q=>`<option>${q}</option>`).join('');
+  const monthKeys=[...new Set(df.map(r=>r.Month))].sort().reverse();
+  document.getElementById('month-select').innerHTML=
+    monthKeys.map(m=>`<option value="${m}">${monthLabelOf(m)}</option>`).join('');
+  updateLiveBadge();
+  render();
+}
+
 function handleFile(file){
   if(!file)return;
   const r=new FileReader();
   r.onload=e=>{
     try{
       parseExcel(e.target.result);
-      document.getElementById('upload-section').style.display='none';
-      document.getElementById('dashboard').style.display='block';
-      const quarters=[...new Set(df.map(r=>r.Quarter))].sort().reverse();
-      document.getElementById('quarter-select').innerHTML=quarters.map(q=>`<option>${q}</option>`).join('');
-      const monthKeys=[...new Set(df.map(r=>r.Month))].sort().reverse();
-      document.getElementById('month-select').innerHTML=
-        monthKeys.map(m=>`<option value="${m}">${monthLabelOf(m)}</option>`).join('');
-      render();
+      dataSource='file';
+      stopLivePolling();
+      showDashboard();
     }catch(err){
       const ee=document.getElementById('upload-error');
       ee.textContent='Error: '+err.message;ee.style.display='block';
@@ -1479,8 +1514,109 @@ function handleFile(file){
   r.readAsArrayBuffer(file);
 }
 
+// ─── Live feed ────────────────────────────────────────────────────────────────
+// Power Automate pushes the workbook into Supabase; the dashboard reads it with
+// the same anon key it already uses for tracker data. Upload stays as fallback.
+async function sbGet(path){
+  const res=await fetch(`${SB_URL}/rest/v1/${path}`,
+    {headers:{'apikey':SB_ANON,'Authorization':'Bearer '+SB_ANON,'Accept':'application/json'}});
+  if(!res.ok)throw new Error('HTTP '+res.status);
+  return res.json();
+}
+
+async function loadLive(){
+  const [rows,names,state]=await Promise.all([
+    sbGet('fp_daily_results?select=*&order=work_date.desc&limit=100000'),
+    sbGet('fp_names?select=*'),
+    sbGet('fp_sync_state?select=last_sync,row_count&limit=1'),
+  ]);
+  initMap={};knownInits=new Set();
+  for(const n of names){
+    const i=String(n.initials||'').trim().toUpperCase();
+    if(i&&n.full_name){initMap[i]=shortName(n.full_name);knownInits.add(i);}
+  }
+  hydrateRows(rows.map(r=>({
+    Panel:r.panel,Date:r.work_date,Pass_Fail:r.pass_fail,Reason:r.reason,
+    Line:r.line,Emp:r.emp,Routing_Hours:r.routing_hours,Tech:r.tech,
+    Layout:r.layout,Wire:r.wire,FA:r.fa,Sales_Order:r.sales_order})));
+  liveLastSync=state&&state[0]?state[0].last_sync:null;
+  return df.length;
+}
+
+function updateLiveBadge(){
+  const el=document.getElementById('live-status');
+  const btn=document.getElementById('live-refresh');
+  if(!el)return;
+  if(dataSource==='live'){
+    const t=liveLastSync?new Date(liveLastSync):null;
+    el.innerHTML=`<span style="color:var(--green)">●</span> Live · updated `+
+      (t?t.toLocaleString('en-US',{month:'short',day:'numeric',hour:'numeric',minute:'2-digit'}):'—');
+    el.style.color='var(--green)';
+    if(btn)btn.style.display='';
+  }else{
+    el.innerHTML='<span style="color:var(--warmgray)">●</span> From uploaded file';
+    el.style.color='var(--warmgray)';
+    if(btn)btn.style.display='none';
+  }
+}
+
+async function refreshLive(){
+  const el=document.getElementById('live-status');
+  if(el)el.innerHTML='<span style="color:var(--blue)">●</span> Refreshing…';
+  try{
+    if(await loadLive()){dataSource='live';showDashboard();}
+  }catch(e){
+    if(el)el.innerHTML='<span style="color:var(--red)">●</span> Refresh failed';
+  }
+}
+
+// Poll the sync marker only; re-render just when the workbook actually changed.
+function startLivePolling(){
+  stopLivePolling();
+  liveTimer=setInterval(async()=>{
+    if(dataSource!=='live')return;
+    try{
+      const s=await sbGet('fp_sync_state?select=last_sync&limit=1');
+      const ts=s&&s[0]?s[0].last_sync:null;
+      if(ts&&ts!==liveLastSync){await loadLive();showDashboard();}
+    }catch(e){/* transient network issue — try again next tick */}
+  },60000);
+}
+function stopLivePolling(){if(liveTimer){clearInterval(liveTimer);liveTimer=null;}}
+
+async function initLive(){
+  try{
+    if(!(await loadLive())){
+      console.info('Live feed reachable but empty — waiting for the first sync.');
+      return false;
+    }
+    dataSource='live';
+    showDashboard();
+    startLivePolling();
+    return true;
+  }catch(e){
+    // Never fail silently: the upload card is the fallback, but say why.
+    console.warn('Live feed unavailable:',e.message);
+    const ee=document.getElementById('upload-error');
+    if(ee&&document.getElementById('dashboard').style.display==='none'){
+      ee.textContent='Live feed unavailable ('+e.message+') — upload a file to continue.';
+      ee.style.display='block';
+    }
+    return false;
+  }
+}
+
+// Try the live feed first; fall back to the upload card if it's empty or
+// unreachable. One retry covers a transient hiccup on a cold load.
+function bootLive(){
+  initLive().then(ok=>{ if(!ok)setTimeout(()=>initLive(),1500); });
+}
+if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',bootLive);
+else bootLive();
+
 function resetDashboard(){
   df=[];failExploded=[];timingLoaded=false;timingData=[];
+  dataSource='file';stopLivePolling();
   document.getElementById('upload-section').style.display='';
   document.getElementById('dashboard').style.display='none';
   document.getElementById('upload-error').style.display='none';
