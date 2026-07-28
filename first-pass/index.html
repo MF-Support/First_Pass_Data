@@ -430,10 +430,18 @@ function renderT1({dff,dff_fails}){
 
 function showT1Drill(person,dff_fails){
   const rows=dff_fails.filter(r=>r.Fail_Name===person).sort((a,b)=>b._date-a._date);
+  const roleOf=r=>{
+    const roles=[];
+    if(r.Layout===r.Fail_Init)roles.push('Layout');
+    if(r.Wire===r.Fail_Init)roles.push('Wire');
+    if(r.FA===r.Fail_Init)roles.push('Final');
+    if(r.Tech===r.Fail_Init)roles.push('Tech');
+    return roles.join('/')||'—';
+  };
   document.getElementById('t1-drilldown').innerHTML=`
     <div class="drilldown-box">
       <div class="section-hdr">📋 ${person} — All Attributed Fails</div>
-      ${tbl(['Date','Job #','Panel','Line','Reason'],rows.map(r=>[fmtDate(r._date),r.Sales_Order||'',r.Panel||'',r.Line||'',r.Reason||'']))}
+      ${tbl(['Date','Job #','Panel','Line','Role','Reason'],rows.map(r=>[fmtDate(r._date),r.Sales_Order||'',r.Panel||'',r.Line||'',roleOf(r),r.Reason||'']))}
     </div>`;
   document.getElementById('t1-drilldown').scrollIntoView({behavior:'smooth',block:'nearest'});
 }
