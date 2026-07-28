@@ -458,7 +458,10 @@ function periodFor(key){return secPeriod[key]||globalPeriod();}
 function subFor(key){
   const p=periodFor(key);
   if(!needsSub(p))return'';
-  if(secPeriod[key])return secSub[key]||defaultSub(p);
+  // An explicit bucket pick wins even when the section is otherwise inheriting
+  // the top bar's period — picking a month is itself an override.
+  if(secSub[key])return secSub[key];
+  if(secPeriod[key])return defaultSub(p);
   return globalSub()||defaultSub(p);
 }
 
