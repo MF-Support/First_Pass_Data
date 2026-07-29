@@ -56,6 +56,11 @@ body{background:var(--offwhite);font-family:'Inter',Arial,sans-serif;font-size:1
 #controls-bar{position:sticky;top:0;z-index:200;background:#fff;border-bottom:1px solid #e0e4f0;padding:8px 20px;display:flex;gap:10px;align-items:center;flex-wrap:wrap;box-shadow:0 2px 8px rgba(0,14,87,.06);}
 #controls-bar label{font-size:12px;color:var(--navy);font-weight:600;margin:0;}
 #controls-bar select{font-size:13px;padding:4px 8px;border:1px solid #c8d0e7;border-radius:6px;color:var(--navy);background:#fff;}
+#controls-bar input[type=date]{font-size:13px;padding:3px 6px;border:1px solid #c8d0e7;border-radius:6px;color:var(--navy);background:#fff;}
+.sec-range{display:inline-flex;align-items:center;gap:4px;margin-left:2px;}
+.sec-range-input{font-family:Arial;font-size:12px;padding:2px 5px;border:1px solid rgba(255,255,255,.4);
+  border-radius:5px;background:rgba(255,255,255,.14);color:#fff;color-scheme:dark;}
+.sec-range-input::-webkit-calendar-picker-indicator{filter:invert(1);opacity:.8;}
 #period-badge{color:var(--blue);font-size:12px;font-weight:600;}
 #data-summary{margin-left:auto;color:var(--warmgray);font-size:11px;}
 .reset-btn{background:transparent;border:1px solid #c8d0e7;color:var(--navy);border-radius:6px;padding:4px 10px;font-size:12px;cursor:pointer;}
@@ -241,8 +246,14 @@ input:checked+.toggle-slider:before{transform:translateX(18px);}
       <option>Last 3 Months</option><option>Last 6 Months</option>
       <option>Last Year</option>
       <option>Quarterly (Fiscal)</option><option>All Time</option>
+      <option>Custom Range</option>
     </select>
     <select id="sub-select" style="display:none" onchange="onSubChange()"></select>
+    <span id="custom-range-wrap" style="display:none;align-items:center;gap:4px">
+      <input type="date" id="custom-start" onchange="onCustomRangeChange('start',this.value)">
+      <span style="color:var(--warmgray)">–</span>
+      <input type="date" id="custom-end" onchange="onCustomRangeChange('end',this.value)">
+    </span>
     <span id="period-badge"></span>
     <span id="live-status" style="font-size:11px;margin-left:6px"></span>
     <button class="reset-btn" id="live-refresh" onclick="refreshLive()" title="Re-read the live feed now" style="display:none">⟳ Refresh</button>
@@ -260,9 +271,9 @@ input:checked+.toggle-slider:before{transform:translateX(18px);}
 
   <div id="tab-nav">
     <button class="tab-btn active" data-tab="t1">📛 Fail Attribution</button>
-    <button class="tab-btn" data-tab="t2">🔧 Layout by Person</button>
+    <button class="tab-btn" data-tab="t2">🪛 Layout by Person</button>
     <button class="tab-btn" data-tab="t3">🔌 Wire by Person</button>
-    <button class="tab-btn" data-tab="t4">🪛 Final by Person</button>
+    <button class="tab-btn" data-tab="t4">🔧 Final by Person</button>
     <button class="tab-btn" data-tab="t5">📈 Trends</button>
     <button class="tab-btn" data-tab="t6">⏱ Time Analysis</button>
   </div>
@@ -278,10 +289,10 @@ input:checked+.toggle-slider:before{transform:translateX(18px);}
 <!-- Version changelog -->
 <div class="version-history">
   <details>
-    <summary>v1.20 — changelog (updated 2026-07-28)</summary>
+    <summary>v1.21 — changelog (updated 2026-07-29)</summary>
+    <b>v1.21</b> Added <b>Custom Range</b> as the last Period option (top bar and every section header) — pick exact start/end dates by typing or with the calendar icon. Changing the period in Fail Attribution/Layout/Wire/Final now updates the top-of-page period too (Trends stays independent). Each tab now has its own URL. Fail Attribution bars are now a red↔green gradient by fail count; swapped the Layout/Final tab icons<br>
     <b>v1.20</b> On Layout/Wire/Final you can now open a person's panel list by clicking their row in the Person/date/Totals table, and someone sitting at 0% is clickable too (previously they had no bar to click). Clickable names underline on hover. Fixed “FPY %” overlapping the numbers under the chart<br>
     <b>v1.19</b> New <b>Download Report</b> button (top right): pick sections, date range, grouping and all-or-one person, and get a single self-contained HTML file with every chart and table — open it anywhere or print it to PDF. Period Comparison can now compare by Day, Week, Month or Quarter<br>
-    <b>v1.18</b> Layout/Wire/Final tables show “—” instead of 0 when someone did no work in that role for a period — totals are unchanged. Security hardening: tracker history can no longer be deleted by anyone outside the shop, and report text is now escaped before display<br>
   </details>
 </div>
 
@@ -290,7 +301,7 @@ input:checked+.toggle-slider:before{transform:translateX(18px);}
 <script>
 // ─── Constants ────────────────────────────────────────────────────────────────
 const NAVY='#000E57',BLUE='#0F3CFF',TINT='#E7ECFF',OFFWHITE='#FFFEF5';
-const WARMGRAY='#ABA18B',RED='#C0392B',GREEN='#27AE60';
+const WARMGRAY='#ABA18B',RED='#C0392B',GREEN='#27AE60',AMBER='#E67E22';
 // px.colors.qualitative.Bold (exact Plotly Python palette)
 const BOLD=['#7EB0D5','#BD7EBE','#D5B60A','#47B39C','#FC5A5A','#6A4C93','#1982C4','#8AC926','#F8E022','#B6E880','#FF97FF','#FECB52'];
 // Row hit-area band behind each FPY bar, and its hover state.
@@ -312,7 +323,24 @@ let dataSource='file', liveTimer=null, liveLastSync=null;
 let secPeriod={},secSub={};
 const PERIOD_OPTS=['Daily','Weekly','Monthly','Last 3 Months',
                    'Last 6 Months','Last Year','Quarterly (Fiscal)','All Time'];
+// Section headers get one more option than the base list: Custom Range, always
+// last. Kept separate from PERIOD_OPTS so Time Analysis and the report dialog
+// (which reuse PERIOD_OPTS) are unaffected.
+const PERIOD_OPTS_SECTION=[...PERIOD_OPTS,'Custom Range'];
 const DEFAULT_PERIOD='Monthly';
+
+// Custom Range has no discrete buckets to enumerate, so it is carried as a
+// "start..end" ISO-date string in the same slot the bucket periods use for
+// their picked value (secSub[key] / the top bar's sub-select value).
+function isCustomRange(p){return p==='Custom Range';}
+function encodeRange(startISO,endISO){return `${startISO}..${endISO}`;}
+function decodeRange(sub){
+  const m=String(sub||'').match(/^(\d{4}-\d{2}-\d{2})\.\.(\d{4}-\d{2}-\d{2})$/);
+  return m?{startISO:m[1],endISO:m[2]}:null;
+}
+// A same-day range on the newest record, so a fresh "Custom Range" pick is
+// never in an incomplete state before the user edits either field.
+function defaultCustomRange(){const t=fmtDate(dataAnchor());return encodeRange(t,t);}
 // Periods that select one exact bucket via a second dropdown, mapped to the row
 // field they match on. Anything not listed is a rolling window instead.
 const SUB_FIELD={'Daily':'DayStr','Weekly':'Week','Monthly':'Month','Quarterly (Fiscal)':'Quarter'};
@@ -369,7 +397,10 @@ function subLabel(period,v,row){
   return d.toLocaleDateString('en-US',{weekday:'short',month:'short',day:'numeric',year:'numeric'});
 }
 
-function defaultSub(period){const o=subOptions(period);return o.length?o[0].value:'';}
+function defaultSub(period){
+  if(isCustomRange(period))return defaultCustomRange();
+  const o=subOptions(period);return o.length?o[0].value:'';
+}
 
 // Calendar bounds a period actually covers, so a header can spell out the dates
 // behind a label like "FY26 Q4". Returns null when the label already IS the date
@@ -377,6 +408,10 @@ function defaultSub(period){const o=subOptions(period);return o.length?o[0].valu
 function periodDateSpan(period,sub){
   if(!df.length)return null;
   const anchor=dataAnchor();
+  if(isCustomRange(period)){
+    const r=decodeRange(sub);if(!r)return null;
+    return{start:toLocalDate(r.startISO),end:toLocalDate(r.endISO)};
+  }
   if(period==='All Time')
     return{start:new Date(Math.min(...df.map(r=>r._date))),
            end:new Date(Math.max(...df.map(r=>r._date)))};
@@ -541,9 +576,18 @@ function tbl(cols,rows,rowCls){
 
 function getPeriodLabel(period,sub){
   period=period||globalPeriod();
-  if(sub===undefined)sub=needsSub(period)?(globalSub()||defaultSub(period)):'';
+  if(sub===undefined)sub=(needsSub(period)||isCustomRange(period))?(globalSub()||defaultSub(period)):'';
   if(!df.length)return period;
   if(period==='All Time')return 'All Time';
+  if(isCustomRange(period)){
+    const r=decodeRange(sub);
+    if(!r)return period;
+    const s=toLocalDate(r.startISO),e=toLocalDate(r.endISO);
+    const fmt=d=>d.toLocaleDateString('en-US',{month:'short',day:'numeric'});
+    return s.getFullYear()===e.getFullYear()
+      ? `${fmt(s)} – ${fmt(e)}, ${e.getFullYear()}`
+      : `${fmt(s)}, ${s.getFullYear()} – ${fmt(e)}, ${e.getFullYear()}`;
+  }
   if(needsSub(period)){
     if(!sub)return period;
     return subLabel(period,sub,df.find(r=>r[SUB_FIELD[period]]===sub));
@@ -651,7 +695,13 @@ async function parseExcel(buf){
 // dropdown in its own header; those overrides live in secPeriod and are cleared
 // whenever the top-of-page Period changes.
 function globalPeriod(){return document.getElementById('period-select')?.value||'All Time';}
-function globalSub(){return document.getElementById('sub-select')?.value||'';}
+function globalSub(){
+  if(isCustomRange(globalPeriod())){
+    const s=document.getElementById('custom-start')?.value,e=document.getElementById('custom-end')?.value;
+    return (s&&e)?encodeRange(s,e):'';
+  }
+  return document.getElementById('sub-select')?.value||'';
+}
 
 // A section's effective period. A global 'By Quarter' resolves to the concrete
 // quarter so section dropdowns always show a real, selectable value.
@@ -666,7 +716,7 @@ function periodFor(key){
 }
 function subFor(key){
   const p=periodFor(key);
-  if(!needsSub(p))return'';
+  if(!needsSub(p)&&!isCustomRange(p))return'';
   // An explicit bucket pick wins even when the section is otherwise inheriting
   // the top bar's period — picking a month is itself an override.
   if(secSub[key])return secSub[key];
@@ -686,6 +736,13 @@ function dataAnchor(){
 
 function filterRowsByPeriod(rows,period,sub){
   if(!rows.length||period==='All Time')return rows;
+  if(isCustomRange(period)){
+    const r=decodeRange(sub);
+    if(!r)return rows; // no range chosen yet — don't blank the view
+    const start=toLocalDate(r.startISO);
+    const end=toLocalDate(r.endISO);end.setDate(end.getDate()+1); // inclusive of the end day
+    return rows.filter(x=>x._date>=start&&x._date<end);
+  }
   const f=SUB_FIELD[period];
   if(f)return sub?rows.filter(r=>r[f]===sub):rows;
   const rg=periodRange(period,dataAnchor());
@@ -694,7 +751,7 @@ function filterRowsByPeriod(rows,period,sub){
 
 function getFiltered(period,sub){
   period=period||globalPeriod();
-  if(sub===undefined)sub=needsSub(period)?(globalSub()||defaultSub(period)):'';
+  if(sub===undefined)sub=(needsSub(period)||isCustomRange(period))?(globalSub()||defaultSub(period)):'';
   if(!df.length)return{dff:[],dff_fails:[],maxDate:new Date(),period};
   const maxDate=dataAnchor();
   const dff=filterRowsByPeriod(df,period,sub);
@@ -708,7 +765,8 @@ function getFilteredFor(key){return getFiltered(periodFor(key),subFor(key));}
 
 // Section header with an inline period dropdown: "Title — [period ▾]"
 function secHdr(title,key,extraCls){
-  // Same two-dropdown model as the top bar: period, then which bucket.
+  // Same two-control model as the top bar: period, then which bucket (a select
+  // for discrete periods, or a start/end date pair for Custom Range).
   const cur=periodFor(key),sub=subFor(key);
   const opt=(v,t,sel)=>`<option value="${v}"${sel?' selected':''}>${t||v}</option>`;
   let subSel='';
@@ -717,22 +775,76 @@ function secHdr(title,key,extraCls){
     subSel=`<select class="sec-period sec-sub" title="Which ${SUB_NOUN[cur]}" `+
       `onchange="onSecSubChange('${key}',this.value)">`+
       opts.map(o=>opt(o.value,o.label,o.value===sub)).join('')+`</select>`;
+  }else if(isCustomRange(cur)){
+    const r=decodeRange(sub)||{startISO:'',endISO:''};
+    subSel=`<span class="sec-range">`+
+      `<input type="date" id="sc-${key}-s" class="sec-range-input" value="${r.startISO}" `+
+        `onchange="onSecCustomChange('${key}','start',this.value)">`+
+      `<span style="opacity:.7">–</span>`+
+      `<input type="date" id="sc-${key}-e" class="sec-range-input" value="${r.endISO}" `+
+        `onchange="onSecCustomChange('${key}','end',this.value)">`+
+    `</span>`;
   }
-  const span=spanLabel(cur,sub);
+  // The two date pickers already show the chosen range as text, so the usual
+  // "(...)" span would just repeat it — skip it for Custom Range.
+  const span=isCustomRange(cur)?'':spanLabel(cur,sub);
   return `<div class="section-hdr${extraCls?' '+extraCls:''}"><span>${title}</span><span class="sec-dash">—</span>`+
     `<select class="sec-period" title="Period for this section" onchange="onSecPeriodChange('${key}',this.value)">`+
-    PERIOD_OPTS.map(p=>opt(p,p,p===cur)).join('')+
+    PERIOD_OPTS_SECTION.map(p=>opt(p,p,p===cur)).join('')+
     `</select>`+subSel+
     (span?`<span class="sec-span">(${esc(span)})</span>`:'')+`</div>`;
 }
 
+// Fail Attribution / Layout / Wire / Final all read the SAME underlying data
+// (dff), so their section-header period is really just another handle on the
+// one top-of-page period rather than an independent filter — changing it here
+// pushes the value up to the top control too. Trends' sections (t5-*) keep
+// their own independent overrides and do not propagate.
+const SYNC_TO_TOP=new Set(['t1','t2','t3','t4']);
+
 function onSecPeriodChange(key,val){
+  if(SYNC_TO_TOP.has(key)){
+    for(const k of SYNC_TO_TOP){delete secPeriod[k];delete secSub[k];}
+    document.getElementById('period-select').value=val;
+    populateSubSelect(true);
+    renderTab(activeTab);
+    return;
+  }
   secPeriod[key]=val;
   secSub[key]=defaultSub(val); // newest bucket of the newly chosen period
   renderTab(activeTab);
 }
 function onSecSubChange(key,val){
+  if(SYNC_TO_TOP.has(key)){
+    for(const k of SYNC_TO_TOP){delete secPeriod[k];delete secSub[k];}
+    const sel=document.getElementById('sub-select');
+    if([...sel.options].some(o=>o.value===val))sel.value=val;
+    renderTab(activeTab);
+    return;
+  }
   secSub[key]=val;
+  renderTab(activeTab);
+}
+
+// One field of a section's Custom Range pair changed. Waits for both fields to
+// hold a value before committing, same as the top bar's onCustomRangeChange.
+function onSecCustomChange(key,part,val){
+  const other=document.getElementById(part==='start'?`sc-${key}-e`:`sc-${key}-s`);
+  const s=part==='start'?val:(other?other.value:'');
+  const e=part==='end'  ?val:(other?other.value:'');
+  if(!s||!e)return;
+  const encoded=encodeRange(s,e);
+  if(SYNC_TO_TOP.has(key)){
+    for(const k of SYNC_TO_TOP){delete secPeriod[k];delete secSub[k];}
+    document.getElementById('period-select').value='Custom Range';
+    populateSubSelect(true);
+    document.getElementById('custom-start').value=s;
+    document.getElementById('custom-end').value=e;
+    renderTab(activeTab);
+    return;
+  }
+  secPeriod[key]='Custom Range';
+  secSub[key]=encoded;
   renderTab(activeTab);
 }
 
@@ -826,7 +938,9 @@ function renderT1(){
   newPlot('ch-fa',[{type:'bar',orientation:'h',
     y:sorted.map(r=>r.n),x:sorted.map(r=>r.c),
     text:sorted.map(r=>r.c),textposition:'outside',cliponaxis:false,
-    marker:{color:sorted.map(r=>r.c),colorscale:[[0,TINT],[.5,BLUE],[1,NAVY]],showscale:false},
+    // Green = fewest fails, red = most, amber in between — relative to whoever
+    // is shown (people with 0 attributed fails don't appear in this chart).
+    marker:{color:sorted.map(r=>r.c),colorscale:[[0,GREEN],[.5,AMBER],[1,RED]],showscale:false},
     selected:{marker:{opacity:1}},unselected:{marker:{opacity:0.3}},
     customdata:sorted.map(r=>[r.n]),
     hovertemplate:'<b>%{y}</b><br>%{x} fails<extra></extra>',
@@ -2129,23 +2243,50 @@ ${body}
   setTimeout(()=>{URL.revokeObjectURL(a.href);a.remove();},1000);
 }
 
-// ─── Tab switching ────────────────────────────────────────────────────────────
+// ─── Tab switching / per-tab URLs ─────────────────────────────────────────────
+// Each tab gets its own path so it can be bookmarked, shared, or opened
+// straight to (via first-pass/_redirects, which serves index.html for any
+// path so the deep link doesn't 404 before this script can route it).
+const TAB_ROUTES={t1:'/fail-attribution',t2:'/layout',t3:'/wire',t4:'/final',t5:'/trends',t6:'/time-analysis'};
+const PATH_TABS=Object.fromEntries(Object.entries(TAB_ROUTES).map(([k,v])=>[v,k]));
+function tabFromPath(path){
+  path=(path||'/').replace(/\/+$/,'')||'/';
+  return PATH_TABS[path]||'t1';
+}
+
+function activateTab(tab,{push=true}={}){
+  document.querySelectorAll('.tab-btn').forEach(b=>b.classList.toggle('active',b.dataset.tab===tab));
+  document.querySelectorAll('.tab-pane').forEach(p=>p.classList.toggle('active',p.id===tab));
+  activeTab=tab;
+  document.documentElement.scrollTop=0;document.body.scrollTop=0;
+  // Each tab re-plots its own charts below while the pane is visible, so no
+  // resize dispatch is needed. Firing one here also resized stale/detached
+  // plots, which corrupted live chart geometry.
+  if(tab==='t6'&&!timingLoaded)renderT6();
+  else if(tab==='t6')buildTA(document.getElementById('t6'));
+  else if(df.length)renderTab(tab);
+  if(push){
+    const path=TAB_ROUTES[tab]||'/';
+    if(location.pathname!==path)history.pushState({tab},'',path);
+  }
+}
+
 document.querySelectorAll('.tab-btn').forEach(btn=>{
-  btn.addEventListener('click',()=>{
-    document.querySelectorAll('.tab-btn').forEach(b=>b.classList.remove('active'));
-    document.querySelectorAll('.tab-pane').forEach(p=>p.classList.remove('active'));
-    btn.classList.add('active');
-    const tab=btn.dataset.tab;activeTab=tab;
-    document.getElementById(tab).classList.add('active');
-    document.documentElement.scrollTop=0;document.body.scrollTop=0;
-    // Each tab re-plots its own charts below while the pane is visible, so no
-    // resize dispatch is needed. Firing one here also resized stale/detached
-    // plots, which corrupted live chart geometry.
-    if(tab==='t6'&&!timingLoaded)renderT6();
-    else if(tab==='t6')buildTA(document.getElementById('t6'));
-    else if(df.length)renderTab(tab);
-  });
+  btn.addEventListener('click',()=>activateTab(btn.dataset.tab,{push:true}));
 });
+window.addEventListener('popstate',()=>activateTab(tabFromPath(location.pathname),{push:false}));
+
+// Apply whatever tab the URL points to before the first render, so a deep
+// link (or a refresh on /trends) opens directly on the right tab instead of
+// always landing on Fail Attribution.
+(function initialRouteTab(){
+  const tab=tabFromPath(location.pathname);
+  if(tab!=='t1'){
+    document.querySelectorAll('.tab-btn').forEach(b=>b.classList.toggle('active',b.dataset.tab===tab));
+    document.querySelectorAll('.tab-pane').forEach(p=>p.classList.toggle('active',p.id===tab));
+    activeTab=tab;
+  }
+})();
 
 function onPeriodChange(){
   populateSubSelect(true);
@@ -2158,12 +2299,40 @@ function onSubChange(){
   render();
 }
 
-// Fill the top bar's second dropdown for the current period. reset=true selects
-// the newest bucket (period just changed); otherwise the selection is preserved.
+// One field of the top bar's Custom Range pair changed. Waits for both fields
+// to hold a value (a fresh "Custom Range" pick starts with the other field
+// blank) before dropping section overrides and re-rendering.
+function onCustomRangeChange(part,val){
+  const other=document.getElementById(part==='start'?'custom-end':'custom-start');
+  const s=part==='start'?val:(other?other.value:'');
+  const e=part==='end'  ?val:(other?other.value:'');
+  if(!s||!e)return;
+  secPeriod={};secSub={};
+  render();
+}
+
+// Fill the top bar's second control for the current period: the bucket
+// dropdown for discrete periods, or the two date pickers for Custom Range.
+// reset=true selects the newest bucket / the default range (period just
+// changed); otherwise the existing selection is preserved.
 function populateSubSelect(reset){
   const sel=document.getElementById('sub-select');
+  const rangeWrap=document.getElementById('custom-range-wrap');
   if(!sel)return;
   const p=globalPeriod();
+  if(isCustomRange(p)){
+    sel.style.display='none';sel.innerHTML='';
+    if(rangeWrap){
+      rangeWrap.style.display='inline-flex';
+      const cs=document.getElementById('custom-start'),ce=document.getElementById('custom-end');
+      if(reset||!cs.value||!ce.value){
+        const r=decodeRange(defaultCustomRange());
+        cs.value=r.startISO;ce.value=r.endISO;
+      }
+    }
+    return;
+  }
+  if(rangeWrap)rangeWrap.style.display='none';
   if(!needsSub(p)){sel.style.display='none';sel.innerHTML='';return;}
   const prev=sel.value,opts=subOptions(p);
   sel.innerHTML=opts.map(o=>`<option value="${o.value}">${o.label}</option>`).join('');
