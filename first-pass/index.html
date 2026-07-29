@@ -475,6 +475,37 @@ function shortName(full){
   return last?`${first} ${last[0]}.`:first;
 }
 
+// People who show up in fail reasons but are missing from the workbook's Names
+// sheet. Held here so the shared workbook needs no edit; if an entry is later
+// added to the sheet, that one wins.
+const EXTRA_INITIALS={ALI:'ALI', CM:'Christian M.'};
+function applyInitialOverrides(){
+  for(const [ini,name] of Object.entries(EXTRA_INITIALS)){
+    if(!initMap[ini])initMap[ini]=name;
+    knownInits.add(ini);
+  }
+}
+
+// Builds initMap/knownInits from, in order of precedence:
+//   1. the current Names sheet (freshest — always wins when present)
+//   2. fp_people_registry (fills gaps: names removed from the sheet since, plus
+//      initials sanctioned only via Excel data validation)
+//   3. EXTRA_INITIALS (final offline fallback if the registry fetch failed)
+// A registry row counts as "known" for text matching regardless of its active
+// flag — a fail attributed to someone no longer on the sheet must still resolve.
+function buildPeopleMap(sheetNames,registryRows){
+  initMap={};knownInits=new Set();
+  for(const r of (registryRows||[])){
+    const i=String(r.initials||'').trim().toUpperCase();
+    if(i){initMap[i]=r.full_name?shortName(r.full_name):i;knownInits.add(i);}
+  }
+  for(const n of (sheetNames||[])){
+    const i=String(n.initials||'').trim().toUpperCase();
+    if(i&&n.full_name){initMap[i]=shortName(n.full_name);knownInits.add(i);}
+  }
+  applyInitialOverrides();
+}
+
 function extractAllInitials(text,ks){
   if(typeof text!=='string')return[];
   const r=[];
@@ -586,14 +617,20 @@ function hydrateRows(records){
 }
 
 // ─── Excel Parse ──────────────────────────────────────────────────────────────
-function parseExcel(buf){
+async function parseExcel(buf){
   const wb=XLSX.read(buf,{type:'array',cellDates:true});
-  initMap={};knownInits=new Set();
+  const sheetNames=[];
   const ns=wb.Sheets['Names'];
   if(ns) for(const r of XLSX.utils.sheet_to_json(ns)){
     const i=String(r['Initials']||'').trim();
-    if(i&&r['Name']){initMap[i]=shortName(r['Name']);knownInits.add(i);}
+    if(i&&r['Name'])sheetNames.push({initials:i,full_name:r['Name']});
   }
+  // Best-effort: the uploaded file itself doesn't carry deleted/override
+  // entries, so still consult the registry when reachable. A network failure
+  // here must not block a manual upload — fall back to overrides alone.
+  let registry=[];
+  try{registry=await sbGet('fp_people_registry?select=initials,full_name');}catch(e){/* offline upload still works */}
+  buildPeopleMap(sheetNames,registry);
   const drName=wb.SheetNames.find(n=>n==='Daily Results')||wb.SheetNames.find(n=>n==='old daily results');
   if(!drName)throw new Error('Could not find "Daily Results" sheet');
   const COLS=['Panel','Date','Pass_Fail','Reason','Line','Emp','Routing_Hours','Tech','Layout','Wire','FA','Sales_Order'];
@@ -1692,9 +1729,9 @@ function showDashboard(){
 function handleFile(file){
   if(!file)return;
   const r=new FileReader();
-  r.onload=e=>{
+  r.onload=async e=>{
     try{
-      parseExcel(e.target.result);
+      await parseExcel(e.target.result);
       dataSource='file';
       bootAborted=true;   // don't let a late live response replace the file
       stopLivePolling();
@@ -1733,16 +1770,13 @@ async function sbGetAll(path,pageSize=1000){
 }
 
 async function loadLive(){
-  const [rows,names,state]=await Promise.all([
+  const [rows,names,state,registry]=await Promise.all([
     sbGetAll('fp_daily_results?select=*&order=work_date.desc,id.asc'),
     sbGet('fp_names?select=*'),
     sbGet('fp_sync_state?select=last_sync,row_count&limit=1'),
+    sbGet('fp_people_registry?select=initials,full_name').catch(()=>[]),
   ]);
-  initMap={};knownInits=new Set();
-  for(const n of names){
-    const i=String(n.initials||'').trim().toUpperCase();
-    if(i&&n.full_name){initMap[i]=shortName(n.full_name);knownInits.add(i);}
-  }
+  buildPeopleMap(names,registry);
   hydrateRows(rows.map(r=>({
     Panel:r.panel,Date:r.work_date,Pass_Fail:r.pass_fail,Reason:r.reason,
     Line:r.line,Emp:r.emp,Routing_Hours:r.routing_hours,Tech:r.tech,
