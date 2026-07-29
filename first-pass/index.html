@@ -278,12 +278,10 @@ input:checked+.toggle-slider:before{transform:translateX(18px);}
 <!-- Version changelog -->
 <div class="version-history">
   <details>
-    <summary>v1.19 — changelog (updated 2026-07-28)</summary>
+    <summary>v1.20 — changelog (updated 2026-07-28)</summary>
+    <b>v1.20</b> On Layout/Wire/Final you can now open a person's panel list by clicking their row in the Person/date/Totals table, and someone sitting at 0% is clickable too (previously they had no bar to click). Clickable names underline on hover. Fixed “FPY %” overlapping the numbers under the chart<br>
     <b>v1.19</b> New <b>Download Report</b> button (top right): pick sections, date range, grouping and all-or-one person, and get a single self-contained HTML file with every chart and table — open it anywhere or print it to PDF. Period Comparison can now compare by Day, Week, Month or Quarter<br>
     <b>v1.18</b> Layout/Wire/Final tables show “—” instead of 0 when someone did no work in that role for a period — totals are unchanged. Security hardening: tracker history can no longer be deleted by anyone outside the shop, and report text is now escaped before display<br>
-    <b>v1.17</b> Live data is now fed automatically from the SharePoint report — the dashboard loads it on open and refreshes when the workbook changes. Fixed a limit that only showed the newest 1,000 records; the full history now loads<br>
-    <b>v1.16</b> Daily, Weekly and Monthly now each get a second dropdown to pick exactly which day, which week (dated from its Sunday) or which month — same as Quarterly. Section headers work identically to the top bar. "This Month"/"Last Month" replaced by "Monthly". Panel tracker: added Line E<br>
-    <b>v1.15</b> Live data: the dashboard now loads straight from the synced report and refreshes itself when the workbook changes — no upload needed. Status shown next to the period. Uploading a file still works as a fallback<br>
   </details>
 </div>
 
@@ -923,7 +921,9 @@ function renderPersonTab(tabId,roleCol,roleLabel){
   // Paper y-units are a fraction of PLOT-AREA height, so a fixed y like 1.12 drifts
   // further above the chart as the chart grows taller (more people). Convert a fixed
   // pixel offset into paper units against the real plot area so it never clips.
-  const fpyH=Math.max(300,fpyRows.length*42),fpyT=62,fpyB=20;
+  // b must hold the tick labels AND the axis title, or "FPY %" lands on top of
+  // the numbers. yAbove() below derives from these, so it follows automatically.
+  const fpyH=Math.max(300,fpyRows.length*42),fpyT=62,fpyB=58;
   const fpyPlotH=Math.max(1,fpyH-fpyT-fpyB);
   const yAbove=px=>1+px/fpyPlotH;
 
@@ -952,7 +952,8 @@ function renderPersonTab(tabId,roleCol,roleLabel){
     barmode:'overlay',
     showlegend:false,   // two traces would otherwise raise a "trace 1" toggle
     coloraxis_showscale:false,
-    xaxis:{range:[0,118],title:'FPY %'},yaxis:{autorange:'reversed',automargin:true},
+    xaxis:{range:[0,118],title:{text:'FPY %',standoff:14},automargin:true},
+    yaxis:{autorange:'reversed',automargin:true},
     shapes:[{type:'line',x0:90,x1:90,y0:0,y1:1,xref:'x',yref:'paper',line:{color:NAVY,dash:'dash',width:1.5}}],
     annotations:[
       {x:90,y:yAbove(8),xref:'x',yref:'paper',text:'90% target',showarrow:false,
