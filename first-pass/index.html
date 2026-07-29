@@ -38,6 +38,8 @@ body{background:var(--offwhite);font-family:'Inter',Arial,sans-serif;font-size:1
 .rp-row{display:flex;gap:14px;flex-wrap:wrap;margin-bottom:16px;}
 .rp-dialog select{width:100%;font-size:13px;padding:6px 8px;border:1px solid #c8d0e7;
   border-radius:6px;color:var(--navy);background:#fff;}
+.rp-dialog input[type=date]{flex:1;min-width:0;font-size:13px;padding:6px 8px;border:1px solid #c8d0e7;
+  border-radius:6px;color:var(--navy);background:#fff;}
 .rp-progress{font-size:12px;color:var(--blue);min-height:18px;margin-bottom:10px;}
 .rp-actions{display:flex;justify-content:flex-end;gap:10px;}
 .rp-cancel{background:#fff;border:1px solid #c8d0e7;color:var(--navy);border-radius:6px;
@@ -186,6 +188,11 @@ input:checked+.toggle-slider:before{transform:translateX(18px);}
       <div style="flex:1;min-width:150px" id="rp-sub-wrap">
         <label class="rp-label" id="rp-sub-label">Which</label>
         <select id="rp-sub"></select>
+        <span id="rp-custom-wrap" style="display:none;align-items:center;gap:4px">
+          <input type="date" id="rp-custom-start">
+          <span style="color:var(--warmgray)">–</span>
+          <input type="date" id="rp-custom-end">
+        </span>
       </div>
     </div>
 
@@ -2024,7 +2031,7 @@ function openReportDialog(){
   }).join('');
 
   const ps=document.getElementById('rp-period');
-  ps.innerHTML=PERIOD_OPTS.map(p=>`<option${p===globalPeriod()?' selected':''}>${esc(p)}</option>`).join('');
+  ps.innerHTML=PERIOD_OPTS_SECTION.map(p=>`<option${p===globalPeriod()?' selected':''}>${esc(p)}</option>`).join('');
 
   const people=[...new Set(df.flatMap(r=>[r.Layout_Name,r.Wire_Name,r.FA_Name,r.Tech_Name].filter(Boolean)))].sort();
   document.getElementById('rp-person').innerHTML=
@@ -2044,6 +2051,21 @@ function onReportPeriodChange(){
   const p=document.getElementById('rp-period').value;
   const wrap=document.getElementById('rp-sub-wrap');
   const sel=document.getElementById('rp-sub');
+  const customWrap=document.getElementById('rp-custom-wrap');
+  if(isCustomRange(p)){
+    wrap.style.display='';
+    sel.style.display='none';sel.innerHTML='';
+    document.getElementById('rp-sub-label').textContent='Date range';
+    customWrap.style.display='inline-flex';
+    const cs=document.getElementById('rp-custom-start'),ce=document.getElementById('rp-custom-end');
+    if(!cs.value||!ce.value){
+      const r=decodeRange(defaultCustomRange());
+      cs.value=r.startISO;ce.value=r.endISO;
+    }
+    return;
+  }
+  customWrap.style.display='none';
+  sel.style.display='';
   if(!needsSub(p)){wrap.style.display='none';sel.innerHTML='';return;}
   wrap.style.display='';
   document.getElementById('rp-sub-label').textContent='Which '+SUB_NOUN[p];
@@ -2056,7 +2078,9 @@ async function generateReport(){
   if(!chosen.length){alert('Pick at least one section.');return;}
 
   const period=document.getElementById('rp-period').value;
-  const sub=needsSub(period)?document.getElementById('rp-sub').value:'';
+  const sub=isCustomRange(period)
+    ?encodeRange(document.getElementById('rp-custom-start').value,document.getElementById('rp-custom-end').value)
+    :(needsSub(period)?document.getElementById('rp-sub').value:'');
   const group=document.getElementById('rp-group').value;
   const person=document.getElementById('rp-person').value;
   const prog=document.getElementById('rp-progress');
@@ -2091,6 +2115,13 @@ async function generateReport(){
       populateSubSelect(true);
       const ss=document.getElementById('sub-select');
       if([...ss.options].some(o=>o.value===sub))ss.value=sub;
+    }else if(isCustomRange(period)){
+      populateSubSelect(true); // shows the top bar's date inputs, fills a default first
+      const r=decodeRange(sub);
+      if(r){
+        document.getElementById('custom-start').value=r.startISO;
+        document.getElementById('custom-end').value=r.endISO;
+      }
     }else{populateSubSelect(true);}
     secPeriod={};secSub={};
     trendsGrp=group;
