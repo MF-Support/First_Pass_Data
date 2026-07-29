@@ -93,7 +93,12 @@ table.dash-table thead tr{background:var(--navy);color:#fff;}
 table.dash-table thead th{padding:8px 10px;font-weight:600;white-space:nowrap;text-align:left;}
 table.dash-table tbody tr{border-bottom:1px solid #eef0f7;transition:background .1s;}
 table.dash-table tbody tr:hover{background:#f4f6ff;}
+/* Clickable rows stay plain at rest; the name reads as a link only on hover,
+   so the resting table is unchanged but the affordance is unmistakable. */
 table.dash-table tbody tr.row-click{cursor:pointer;}
+table.dash-table tbody tr.row-click:hover td:first-child{color:var(--blue);text-decoration:underline;}
+/* Charts that open a drilldown show a pointer over the plot area. */
+.clickable-plot .nsewdrag,.clickable-plot .nsewdrag.drag{cursor:pointer !important;}
 table.dash-table tbody td{padding:6px 10px;vertical-align:middle;text-align:left;word-break:break-word;}
 table.dash-table tbody tr.row-fail{background:#fff0f0;}
 table.dash-table tbody tr.row-fail:hover{background:#ffe0e0;}
@@ -290,6 +295,8 @@ const NAVY='#000E57',BLUE='#0F3CFF',TINT='#E7ECFF',OFFWHITE='#FFFEF5';
 const WARMGRAY='#ABA18B',RED='#C0392B',GREEN='#27AE60';
 // px.colors.qualitative.Bold (exact Plotly Python palette)
 const BOLD=['#7EB0D5','#BD7EBE','#D5B60A','#47B39C','#FC5A5A','#6A4C93','#1982C4','#8AC926','#F8E022','#B6E880','#FF97FF','#FECB52'];
+// Row hit-area band behind each FPY bar, and its hover state.
+const FPY_BAND='rgba(0,14,87,0.045)', FPY_BAND_HOVER='rgba(25,130,196,0.16)';
 const SB_URL='https://ptbhguthosenkffjhbry.supabase.co';
 const SB_ANON='eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InB0YmhndXRob3NlbmtmZmpoYnJ5Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODQ5MDkzNzAsImV4cCI6MjEwMDQ4NTM3MH0.y71yXWsIUjzFBqC4itzZ36w9ixw_QDej2RaBPh8MLPI';
 
@@ -774,7 +781,7 @@ function renderT1(){
     ${secHdr('Fail Attribution','t1')}
     <p style="color:var(--warmgray);font-size:12px;margin:0 0 12px">Click a bar to highlight it and see that person's full fail list below.</p>
     <div style="display:grid;grid-template-columns:3fr 2fr;gap:16px;min-width:0">
-      <div class="chart-box" style="min-width:0"><div id="ch-fa" class="plot-div"></div></div>
+      <div class="chart-box" style="min-width:0"><div id="ch-fa" class="plot-div clickable-plot"></div></div>
       <div style="min-width:0;overflow:auto">${tbl(['Person','Fails Caused','% of Fails','Most Common Issue'],
         sorted.map(r=>[r.n,r.c,r.pct+'%',r.issue]))}</div>
     </div>
@@ -802,7 +809,7 @@ function renderT1(){
     showT1Drill(pt.customdata[0],dff_fails);
   });
   el.querySelectorAll('.dash-table tbody tr').forEach((tr,i)=>{
-    tr.style.cursor='pointer';
+    tr.classList.add('row-click');
     tr.addEventListener('click',()=>showT1Drill(sorted[i].n,dff_fails));
   });
 
@@ -895,10 +902,10 @@ function renderPersonTab(tabId,roleCol,roleLabel){
       ${['Day','Week','Month'].map(g2=>`<button class="grp-btn${g===g2?' active':''}" onclick="setGrp('${tabId}','${g2}','${roleCol}','${roleLabel}')">${g2}</button>`).join('')}
     </div>
     <div style="display:grid;grid-template-columns:3fr 2fr;gap:16px;margin-bottom:16px">
-      <div class="chart-box"><div id="ch-grp-${tabId}" class="plot-div"></div></div>
+      <div class="chart-box"><div id="ch-grp-${tabId}" class="plot-div clickable-plot"></div></div>
       <div id="pivot-${tabId}" style="overflow-x:auto">${tbl(pivotCols,pivotRows)}</div>
     </div>
-    <div class="chart-box"><div id="ch-fpy-${tabId}" class="plot-div"></div></div>
+    <div class="chart-box"><div id="ch-fpy-${tabId}" class="plot-div clickable-plot"></div></div>
     <div id="drill-${tabId}"></div>`;
 
   newPlot(`ch-grp-${tabId}`,groupedBarData,{
@@ -925,9 +932,13 @@ function renderPersonTab(tabId,roleCol,roleLabel){
     // band sits behind each row purely as a hit area (and reads as row striping).
     {
       type:'bar',orientation:'h',
-      y:fpyRows.map(r=>r.name),x:fpyRows.map(()=>118),
-      marker:{color:'rgba(0,14,87,0.045)'},
-      hoverinfo:'skip',showlegend:false,
+      // Stops at 100%, not the axis max — the axis runs to 118 only to leave
+      // room for the outside labels, and the band should not spill past the scale.
+      y:fpyRows.map(r=>r.name),x:fpyRows.map(()=>100),
+      marker:{color:fpyRows.map(()=>FPY_BAND)},
+      // 'none' rather than 'skip': no tooltip, but hover events still fire so the
+      // band can light up under the cursor.
+      hoverinfo:'none',showlegend:false,
       customdata:fpyRows.map(r=>[r.name]),
     },
     {
@@ -939,6 +950,7 @@ function renderPersonTab(tabId,roleCol,roleLabel){
     hovertemplate:'<b>%{y}</b><br>FPY: %{x:.1f}%<extra></extra>',
   }],{
     barmode:'overlay',
+    showlegend:false,   // two traces would otherwise raise a "trace 1" toggle
     coloraxis_showscale:false,
     xaxis:{range:[0,118],title:'FPY %'},yaxis:{autorange:'reversed',automargin:true},
     shapes:[{type:'line',x0:90,x1:90,y0:0,y1:1,xref:'x',yref:'paper',line:{color:NAVY,dash:'dash',width:1.5}}],
@@ -954,8 +966,17 @@ function renderPersonTab(tabId,roleCol,roleLabel){
     height:fpyH,
     margin:{l:10,r:80,t:fpyT,b:fpyB},
   });
-  document.getElementById(`ch-fpy-${tabId}`).on('plotly_click',d=>{
+  const fpyGd=document.getElementById(`ch-fpy-${tabId}`);
+  fpyGd.on('plotly_click',d=>{
     const pt=d.points[0];showPersonDrill(tabId,pt.customdata[0],dff,roleCol,roleLabel);
+  });
+  // Light the row band under the cursor, so the whole row reads as one target.
+  fpyGd.on('plotly_hover',e=>{
+    const i=e.points[0].pointIndex;
+    Plotly.restyle(fpyGd,{'marker.color':[fpyRows.map((_,k)=>k===i?FPY_BAND_HOVER:FPY_BAND)]},[0]);
+  });
+  fpyGd.on('plotly_unhover',()=>{
+    Plotly.restyle(fpyGd,{'marker.color':[fpyRows.map(()=>FPY_BAND)]},[0]);
   });
 
   // The person/period/total table opens the same drilldown as the charts.
@@ -1273,7 +1294,7 @@ function buildPsTrend(person,el,grp='Week'){
       <span style="font-size:11px;color:var(--warmgray);margin-left:4px">${myRows.length} panels · ${sorted.length} ${useGrp.toLowerCase()}s</span>
     </div>
     <div style="display:flex;gap:8px;flex-wrap:wrap;margin-bottom:10px" id="${legendId}">${legendCards}</div>
-    <div class="chart-box"><div id="${trendId}" style="min-height:280px"></div></div>
+    <div class="chart-box"><div id="${trendId}" class="clickable-plot" style="min-height:280px"></div></div>
     <p style="font-size:11px;color:var(--warmgray);margin:6px 0 4px">Click any point on the chart to drill into panels from that period.</p>
     <div id="${detailId}"></div>`;
 
