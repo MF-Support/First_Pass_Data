@@ -93,6 +93,7 @@ table.dash-table thead tr{background:var(--navy);color:#fff;}
 table.dash-table thead th{padding:8px 10px;font-weight:600;white-space:nowrap;text-align:left;}
 table.dash-table tbody tr{border-bottom:1px solid #eef0f7;transition:background .1s;}
 table.dash-table tbody tr:hover{background:#f4f6ff;}
+table.dash-table tbody tr.row-click{cursor:pointer;}
 table.dash-table tbody td{padding:6px 10px;vertical-align:middle;text-align:left;word-break:break-word;}
 table.dash-table tbody tr.row-fail{background:#fff0f0;}
 table.dash-table tbody tr.row-fail:hover{background:#ffe0e0;}
@@ -895,7 +896,7 @@ function renderPersonTab(tabId,roleCol,roleLabel){
     </div>
     <div style="display:grid;grid-template-columns:3fr 2fr;gap:16px;margin-bottom:16px">
       <div class="chart-box"><div id="ch-grp-${tabId}" class="plot-div"></div></div>
-      <div style="overflow-x:auto">${tbl(pivotCols,pivotRows)}</div>
+      <div id="pivot-${tabId}" style="overflow-x:auto">${tbl(pivotCols,pivotRows)}</div>
     </div>
     <div class="chart-box"><div id="ch-fpy-${tabId}" class="plot-div"></div></div>
     <div id="drill-${tabId}"></div>`;
@@ -919,7 +920,17 @@ function renderPersonTab(tabId,roleCol,roleLabel){
   const fpyPlotH=Math.max(1,fpyH-fpyT-fpyB);
   const yAbove=px=>1+px/fpyPlotH;
 
-  newPlot(`ch-fpy-${tabId}`,[{
+  newPlot(`ch-fpy-${tabId}`,[
+    // Someone at 0% has no bar, so there is nothing to click. This full-width
+    // band sits behind each row purely as a hit area (and reads as row striping).
+    {
+      type:'bar',orientation:'h',
+      y:fpyRows.map(r=>r.name),x:fpyRows.map(()=>118),
+      marker:{color:'rgba(0,14,87,0.045)'},
+      hoverinfo:'skip',showlegend:false,
+      customdata:fpyRows.map(r=>[r.name]),
+    },
+    {
     type:'bar',orientation:'h',
     y:fpyRows.map(r=>r.name),x:fpyRows.map(r=>r.fpy),
     text:fpyRows.map(r=>r.fpy.toFixed(1)+'%'),texttemplate:'%{text}',textposition:'outside',cliponaxis:false,
@@ -927,6 +938,7 @@ function renderPersonTab(tabId,roleCol,roleLabel){
     customdata:fpyRows.map(r=>[r.name]),
     hovertemplate:'<b>%{y}</b><br>FPY: %{x:.1f}%<extra></extra>',
   }],{
+    barmode:'overlay',
     coloraxis_showscale:false,
     xaxis:{range:[0,118],title:'FPY %'},yaxis:{autorange:'reversed',automargin:true},
     shapes:[{type:'line',x0:90,x1:90,y0:0,y1:1,xref:'x',yref:'paper',line:{color:NAVY,dash:'dash',width:1.5}}],
@@ -944,6 +956,12 @@ function renderPersonTab(tabId,roleCol,roleLabel){
   });
   document.getElementById(`ch-fpy-${tabId}`).on('plotly_click',d=>{
     const pt=d.points[0];showPersonDrill(tabId,pt.customdata[0],dff,roleCol,roleLabel);
+  });
+
+  // The person/period/total table opens the same drilldown as the charts.
+  document.querySelectorAll(`#pivot-${tabId} tbody tr`).forEach((tr,i)=>{
+    tr.classList.add('row-click');
+    tr.addEventListener('click',()=>showPersonDrill(tabId,pivotRows[i][0],dff,roleCol,roleLabel));
   });
 }
 
