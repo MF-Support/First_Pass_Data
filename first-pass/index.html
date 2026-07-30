@@ -321,10 +321,10 @@ input:checked+.toggle-slider:before{transform:translateX(18px);}
 <!-- Version changelog -->
 <div class="version-history">
   <details>
-    <summary>v1.37 — changelog (updated 2026-07-30)</summary>
+    <summary>v1.38 — changelog (updated 2026-07-30)</summary>
+    <b>v1.38</b> Fixed Download Report's KPI row for a person-scoped report: Total Panels/Fails/FPY/Avg-Day/Man-Hours now use the same "involved in Layout, Wire, or Final, fail actually attributed to them" definition as Person Trend, so the numbers agree with it exactly instead of using a KPI-only definition nobody else used. Most Fails From now always shows the shop-wide leader for the period (marked with an asterisk and a note) instead of just restating the filtered person and their own count. Layout/Wire/Final's Panels-by-Person bar chart no longer repeats colors past 12 people<br>
     <b>v1.37</b> Person Summary now defaults to sorting alphabetically by name, instead of by Layout Panels count<br>
     <b>v1.36</b> Sorting or filtering a table (Fail Attribution, Layout, Wire, Final, Period Comparison, Person Summary) no longer resets when you change the period — only the data updates, your sort/filter stays as you left it<br>
-    <b>v1.35</b> The top KPI row (now 6 cards) stays on one row at any browser width instead of wrapping — cards shrink together and text scales down to fit, all the way down to a phone screen, without ever cutting off a number mid-digit<br>
   </details>
 </div>
 
@@ -336,10 +336,15 @@ const NAVY='#000E57',BLUE='#0F3CFF',TINT='#E7ECFF',OFFWHITE='#FFFEF5';
 const WARMGRAY='#ABA18B',RED='#C0392B',GREEN='#27AE60',AMBER='#E67E22';
 // px.colors.qualitative.Bold (exact Plotly Python palette)
 const BOLD=['#7EB0D5','#BD7EBE','#D5B60A','#47B39C','#FC5A5A','#6A4C93','#1982C4','#8AC926','#F8E022','#B6E880','#FF97FF','#FECB52'];
-// One color per bar, cycling the palette, so bars stay distinguishable from
-// one another however many there are — recomputed on every render, so it
-// automatically adapts as the period/filter changes the bar count.
-const barColors=n=>Array.from({length:n},(_,i)=>BOLD[i%BOLD.length]);
+// One color per bar, so bars stay distinguishable from one another however
+// many there are. Cycling the fixed 12-color palette repeats past 12 bars
+// (e.g. the Layout-by-person chart can have 25+ people, so bar #13 would
+// otherwise be the identical color as bar #1) — fall back to a golden-angle
+// hue rotation once n exceeds the palette, which guarantees n perceptually
+// distinct colors for any n instead of silently reusing one.
+const uniqueColors=n=>n<=BOLD.length?BOLD.slice(0,n)
+  :Array.from({length:n},(_,i)=>`hsl(${(i*137.508)%360},65%,50%)`);
+const barColors=uniqueColors;
 // Row hit-area band behind each FPY bar, and its hover state.
 const FPY_BAND='rgba(0,14,87,0.045)', FPY_BAND_HOVER='rgba(25,130,196,0.16)';
 const SB_URL='https://ptbhguthosenkffjhbry.supabase.co';
@@ -878,23 +883,69 @@ let reportPersonFilter=null,reportSourceFails=null;
 // every tab pane, so the report's per-tab clone loop never captures it on its
 // own — this is the only place that puts it in the exported file.
 function buildReportKpiHtml(period,sub,person){
-  renderKPIs(getFiltered(period,sub));
+  const filtered=getFiltered(period,sub);
+  renderKPIs(filtered);
   if(person){
-    // "Most Fails From" would rank people among panels this person touched,
-    // which is not what the card should say once only one person is in
-    // scope. Show the fully accurate count instead — the same computation
-    // the person-scoped Fail Attribution section itself uses — rather than
-    // whatever renderKPIs derived from the "touched a panel" narrowing.
+    const init=Object.keys(initMap).find(k=>initMap[k]===person)||person;
+    // Total Panels/Fails/FPY/Avg-Day/Man-Hours must use the exact same
+    // "person" as every other person-scoped section on this dashboard:
+    // Layout===init||Wire===init||FA===init (Fail Attribution, Person
+    // Summary, Layout/Wire/Final tabs, Person Trend), each row counted once
+    // even if the same panel shows up under more than one role, and a fail
+    // only counted if it's actually attributed to them (Fail_Inits includes
+    // init) — not merely "a fail happened on a panel they touched."
+    // filtered.dff at this point is already person-narrowed (generateReport
+    // filters df to "involved" — Layout/Wire/FA/Tech — before calling this),
+    // but that upstream narrowing also includes Tech-only rows, which none
+    // of the other person-scoped sections count. Re-deriving myRows here
+    // directly from Layout/Wire/FA is what makes this card's numbers match
+    // Fail Attribution, Trends, Period Comparison, Person Summary, Person
+    // Trend, and the Layout/Wire/Final tabs exactly, instead of a KPI-only
+    // definition nobody else on the page uses.
+    const myRows=filtered.dff.filter(r=>r.Layout===init||r.Wire===init||r.FA===init);
+    const tot=myRows.length;
+    const myFails=myRows.filter(r=>r.Is_Fail&&r.Fail_Inits.includes(init)).length;
+    const fpy=tot?((tot-myFails)/tot*100).toFixed(1):'0.0';
+    const maxD=myRows.length?new Date(Math.max(...myRows.map(r=>r._date))):filtered.maxDate;
+    const minD=myRows.length?new Date(Math.min(...myRows.map(r=>r._date))):filtered.maxDate;
+    const days=Math.max((maxD-minD)/86400000,1);
+    const manHours=myRows.reduce((s,r)=>s+(parseFloat(r.Routing_Hours)||0),0);
+    document.getElementById('kv-total').textContent=tot.toLocaleString();
+    document.getElementById('ks-days').textContent=`${Math.round(days)} days`;
+    document.getElementById('kv-fpy').textContent=fpy+'%';
+    document.getElementById('ks-fpy').textContent=`${(tot-myFails).toLocaleString()} passed`;
+    document.getElementById('kv-fails').textContent=myFails.toLocaleString();
+    document.getElementById('ks-fails').textContent=tot?`${(myFails/tot*100).toFixed(1)}% rate`:'';
+    document.getElementById('kv-avg').textContent=(tot/days).toFixed(1);
+    document.getElementById('kv-manhours').textContent=manHours.toLocaleString(undefined,{maximumFractionDigits:1});
+    document.getElementById('ks-manhours').textContent=tot?`${(manHours/tot).toFixed(2)} hrs/panel`:'';
+
+    // "Most Fails From" deliberately ignores the person filter — it's asking
+    // "who was the shop's biggest problem this period," a different question
+    // than "how did the filtered person do," and rescoping it to just the
+    // filtered person would make it always just restate the filter. Uses
+    // reportSourceFails (every attributed fail, unnarrowed) so it matches
+    // what the all-people report/live dashboard would show for this period.
     const periodFails=filterRowsByPeriod(reportSourceFails,period,sub);
-    const n=periodFails.filter(r=>r.Fail_Name===person).length;
-    document.getElementById('kv-top').textContent=person;
-    document.getElementById('ks-top').textContent=`${n.toLocaleString()} attributed fail${n===1?'':'s'}`;
+    const fc={};for(const r of periodFails)fc[r.Fail_Name]=(fc[r.Fail_Name]||0)+1;
+    const top=Object.entries(fc).sort((a,b)=>b[1]-a[1])[0];
+    document.getElementById('kv-top').textContent=top?top[0]:'—';
+    document.getElementById('ks-top').textContent=top?`${top[1].toLocaleString()} attributed fail${top[1]===1?'':'s'}`:'';
   }
   const scopeNote=person
     ?`<p class="report-note">This report is filtered to <b>${esc(person)}</b> — every number below reflects
-        only their own data, not the whole shop.</p>`
+        only their own data, not the whole shop, <b>except Most Fails From*</b>, which always shows the
+        shop-wide leader for this period regardless of the person filter.</p>`
     :`<p class="report-note">This report covers <b>all people</b> — nothing is filtered to one person.</p>`;
-  return scopeNote+document.getElementById('kpi-row').outerHTML;
+  let kpiHtml=document.getElementById('kpi-row').outerHTML;
+  if(person){
+    kpiHtml=kpiHtml.replace('Most Fails From','Most Fails From *');
+  }
+  const footnote=person
+    ?`<p style="font-size:10.5px;color:var(--warmgray);margin:-6px 0 14px">* Shop-wide for this period —
+        not filtered to ${esc(person)}.</p>`
+    :'';
+  return scopeNote+kpiHtml+footnote;
 }
 
 // Groups already-filtered rows into Day/Week/Month buckets, auto-picked from
@@ -1301,10 +1352,11 @@ function renderPersonTab(tabId,roleCol,roleLabel){
     pppMap[p][pd]=(pppMap[p][pd]||0)+1;
   }
 
+  const personColors=uniqueColors(persons.length);
   const groupedBarData=persons.map((person,i)=>({
     type:'bar',name:person,
     x:periodOrder,y:periodOrder.map(pd=>(pppMap[person]&&pppMap[person][pd])||0),
-    marker:{color:BOLD[i%BOLD.length]},
+    marker:{color:personColors[i]},
     customdata:Array(periodOrder.length).fill([person]),
     hovertemplate:'<b>%{x}</b><br>'+person+': %{y} panels<extra></extra>',
   }));
