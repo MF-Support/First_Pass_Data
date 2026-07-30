@@ -296,10 +296,10 @@ input:checked+.toggle-slider:before{transform:translateX(18px);}
 <!-- Version changelog -->
 <div class="version-history">
   <details>
-    <summary>v1.22 — changelog (updated 2026-07-29)</summary>
+    <summary>v1.23 — changelog (updated 2026-07-29)</summary>
+    <b>v1.23</b> Fixed the KPI cards (Total Panels, FPY%, etc.) not updating when the period was changed inside Fail Attribution/Layout/Wire/Final's own header — they only refreshed when changed at the top of the page. Both now stay in sync<br>
     <b>v1.22</b> Download Report's date range picker now also offers <b>Custom Range</b>, matching the top bar and section headers<br>
     <b>v1.21</b> Added <b>Custom Range</b> as the last Period option (top bar and every section header) — pick exact start/end dates by typing or with the calendar icon. Changing the period in Fail Attribution/Layout/Wire/Final now updates the top-of-page period too (Trends stays independent). Each tab now has its own URL. Fail Attribution bars are now a red↔green gradient by fail count; swapped the Layout/Final tab icons<br>
-    <b>v1.20</b> On Layout/Wire/Final you can now open a person's panel list by clicking their row in the Person/date/Totals table, and someone sitting at 0% is clickable too (previously they had no bar to click). Clickable names underline on hover. Fixed “FPY %” overlapping the numbers under the chart<br>
   </details>
 </div>
 
@@ -814,7 +814,7 @@ function onSecPeriodChange(key,val){
     for(const k of SYNC_TO_TOP){delete secPeriod[k];delete secSub[k];}
     document.getElementById('period-select').value=val;
     populateSubSelect(true);
-    renderTab(activeTab);
+    render(); // the top-of-page period actually changed — KPIs must follow
     return;
   }
   secPeriod[key]=val;
@@ -826,7 +826,7 @@ function onSecSubChange(key,val){
     for(const k of SYNC_TO_TOP){delete secPeriod[k];delete secSub[k];}
     const sel=document.getElementById('sub-select');
     if([...sel.options].some(o=>o.value===val))sel.value=val;
-    renderTab(activeTab);
+    render();
     return;
   }
   secSub[key]=val;
@@ -847,7 +847,7 @@ function onSecCustomChange(key,part,val){
     populateSubSelect(true);
     document.getElementById('custom-start').value=s;
     document.getElementById('custom-end').value=e;
-    renderTab(activeTab);
+    render();
     return;
   }
   secPeriod[key]='Custom Range';
