@@ -321,10 +321,10 @@ input:checked+.toggle-slider:before{transform:translateX(18px);}
 <!-- Version changelog -->
 <div class="version-history">
   <details>
-    <summary>v1.36 — changelog (updated 2026-07-30)</summary>
+    <summary>v1.37 — changelog (updated 2026-07-30)</summary>
+    <b>v1.37</b> Person Summary now defaults to sorting alphabetically by name, instead of by Layout Panels count<br>
     <b>v1.36</b> Sorting or filtering a table (Fail Attribution, Layout, Wire, Final, Period Comparison, Person Summary) no longer resets when you change the period — only the data updates, your sort/filter stays as you left it<br>
     <b>v1.35</b> The top KPI row (now 6 cards) stays on one row at any browser width instead of wrapping — cards shrink together and text scales down to fit, all the way down to a phone screen, without ever cutting off a number mid-digit<br>
-    <b>v1.34</b> Added a Man-Hours KPI card (sum of the workbook's Routing Hours column for the selected period, with avg hours/panel underneath) to the top KPI row and to Download Report exports<br>
   </details>
 </div>
 
@@ -1634,7 +1634,7 @@ function drawPersonSummary(){
     const overallFpy=totalP?+((totalP-totalF)/totalP*100).toFixed(1):null;
     return{nm,init,...cols,overallFpy};
   }).filter(r=>(r.LayoutP||0)+(r.WireP||0)+(r.FinalP||0)>0)
-    .sort((a,b)=>(b.LayoutP||0)-(a.LayoutP||0));
+    .sort((a,b)=>a.nm.localeCompare(b.nm));
 
   // Report, single person: keep only their row — everyone else is out of scope.
   const scopedRows=reportPersonFilter?pRows.filter(r=>r.nm===reportPersonFilter):pRows;
