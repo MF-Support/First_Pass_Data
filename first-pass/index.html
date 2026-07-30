@@ -941,6 +941,7 @@ function buildReportKpiHtml(period,sub,person){
   if(person){
     kpiHtml=kpiHtml.replace('Most Fails From','Most Fails From *');
   }
+  return scopeNote+kpiHtml+footnote;
   
 }
 
