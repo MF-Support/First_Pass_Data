@@ -304,10 +304,10 @@ input:checked+.toggle-slider:before{transform:translateX(18px);}
 <!-- Version changelog -->
 <div class="version-history">
   <details>
-    <summary>v1.32 — changelog (updated 2026-07-30)</summary>
-    <b>v1.32</b> Sort arrows on table headers are now always visible (⇅), not just on the active column. The Live badge now shows a separate "checked" time next to "updated" — Refresh always advances "checked" even when there's no new synced data yet, so it's now visible that clicking Refresh really did just talk to the server<br>
+    <summary>v1.33 — changelog (updated 2026-07-30)</summary>
+    <b>v1.33</b> Clicking Refresh now updates the "Live · updated" time to the moment you clicked, so it's obvious the refresh actually happened. Period Comparison's Period column now sorts chronologically (Jul 2025 → Jul 2026) instead of alphabetically<br>
+    <b>v1.32</b> Sort arrows on table headers are now always visible (⇅), not just on the active column<br>
     <b>v1.31</b> Added sort and filter to every table on the dashboard (Fail Attribution, Layout, Wire, Final, Period Comparison, Person Summary) — click a column header to sort by it, or type in the filter box above a table to narrow it down. Person Summary also gained an Overall FPY% column showing each person's combined Layout/Wire/Final pass rate for the selected period<br>
-    <b>v1.30</b> Person Trend now shows Current FPY and the Improving/Stable/Declining trend separately for Overall, Layout, Wire, and Final — not just Overall. Each shows only when the person has activity in that role for the selected period, and updates together as you change period or grouping<br>
   </details>
 </div>
 
@@ -336,7 +336,7 @@ let activeTab='t1';
 let psTrendPerson='', psTrendGrp='Week';
 // Live feed state. dataSource is 'live' (Supabase, fed by Power Automate) or
 // 'file' (manual upload fallback).
-let dataSource='file', liveTimer=null, liveLastSync=null, lastCheckedAt=null;
+let dataSource='file', liveTimer=null, liveLastSync=null, displayUpdatedAt=null;
 // Per-section period overrides, keyed by section id (see periodFor/secHdr).
 // secPeriod holds the period name, secSub the chosen bucket for picker periods.
 let secPeriod={},secSub={};
@@ -585,6 +585,11 @@ const esc=v=>v==null?'':String(v).replace(/[&<>"']/g,
   c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
 const rawHtml=h=>({__html:h});
 const cellHtml=c=>(c&&typeof c==='object'&&'__html' in c)?c.__html:esc(c);
+// A cell whose displayed text isn't in the right order to sort by (e.g. "Jul
+// 2026" needs to sort chronologically, not alphabetically) — pass the real
+// sort key separately and it's carried in a data-sort attribute that
+// sortDashTable prefers over reading the cell's own text.
+const sortCell=(display,key)=>({__html:esc(display),__sort:key});
 
 let tblSeq=0;
 function tbl(cols,rows,rowCls){
@@ -592,11 +597,15 @@ function tbl(cols,rows,rowCls){
   const head=cols.map((c,i)=>
     `<th class="sortable" data-col="${i}" onclick="sortDashTable('${tid}',${i})">${esc(c)}<span class="sort-arrow">⇅</span></th>`
   ).join('');
+  const cellTd=c=>{
+    const sortAttr=(c&&typeof c==='object'&&'__sort' in c)?` data-sort="${esc(String(c.__sort))}"`:'';
+    return `<td${sortAttr}>${cellHtml(c)}</td>`;
+  };
   return `<div class="tbl-wrap">
     <input type="text" class="tbl-filter-input" placeholder="Filter table…" oninput="filterDashTable('${tid}',this.value)">
     <table class="dash-table" id="${tid}">
     <thead><tr>${head}</tr></thead>
-    <tbody>${rows.map((r,i)=>`<tr class="${rowCls?rowCls(i):''}">${r.map(c=>`<td>${cellHtml(c)}</td>`).join('')}</tr>`).join('')}
+    <tbody>${rows.map((r,i)=>`<tr class="${rowCls?rowCls(i):''}">${r.map(cellTd).join('')}</tr>`).join('')}
     </tbody></table></div>`;
 }
 
@@ -616,6 +625,14 @@ function sortDashTable(tid,colIdx){
   table.dataset.sortDir=dir;
 
   const keyOf=td=>{
+    // A column can override what it sorts by (see sortCell) when the
+    // displayed text isn't in sortable order, e.g. "Jul 2026" needs to sort
+    // chronologically rather than alphabetically.
+    if(td&&td.dataset&&td.dataset.sort!==undefined){
+      const raw=td.dataset.sort;
+      const num=parseFloat(raw);
+      return(!isNaN(num)&&/^-?[\d.]+$/.test(raw))?{blank:false,num}:{blank:false,str:raw.toLowerCase()};
+    }
     const txt=(td?td.innerText||td.textContent:'').trim();
     if(!txt||txt==='—'||txt==='-')return{blank:true};
     const cleaned=txt.replace(/[$,%]/g,'');
@@ -1523,7 +1540,7 @@ function drawComparison(){
   // reads newest-first, which is the more useful order to scan.
   document.getElementById('comp-tbl').innerHTML=tbl(
     ['Period','Panels','Fails','Pass Rate%','Fail Rate%'],
-    [...s].reverse().map(([,v])=>[v.label,v.panels,v.fails,
+    [...s].reverse().map(([,v])=>[sortCell(v.label,v.sort.getTime()),v.panels,v.fails,
       ((v.panels-v.fails)/v.panels*100).toFixed(1)+'%',
       (v.fails/v.panels*100).toFixed(1)+'%']));
 }
@@ -2249,12 +2266,10 @@ async function loadLive(){
     Line:r.line,Emp:r.emp,Routing_Hours:r.routing_hours,Tech:r.tech,
     Layout:r.layout,Wire:r.wire,FA:r.fa,Sales_Order:r.sales_order})));
   liveLastSync=state&&state[0]?state[0].last_sync:null;
-  // "updated" (liveLastSync) only moves when the sync script actually pushed
-  // new data from Excel — it can legitimately stay the same across a manual
-  // refresh if nothing changed since the last sync. lastCheckedAt is separate:
-  // it always advances on a successful fetch, so a click that finds no new
-  // data still visibly confirms it *did* just talk to the server.
-  lastCheckedAt=new Date();
+  // Default display time is the sync's own timestamp. refreshLive() overrides
+  // this to the moment of the click after calling loadLive() — see there for
+  // why: a manual refresh should visibly confirm it just ran.
+  displayUpdatedAt=liveLastSync?new Date(liveLastSync):new Date();
   return df.length;
 }
 
@@ -2263,18 +2278,8 @@ function updateLiveBadge(){
   const btn=document.getElementById('live-refresh');
   if(!el)return;
   if(dataSource==='live'){
-    const fmt=d=>d.toLocaleTimeString('en-US',{hour:'numeric',minute:'2-digit'});
-    const t=liveLastSync?new Date(liveLastSync):null;
-    // "updated" is when the sync script last pushed new data from Excel — it
-    // only moves when the workbook actually changed. "checked" is when this
-    // page itself last talked to the server, which advances on every refresh
-    // click (and every 60s poll) even if nothing new was found — so a click
-    // that finds no new data still visibly confirms it happened.
-    const checkedHtml=lastCheckedAt
-      ?` <span style="color:var(--warmgray);font-weight:400">· checked ${fmt(lastCheckedAt)}</span>`:'';
     el.innerHTML=`<span style="color:var(--green)">●</span> Live · updated `+
-      (t?t.toLocaleString('en-US',{month:'short',day:'numeric',hour:'numeric',minute:'2-digit'}):'—')
-      +checkedHtml;
+      (displayUpdatedAt?displayUpdatedAt.toLocaleString('en-US',{month:'short',day:'numeric',hour:'numeric',minute:'2-digit'}):'—');
     el.style.color='var(--green)';
     if(btn)btn.style.display='';
   }else{
@@ -2288,7 +2293,16 @@ async function refreshLive(){
   const el=document.getElementById('live-status');
   if(el)el.innerHTML='<span style="color:var(--blue)">●</span> Refreshing…';
   try{
-    if(await loadLive()){dataSource='live';showDashboard();}
+    if(await loadLive()){
+      dataSource='live';
+      // A manual refresh should visibly confirm it just ran, so the badge
+      // shows the moment the user clicked — not the sync script's own
+      // last-push time, which can legitimately be older if nothing new has
+      // synced yet. Automatic loads (boot, background poll) still show the
+      // real sync time via loadLive()'s own default.
+      displayUpdatedAt=new Date();
+      showDashboard();
+    }
   }catch(e){
     if(el)el.innerHTML='<span style="color:var(--red)">●</span> Refresh failed';
   }
@@ -2303,7 +2317,6 @@ function startLivePolling(){
       const s=await sbGet('fp_sync_state?select=last_sync&limit=1');
       const ts=s&&s[0]?s[0].last_sync:null;
       if(ts&&ts!==liveLastSync){await loadLive();showDashboard();}
-      else{lastCheckedAt=new Date();updateLiveBadge();}
     }catch(e){/* transient network issue — try again next tick */}
   },60000);
 }
