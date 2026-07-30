@@ -89,9 +89,9 @@ body{background:var(--offwhite);font-family:'Inter',Arial,sans-serif;font-size:1
 .section-hdr .sec-period:focus{outline:2px solid rgba(255,255,255,.5);outline-offset:1px;}
 .section-hdr .sec-period option{background:#fff;color:var(--navy);font-weight:500;}
 .section-hdr .sec-span{font-family:Arial;font-size:11.5px;font-weight:400;opacity:.72;margin-left:8px;white-space:nowrap;}
-.report-note{background:#F4F6FB;border-left:3px solid var(--blue);color:var(--warmgray);
+.report-note{background:#F4F6FB;border-left:3px solid var(--blue);color:#000;
   font-size:11.5px;font-weight:700;line-height:1.55;padding:7px 11px;margin:0 0 12px;border-radius:0 4px 4px 0;}
-.report-note b{color:var(--navy);}
+.report-note b{color:#000;}
 
 .grp-btns{display:flex;gap:6px;margin-bottom:12px;}
 .grp-btn{background:#fff;border:1px solid #c8d0e7;border-radius:6px;padding:4px 12px;font-size:12px;font-weight:500;color:var(--navy);cursor:pointer;transition:background .15s;}
@@ -299,10 +299,10 @@ input:checked+.toggle-slider:before{transform:translateX(18px);}
 <!-- Version changelog -->
 <div class="version-history">
   <details>
-    <summary>v1.25 — changelog (updated 2026-07-30)</summary>
+    <summary>v1.26 — changelog (updated 2026-07-30)</summary>
+    <b>v1.26</b> Download Report: added a banner above the KPI cards stating whether the report covers all people or one person. All section notes are now bold black for readability<br>
     <b>v1.25</b> Download Report: bar charts are back on Fail Attribution/Layout/Wire/Final alongside their tables (a person-scoped report now shows a volume-over-time chart just for them), added KPI cards accurate for the report's date range and person, fixed the Person Trend chart sometimes exporting as "Building trend…" instead of the finished chart, Period Comparison's table now lists newest month first (site and report), and Trends' bar charts use a distinct color per bar<br>
     <b>v1.24</b> Fixed a person-scoped Download Report undercounting fails and showing a badly wrong percentage. Reports for one person now correctly show only that person everywhere: their full attributed-fails list, their own Layout/Wire/Final panels, a single-row Person Summary, and a Person Trend built for them. Added a small note under each section explaining what its numbers and percentages mean<br>
-    <b>v1.23</b> Fixed the KPI cards (Total Panels, FPY%, etc.) not updating when the period was changed inside Fail Attribution/Layout/Wire/Final's own header — they only refreshed when changed at the top of the page. Both now stay in sync<br>
   </details>
 </div>
 
@@ -771,7 +771,11 @@ function buildReportKpiHtml(period,sub,person){
     document.getElementById('kv-top').textContent=person;
     document.getElementById('ks-top').textContent=`${n.toLocaleString()} attributed fail${n===1?'':'s'}`;
   }
-  return document.getElementById('kpi-row').outerHTML;
+  const scopeNote=person
+    ?`<p class="report-note">This report is filtered to <b>${esc(person)}</b> — every number below reflects
+        only their own data, not the whole shop.</p>`
+    :`<p class="report-note">This report covers <b>all people</b> — nothing is filtered to one person.</p>`;
+  return scopeNote+document.getElementById('kpi-row').outerHTML;
 }
 
 // Groups already-filtered rows into Day/Week/Month buckets, auto-picked from
@@ -2466,9 +2470,9 @@ function downloadReportFile(parts,meta){
     .kpi-label{font-size:9px;opacity:.7;text-transform:uppercase;letter-spacing:.7px;}
     .kpi-value{font-size:20px;font-weight:bold;font-family:Georgia;}
     .kpi-sub{font-size:9px;opacity:.6;}
-    .report-note{background:#F4F6FB;border-left:3px solid #0F3CFF;color:#ABA18B;
+    .report-note{background:#F4F6FB;border-left:3px solid #0F3CFF;color:#000;
       font-size:11px;font-weight:700;line-height:1.55;padding:7px 11px;margin:0 0 12px;border-radius:0 4px 4px 0;}
-    .report-note b{color:#000E57;}
+    .report-note b{color:#000;}
     .drilldown-box,.trace-card,.ps-filter-row,.grp-btns,.ta-filters{display:none;}
     @media print{body{padding:0;} .sec{page-break-before:always;}}
   `;
