@@ -90,7 +90,7 @@ body{background:var(--offwhite);font-family:'Inter',Arial,sans-serif;font-size:1
 .section-hdr .sec-period option{background:#fff;color:var(--navy);font-weight:500;}
 .section-hdr .sec-span{font-family:Arial;font-size:11.5px;font-weight:400;opacity:.72;margin-left:8px;white-space:nowrap;}
 .report-note{background:#F4F6FB;border-left:3px solid var(--blue);color:var(--warmgray);
-  font-size:11.5px;line-height:1.55;padding:7px 11px;margin:0 0 12px;border-radius:0 4px 4px 0;}
+  font-size:11.5px;font-weight:700;line-height:1.55;padding:7px 11px;margin:0 0 12px;border-radius:0 4px 4px 0;}
 .report-note b{color:var(--navy);}
 
 .grp-btns{display:flex;gap:6px;margin-bottom:12px;}
@@ -299,10 +299,10 @@ input:checked+.toggle-slider:before{transform:translateX(18px);}
 <!-- Version changelog -->
 <div class="version-history">
   <details>
-    <summary>v1.24 — changelog (updated 2026-07-30)</summary>
+    <summary>v1.25 — changelog (updated 2026-07-30)</summary>
+    <b>v1.25</b> Download Report: bar charts are back on Fail Attribution/Layout/Wire/Final alongside their tables (a person-scoped report now shows a volume-over-time chart just for them), added KPI cards accurate for the report's date range and person, fixed the Person Trend chart sometimes exporting as "Building trend…" instead of the finished chart, Period Comparison's table now lists newest month first (site and report), and Trends' bar charts use a distinct color per bar<br>
     <b>v1.24</b> Fixed a person-scoped Download Report undercounting fails and showing a badly wrong percentage. Reports for one person now correctly show only that person everywhere: their full attributed-fails list, their own Layout/Wire/Final panels, a single-row Person Summary, and a Person Trend built for them. Added a small note under each section explaining what its numbers and percentages mean<br>
     <b>v1.23</b> Fixed the KPI cards (Total Panels, FPY%, etc.) not updating when the period was changed inside Fail Attribution/Layout/Wire/Final's own header — they only refreshed when changed at the top of the page. Both now stay in sync<br>
-    <b>v1.22</b> Download Report's date range picker now also offers <b>Custom Range</b>, matching the top bar and section headers<br>
   </details>
 </div>
 
@@ -314,6 +314,10 @@ const NAVY='#000E57',BLUE='#0F3CFF',TINT='#E7ECFF',OFFWHITE='#FFFEF5';
 const WARMGRAY='#ABA18B',RED='#C0392B',GREEN='#27AE60',AMBER='#E67E22';
 // px.colors.qualitative.Bold (exact Plotly Python palette)
 const BOLD=['#7EB0D5','#BD7EBE','#D5B60A','#47B39C','#FC5A5A','#6A4C93','#1982C4','#8AC926','#F8E022','#B6E880','#FF97FF','#FECB52'];
+// One color per bar, cycling the palette, so bars stay distinguishable from
+// one another however many there are — recomputed on every render, so it
+// automatically adapts as the period/filter changes the bar count.
+const barColors=n=>Array.from({length:n},(_,i)=>BOLD[i%BOLD.length]);
 // Row hit-area band behind each FPY bar, and its hover state.
 const FPY_BAND='rgba(0,14,87,0.045)', FPY_BAND_HOVER='rgba(25,130,196,0.16)';
 const SB_URL='https://ptbhguthosenkffjhbry.supabase.co';
@@ -749,6 +753,42 @@ let reportAnchor=null;
 // failExploded gets narrowed to "roles they touched" for Panels Built/Period
 // Comparison, which would otherwise silently drop that fail.
 let reportPersonFilter=null,reportSourceFails=null;
+// Renders the KPI row for the report's exact scope (same math renderKPIs()
+// always uses, so the numbers match what the live dashboard would show under
+// these same filters) and returns it as static HTML. #kpi-row lives outside
+// every tab pane, so the report's per-tab clone loop never captures it on its
+// own — this is the only place that puts it in the exported file.
+function buildReportKpiHtml(period,sub,person){
+  renderKPIs(getFiltered(period,sub));
+  if(person){
+    // "Most Fails From" would rank people among panels this person touched,
+    // which is not what the card should say once only one person is in
+    // scope. Show the fully accurate count instead — the same computation
+    // the person-scoped Fail Attribution section itself uses — rather than
+    // whatever renderKPIs derived from the "touched a panel" narrowing.
+    const periodFails=filterRowsByPeriod(reportSourceFails,period,sub);
+    const n=periodFails.filter(r=>r.Fail_Name===person).length;
+    document.getElementById('kv-top').textContent=person;
+    document.getElementById('ks-top').textContent=`${n.toLocaleString()} attributed fail${n===1?'':'s'}`;
+  }
+  return document.getElementById('kpi-row').outerHTML;
+}
+
+// Groups already-filtered rows into Day/Week/Month buckets, auto-picked from
+// the span (same heuristic buildPsTrend uses) — for a person-scoped report's
+// volume-over-time chart. Not tied to any UI grouping control.
+function autoBucketCounts(rows){
+  if(!rows.length)return{g:'Month',buckets:[]};
+  const span=rows.length>1
+    ?(new Date(Math.max(...rows.map(r=>r._date)))-new Date(Math.min(...rows.map(r=>r._date))))/86400000:0;
+  const g=span<=30?'Day':span<=90?'Week':'Month';
+  const keyOf=r=>g==='Day'?r.DayStr:g==='Week'?'Wk '+r.Week:r.MonthLabel;
+  const sortOf=r=>g==='Day'?r.DayStr:g==='Week'?r.Week:r.Month;
+  const map={};
+  for(const r of rows){const k=keyOf(r);if(!map[k])map[k]={label:k,sort:sortOf(r),n:0};map[k].n++;}
+  const buckets=Object.values(map).sort((a,b)=>String(a.sort).localeCompare(String(b.sort)));
+  return{g,buckets};
+}
 // True only while generateReport() is running, for ANY report (person-scoped
 // or all-people) — gates the small "what this data/percent means" notes so
 // they appear in the exported file without adding text to the live dashboard.
@@ -957,14 +997,27 @@ function renderT1(){
       if(r.Tech===r.Fail_Init)roles.push('Tech');
       return roles.join('/')||'—';
     };
+    const {g,buckets}=autoBucketCounts(rows);
     el.innerHTML=`
       ${secHdr('Fail Attribution','t1')}
       <p class="report-note">Every fail attributed to <b>${esc(reportPersonFilter)}</b> in this period — matched by
         their initials in the Reason text, on any row, regardless of which role they were assigned there.
         ${rows.length} fail${rows.length===1?'':'s'} total.</p>
+      ${rows.length?`<div class="chart-box"><div id="ch-fa-person" class="plot-div"></div></div>`:''}
       ${rows.length?tbl(['Date','Job #','Panel','Line','Role','Reason'],
           rows.map(r=>[fmtDate(r._date),r.Sales_Order||'',r.Panel||'',r.Line||'',roleOf(r),r.Reason||'']))
         :`<div style="padding:20px;color:var(--warmgray)">No fails attributed to ${esc(reportPersonFilter)} in this period.</div>`}`;
+    if(rows.length){
+      newPlot('ch-fa-person',[{type:'bar',
+        x:buckets.map(b=>b.label),y:buckets.map(b=>b.n),
+        text:buckets.map(b=>b.n),textposition:'outside',cliponaxis:false,
+        marker:{color:RED},
+        hovertemplate:'<b>%{x}</b><br>%{y} fails<extra></extra>'}],{
+        title:{text:`Fails Attributed by ${g}`,font:{family:'Georgia',color:NAVY,size:15}},
+        xaxis:{tickangle:buckets.length>8?-35:0,automargin:true},
+        yaxis:{title:'Fails',automargin:true},
+        height:280,margin:{l:50,r:20,t:50,b:60}});
+    }
     return;
   }
 
@@ -1055,8 +1108,9 @@ function renderPersonTab(tabId,roleCol,roleLabel){
   if(reportPersonFilter){
     // Report, single person: their own panel list for THIS role only (a
     // person's Layout panels are a different set from their Wire panels), in
-    // the same format as the live dashboard's click-through drilldown — no
-    // multi-person chart, since there is no one left to compare them against.
+    // the same format as the live dashboard's click-through drilldown, plus a
+    // volume-over-time chart of just their own panels (not a multi-person
+    // comparison — there is no one left to compare them against).
     const nameCol=roleCol+'_Name';
     const init=Object.keys(initMap).find(k=>initMap[k]===reportPersonFilter)||reportPersonFilter;
     const rows=dff.filter(r=>r[nameCol]===reportPersonFilter).sort((a,b)=>b._date-a._date);
@@ -1075,14 +1129,28 @@ function renderPersonTab(tabId,roleCol,roleLabel){
     });
     const n=rows.length,myFails=roleRows.filter(r=>r.myFail).length;
     const fpy=n?((n-myFails)/n*100).toFixed(1):null;
+    const {g,buckets}=autoBucketCounts(rows);
+    const chartId=`ch-role-${tabId}`;
     el.innerHTML=`
       ${secHdr(`${roleLabel} Panels by Person`,tabId)}
       <p class="report-note">${esc(roleLabel)} panels assigned to <b>${esc(reportPersonFilter)}</b> in this period —
         ${n} panel${n===1?'':'s'}${fpy!==null?`, First Pass Yield ${fpy}%`:''}. Rows highlighted red are fails
         attributed to them specifically in this role (not fails on the panel caused by someone else).</p>
+      ${n?`<div class="chart-box"><div id="${chartId}" class="plot-div"></div></div>`:''}
       ${roleRows.length?tbl(['Date','Job #','Pass/Fail','Panel','Line','Reason','Role','Failure Caused By'],
           roleRows.map(r=>r.cells),i=>roleRows[i].myFail?'row-fail':'')
         :`<div style="padding:20px;color:var(--warmgray)">No ${esc(roleLabel)} panels for ${esc(reportPersonFilter)} in this period.</div>`}`;
+    if(n){
+      newPlot(chartId,[{type:'bar',
+        x:buckets.map(b=>b.label),y:buckets.map(b=>b.n),
+        text:buckets.map(b=>b.n),textposition:'outside',cliponaxis:false,
+        marker:{color:BLUE},
+        hovertemplate:'<b>%{x}</b><br>%{y} panels<extra></extra>'}],{
+        title:{text:`${roleLabel} Panels by ${g}`,font:{family:'Georgia',color:NAVY,size:15}},
+        xaxis:{tickangle:buckets.length>8?-35:0,automargin:true},
+        yaxis:{title:'Panels',automargin:true},
+        height:280,margin:{l:50,r:20,t:50,b:60}});
+    }
     return;
   }
 
@@ -1343,7 +1411,8 @@ function drawTrend(){
   const s=Object.entries(grps).sort((a,b)=>a[1].sort-b[1].sort);
   const lbls=s.map(e=>e[0]),panels=s.map(e=>e[1].panels),fails=s.map(e=>e[1].fails);
   newPlot('ch-trend',[
-    {type:'bar',name:'Panels',x:lbls,y:panels,marker:{color:BLUE},
+    {type:'bar',name:'Panels',x:lbls,y:panels,
+     marker:{color:barColors(lbls.length)},
      text:panels,textposition:'outside',cliponaxis:false,
      hovertemplate:'<b>%{x}</b><br>%{y} panels<extra></extra>'},
   ],{height:380,
@@ -1369,7 +1438,8 @@ function drawComparison(){
   const lbls=s.map(e=>e[1].label),panels=s.map(e=>e[1].panels);
   const failPcts=s.map(e=>(e[1].fails/e[1].panels*100).toFixed(1));
   newPlot('ch-comp-p',[{type:'bar',x:lbls,y:panels,text:panels,textposition:'outside',cliponaxis:false,
-    marker:{color:BLUE},hovertemplate:'<b>%{x}</b><br>%{y} panels<extra></extra>'}],
+    marker:{color:barColors(lbls.length)},
+    hovertemplate:'<b>%{x}</b><br>%{y} panels<extra></extra>'}],
     {title:{text:`Total Panels by ${c}`,font:{family:'Georgia',color:NAVY,size:14}},height:320,
      xaxis:{tickangle:s.length>8?-40:0,automargin:true},yaxis:{title:'Panels',automargin:true},
      margin:{l:50,r:20,t:40,b:60}});
@@ -1387,9 +1457,11 @@ function drawComparison(){
      yaxis:{title:'Fail Rate %',ticksuffix:'%',rangemode:'tozero',automargin:true,
             range:[0,maxPct>0?maxPct*1.20:10]},
      showlegend:false,margin:{l:50,r:20,t:62,b:60}});
+  // Chart stays chronological (oldest->newest, left to right) — the table
+  // reads newest-first, which is the more useful order to scan.
   document.getElementById('comp-tbl').innerHTML=tbl(
     ['Period','Panels','Fails','Pass Rate%','Fail Rate%'],
-    s.map(([,v])=>[v.label,v.panels,v.fails,
+    [...s].reverse().map(([,v])=>[v.label,v.panels,v.fails,
       ((v.panels-v.fails)/v.panels*100).toFixed(1)+'%',
       (v.fails/v.panels*100).toFixed(1)+'%']));
 }
@@ -1465,6 +1537,16 @@ function drawPsTrend(){
     const gw=document.getElementById('ps-trend-grp-wrap');
     if(gw)gw.style.display='none';   // nothing to group until a person is picked
     el.innerHTML='<p style="color:var(--warmgray);padding:16px 0">Select a person above to view their FPY trend.</p>';
+    return;
+  }
+  // During report export, awaitPlots() waits only for charts that have already
+  // called newPlot() — it runs right after renderT5() returns, so a build
+  // deferred behind this setTimeout would not exist yet, and the exported file
+  // would capture the "Building trend…" placeholder instead of the chart.
+  // Build synchronously in that case; the deferral is purely a live-dashboard
+  // UX nicety (letting the spinner paint before the heavier build runs).
+  if(isGeneratingReport){
+    buildPsTrend(psTrendPerson,el,psTrendGrp);
     return;
   }
   el.innerHTML='<div class="spinner-wrap"><div class="spinner"></div> Building trend…</div>';
@@ -2256,6 +2338,11 @@ async function generateReport(){
       if([...tw.options].some(o=>o.value===person))tw.value=person;
     }
 
+    // df/failExploded and the period controls are now in their final report
+    // state (person-narrowed if applicable), so the KPI row built here is
+    // accurate for exactly this date range and scope.
+    const kpiHtml=buildReportKpiHtml(period,sub,person);
+
     const parts=[];
     for(let i=0;i<chosen.length;i++){
       const tab=chosen[i];
@@ -2316,7 +2403,7 @@ async function generateReport(){
 
     prog.textContent='Assembling file…';
     const rangeLabel=getPeriodLabel(period,sub);
-    downloadReportFile(parts,{rangeLabel,group,person,rows:df.length});
+    downloadReportFile(parts,{rangeLabel,group,person,rows:df.length,kpiHtml});
     prog.textContent='Done — check your downloads.';
     setTimeout(closeReportDialog,900);
   }catch(err){
@@ -2340,6 +2427,9 @@ async function generateReport(){
     const back=document.getElementById(saved.activeTab);
     if(back)back.classList.add('active');
     try{renderTab(activeTab);}catch(e){}
+    // buildReportKpiHtml() overwrote the live #kpi-row with the report's
+    // scope; put the dashboard's own numbers back now that df/period/etc are.
+    try{renderKPIs(getFiltered());}catch(e){}
     goBtn.disabled=false;
   }
 }
@@ -2370,13 +2460,14 @@ function downloadReportFile(parts,meta){
     .pct-high{color:#C0392B;font-weight:700;}
     .pct-med{color:darkorange;font-weight:700;}
     .pct-ok{color:#27AE60;font-weight:600;}
+    #kpi-row{margin:4px 0 22px;}
     .kpi-card{display:inline-block;background:#000E57;color:#fff;border-radius:8px;
       padding:10px 16px;margin:0 8px 8px 0;text-align:center;min-width:120px;}
     .kpi-label{font-size:9px;opacity:.7;text-transform:uppercase;letter-spacing:.7px;}
     .kpi-value{font-size:20px;font-weight:bold;font-family:Georgia;}
     .kpi-sub{font-size:9px;opacity:.6;}
     .report-note{background:#F4F6FB;border-left:3px solid #0F3CFF;color:#ABA18B;
-      font-size:11px;line-height:1.55;padding:7px 11px;margin:0 0 12px;border-radius:0 4px 4px 0;}
+      font-size:11px;font-weight:700;line-height:1.55;padding:7px 11px;margin:0 0 12px;border-radius:0 4px 4px 0;}
     .report-note b{color:#000E57;}
     .drilldown-box,.trace-card,.ps-filter-row,.grp-btns,.ta-filters{display:none;}
     @media print{body{padding:0;} .sec{page-break-before:always;}}
@@ -2395,6 +2486,7 @@ function downloadReportFile(parts,meta){
   <b>Records:</b> ${meta.rows.toLocaleString()} &nbsp;·&nbsp;
   <b>Generated:</b> ${esc(now.toLocaleString())}
 </div>
+${meta.kpiHtml||''}
 ${body}
 </body></html>`;
 
