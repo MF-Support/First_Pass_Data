@@ -321,10 +321,10 @@ input:checked+.toggle-slider:before{transform:translateX(18px);}
 <!-- Version changelog -->
 <div class="version-history">
   <details>
-    <summary>v1.35 — changelog (updated 2026-07-30)</summary>
+    <summary>v1.36 — changelog (updated 2026-07-30)</summary>
+    <b>v1.36</b> Sorting or filtering a table (Fail Attribution, Layout, Wire, Final, Period Comparison, Person Summary) no longer resets when you change the period — only the data updates, your sort/filter stays as you left it<br>
     <b>v1.35</b> The top KPI row (now 6 cards) stays on one row at any browser width instead of wrapping — cards shrink together and text scales down to fit, all the way down to a phone screen, without ever cutting off a number mid-digit<br>
     <b>v1.34</b> Added a Man-Hours KPI card (sum of the workbook's Routing Hours column for the selected period, with avg hours/panel underneath) to the top KPI row and to Download Report exports<br>
-    <b>v1.33</b> Clicking Refresh now updates the "Live · updated" time to the moment you clicked, so it's obvious the refresh actually happened. Period Comparison's Period column now sorts chronologically (Jul 2025 → Jul 2026) instead of alphabetically<br>
   </details>
 </div>
 
@@ -609,21 +609,44 @@ const cellHtml=c=>(c&&typeof c==='object'&&'__html' in c)?c.__html:esc(c);
 const sortCell=(display,key)=>({__html:esc(display),__sort:key});
 
 let tblSeq=0;
-function tbl(cols,rows,rowCls){
-  const tid=`dt-${tblSeq++}`;
-  const head=cols.map((c,i)=>
-    `<th class="sortable" data-col="${i}" onclick="sortDashTable('${tid}',${i})">${esc(c)}<span class="sort-arrow">⇅</span></th>`
-  ).join('');
+// A table re-renders from scratch on every period/filter change, which would
+// normally reset any sort/filter the user had set — a period change should
+// only change the data, not silently undo what they were doing with it. A
+// caller passes a stable `key` (e.g. 'fail-attribution') for tables where
+// that persistence matters; one-off drilldown/detail tables omit it and
+// behave as before (fresh sort/filter state each time).
+const tblState={};
+function tbl(cols,rows,rowCls,key){
+  const tid=key?`dt-k-${key.replace(/[^a-zA-Z0-9_-]/g,'_')}`:`dt-${tblSeq++}`;
+  const st=key?tblState[key]:null;
+  const head=cols.map((c,i)=>{
+    const arrow=st&&st.sortCol===i?(st.sortDir==='asc'?' ▲':' ▼'):'⇅';
+    return `<th class="sortable" data-col="${i}" onclick="sortDashTable('${tid}',${i})">${esc(c)}<span class="sort-arrow">${arrow}</span></th>`;
+  }).join('');
   const cellTd=c=>{
     const sortAttr=(c&&typeof c==='object'&&'__sort' in c)?` data-sort="${esc(String(c.__sort))}"`:'';
     return `<td${sortAttr}>${cellHtml(c)}</td>`;
   };
-  return `<div class="tbl-wrap">
-    <input type="text" class="tbl-filter-input" placeholder="Filter table…" oninput="filterDashTable('${tid}',this.value)">
-    <table class="dash-table" id="${tid}">
+  const keyAttr=key?` data-tkey="${esc(key)}"`:'';
+  const html=`<div class="tbl-wrap">
+    <input type="text" class="tbl-filter-input" placeholder="Filter table…" value="${esc(st&&st.filterText||'')}" oninput="filterDashTable('${tid}',this.value)">
+    <table class="dash-table" id="${tid}"${keyAttr}>
     <thead><tr>${head}</tr></thead>
     <tbody>${rows.map((r,i)=>`<tr class="${rowCls?rowCls(i):''}">${r.map(cellTd).join('')}</tr>`).join('')}
     </tbody></table></div>`;
+  // Reapply after this HTML is actually attached to the DOM (tbl() only
+  // returns a string; the caller decides when/where it lands via innerHTML).
+  // A 0ms timeout runs in the next macrotask, after that synchronous
+  // insertion has happened.
+  if(st&&(st.sortCol!=null||st.filterText)){
+    setTimeout(()=>{
+      const t=document.getElementById(tid);
+      if(!t)return;
+      if(st.filterText)filterDashTable(tid,st.filterText);
+      if(st.sortCol!=null)sortDashTable(tid,st.sortCol,st.sortDir);
+    },0);
+  }
+  return html;
 }
 
 // Re-sorts a rendered table's <tr> elements in place by comparing each row's
@@ -632,14 +655,17 @@ function tbl(cols,rows,rowCls){
 // cells (after stripping $,%,commas) sort as numbers; everything else sorts
 // as text. Blank/"—" cells always sort last regardless of direction, since
 // "smallest" isn't a meaningful read for missing data.
-function sortDashTable(tid,colIdx){
+function sortDashTable(tid,colIdx,forceDir){
   const table=document.getElementById(tid);
   if(!table)return;
   const tbody=table.querySelector('tbody');
   const rows=[...tbody.querySelectorAll('tr')];
-  const dir=(table.dataset.sortCol===String(colIdx)&&table.dataset.sortDir==='asc')?'desc':'asc';
+  // forceDir restores a known state (e.g. after a period change re-rendered
+  // the table) without toggling; a real header click always toggles.
+  const dir=forceDir||((table.dataset.sortCol===String(colIdx)&&table.dataset.sortDir==='asc')?'desc':'asc');
   table.dataset.sortCol=colIdx;
   table.dataset.sortDir=dir;
+  if(table.dataset.tkey)tblState[table.dataset.tkey]={...tblState[table.dataset.tkey],sortCol:colIdx,sortDir:dir};
 
   const keyOf=td=>{
     // A column can override what it sorts by (see sortCell) when the
@@ -678,6 +704,7 @@ function filterDashTable(tid,query){
   table.querySelectorAll('tbody tr').forEach(tr=>{
     tr.style.display=(!q||tr.textContent.toLowerCase().includes(q))?'':'none';
   });
+  if(table.dataset.tkey)tblState[table.dataset.tkey]={...tblState[table.dataset.tkey],filterText:query};
 }
 
 function getPeriodLabel(period,sub){
@@ -1143,7 +1170,7 @@ function renderT1(){
     <div style="display:grid;grid-template-columns:3fr 2fr;gap:16px;min-width:0">
       <div class="chart-box" style="min-width:0"><div id="ch-fa" class="plot-div clickable-plot"></div></div>
       <div style="min-width:0;overflow:auto">${tbl(['Person','Fails Caused','% of Fails','Most Common Issue'],
-        sorted.map(r=>[r.n,r.c,r.pct+'%',r.issue]))}</div>
+        sorted.map(r=>[r.n,r.c,r.pct+'%',r.issue]),null,'fail-attribution')}</div>
     </div>
     <div id="t1-drilldown"></div>
     <div id="t1-unattr"></div>`;
@@ -1317,7 +1344,7 @@ function renderPersonTab(tabId,roleCol,roleLabel){
       ${roleLabel} role in this period — not a share of the whole shop's fails.</p>`:''}
     <div style="display:grid;grid-template-columns:3fr 2fr;gap:16px;margin-bottom:16px">
       <div class="chart-box"><div id="ch-grp-${tabId}" class="plot-div clickable-plot"></div></div>
-      <div id="pivot-${tabId}" style="overflow-x:auto">${tbl(pivotCols,pivotRows)}</div>
+      <div id="pivot-${tabId}" style="overflow-x:auto">${tbl(pivotCols,pivotRows,null,`pivot-${tabId}`)}</div>
     </div>
     <div class="chart-box"><div id="ch-fpy-${tabId}" class="plot-div clickable-plot"></div></div>
     <div id="drill-${tabId}"></div>`;
@@ -1567,7 +1594,7 @@ function drawComparison(){
     ['Period','Panels','Fails','Pass Rate%','Fail Rate%'],
     [...s].reverse().map(([,v])=>[sortCell(v.label,v.sort.getTime()),v.panels,v.fails,
       ((v.panels-v.fails)/v.panels*100).toFixed(1)+'%',
-      (v.fails/v.panels*100).toFixed(1)+'%']));
+      (v.fails/v.panels*100).toFixed(1)+'%']),null,'period-comparison');
 }
 
 function setTrendsGrp(g){
@@ -1629,7 +1656,7 @@ function drawPersonSummary(){
         by role — not compared against anyone else.</p>`:'');
   const missing=reportPersonFilter&&!scopedRows.length
     ?`<div style="padding:16px;color:var(--warmgray)">No Layout/Wire/Final panels for ${esc(reportPersonFilter)} in this period.</div>`
-    :tbl(['Person','Overall FPY%','Layout Panels','Layout Fail%','Wire Panels','Wire Fail%','Final Panels','Final Fail%'],rows);
+    :tbl(['Person','Overall FPY%','Layout Panels','Layout Fail%','Wire Panels','Wire Fail%','Final Panels','Final Fail%'],rows,null,'person-summary');
 
   document.getElementById('person-summary').innerHTML=note+missing;
 }
