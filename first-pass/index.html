@@ -299,10 +299,10 @@ input:checked+.toggle-slider:before{transform:translateX(18px);}
 <!-- Version changelog -->
 <div class="version-history">
   <details>
-    <summary>v1.26 — changelog (updated 2026-07-30)</summary>
+    <summary>v1.27 — changelog (updated 2026-07-30)</summary>
+    <b>v1.27</b> Person Trend's Improving/Stable/Declining now uses a panel-count-weighted trend line across the whole period instead of comparing first-half vs. second-half averages — more accurate and less thrown off by one noisy bucket. The trend is always shown; when a person/period has too little data to be confident (fewer than 3 time buckets or 20 panels), a small warning icon appears next to it explaining the number is a rough read, not hidden. Chart hover tooltips now also show panel count alongside FPY %<br>
     <b>v1.26</b> Download Report: added a banner above the KPI cards stating whether the report covers all people or one person. All section notes are now bold black for readability<br>
     <b>v1.25</b> Download Report: bar charts are back on Fail Attribution/Layout/Wire/Final alongside their tables (a person-scoped report now shows a volume-over-time chart just for them), added KPI cards accurate for the report's date range and person, fixed the Person Trend chart sometimes exporting as "Building trend…" instead of the finished chart, Period Comparison's table now lists newest month first (site and report), and Trends' bar charts use a distinct color per bar<br>
-    <b>v1.24</b> Fixed a person-scoped Download Report undercounting fails and showing a badly wrong percentage. Reports for one person now correctly show only that person everywhere: their full attributed-fails list, their own Layout/Wire/Final panels, a single-row Person Summary, and a Person Trend built for them. Added a small note under each section explaining what its numbers and percentages mean<br>
   </details>
 </div>
 
@@ -1567,6 +1567,29 @@ function rebuildPsTrend(grp){
   setTimeout(()=>buildPsTrend(psTrendPerson,el,grp),50);
 }
 
+// Weighted least-squares fit of y = a + b*x. Weighting by panel count means a
+// 3-panel bucket barely moves the line while a 150-panel bucket dominates it —
+// closer to a proper inverse-variance weighting than an unweighted fit would
+// be, without needing full binomial regression. Returns null only when every
+// x is identical (can't happen here since x is a bucket index, but guarded
+// rather than trusting the caller).
+function weightedLinearTrend(xs,ys,ws){
+  let sw=0,swx=0,swy=0,swxx=0,swxy=0;
+  for(let i=0;i<xs.length;i++){
+    const w=ws[i];
+    sw+=w;swx+=w*xs[i];swy+=w*ys[i];swxx+=w*xs[i]*xs[i];swxy+=w*xs[i]*ys[i];
+  }
+  const denom=sw*swxx-swx*swx;
+  if(!denom)return null;
+  return{slope:(sw*swxy-swx*swy)/denom,intercept:(swy-(sw*swxy-swx*swy)/denom*swx)/sw};
+}
+// Below either floor, the trend is still shown (computed from whatever data
+// is available) but flagged with a hover-alert icon rather than hidden.
+// 3 buckets is the point a fitted line adds anything over comparing two
+// numbers; 20 panels is roughly where a swing of a few FPY points stops being
+// mostly binomial noise (SE of a proportion at n=20 is around 11 points).
+const MIN_TREND_BUCKETS=3,MIN_TREND_PANELS=20;
+
 function buildPsTrend(person,el,grp='Week'){
   const base=getPtBase();
   const init=Object.keys(initMap).find(k=>initMap[k]===person)||person;
@@ -1610,16 +1633,31 @@ function buildPsTrend(person,el,grp='Week'){
   const wireFpy=sorted.map(b=>b.wP?fpyOf(b.wP,b.wF):null);
   const finalFpy=sorted.map(b=>b.fP?fpyOf(b.fP,b.fF):null);
 
-  // Trend: compare first half vs last half of valid periods
-  const valid=overallFpy.filter(v=>v!==null);
+  // Trend: weighted linear fit of Overall FPY across every bucket (panel count
+  // as weight), read as the predicted change from the first bucket to the
+  // last along that line. Robust to one outlier bucket in a way a first-half
+  // vs second-half average isn't — a step change and a gradual climb of the
+  // same total size both read as "Improving," since a straight line can't
+  // tell those apart; only direction is being measured, not shape.
+  //
+  // The trend is always shown, even below MIN_TREND_BUCKETS/MIN_TREND_PANELS —
+  // a supervisor filtering to a short custom range still wants *a* read, not a
+  // blank. Below the floor it's flagged with a hover-alert icon instead of
+  // being hidden, so the number stays honest about its own confidence rather
+  // than pretending a 2-bucket fit is as solid as a 12-bucket one.
+  const lowData=sorted.length<MIN_TREND_BUCKETS||myRows.length<MIN_TREND_PANELS;
   let trendArrow='→',trendColor=WARMGRAY,trendText='Stable';
-  if(valid.length>=2){
-    const h=Math.max(1,Math.floor(valid.length/2));
-    const early=valid.slice(0,h).reduce((s,v)=>s+v,0)/h;
-    const recent=valid.slice(-h).reduce((s,v)=>s+v,0)/h;
-    const diff=recent-early;
-    if(diff>2){trendArrow='↑';trendColor=GREEN;trendText=`+${diff.toFixed(1)}% — Improving`;}
-    else if(diff<-2){trendArrow='↓';trendColor=RED;trendText=`${diff.toFixed(1)}% — Declining`;}
+  if(sorted.length<2){
+    trendText='Stable (insufficient data)';
+  }else{
+    const xs=sorted.map((_,i)=>i);
+    const ws=sorted.map(b=>b.oP);
+    const fit=weightedLinearTrend(xs,overallFpy,ws);
+    if(fit){
+      const totalChange=fit.slope*(xs.length-1);
+      if(totalChange>2){trendArrow='↑';trendColor=GREEN;trendText=`+${totalChange.toFixed(1)}% — Improving`;}
+      else if(totalChange<-2){trendArrow='↓';trendColor=RED;trendText=`${totalChange.toFixed(1)}% — Declining`;}
+    }
   }
 
   const ts=Date.now();
@@ -1629,10 +1667,11 @@ function buildPsTrend(person,el,grp='Week'){
 
   // Build trace list with metadata
   const traceDefs=[];
-  traceDefs.push({name:'Overall',color:NAVY,lineWidth:3,dash:'solid',markerSize:8,fpy:overallFpy,hover:'Overall FPY'});
-  if(layoutFpy.some(v=>v!==null))traceDefs.push({name:'Layout',color:BLUE,lineWidth:2,dash:'dot',markerSize:5,fpy:layoutFpy,hover:'Layout FPY'});
-  if(wireFpy.some(v=>v!==null))traceDefs.push({name:'Wire',color:BOLD[3],lineWidth:2,dash:'dot',markerSize:5,fpy:wireFpy,hover:'Wire FPY'});
-  if(finalFpy.some(v=>v!==null))traceDefs.push({name:'Final',color:BOLD[4],lineWidth:2,dash:'dot',markerSize:5,fpy:finalFpy,hover:'Final FPY'});
+  const oPanels=sorted.map(b=>b.oP),lPanels=sorted.map(b=>b.lP),wPanels=sorted.map(b=>b.wP),fPanels=sorted.map(b=>b.fP);
+  traceDefs.push({name:'Overall',color:NAVY,lineWidth:3,dash:'solid',markerSize:8,fpy:overallFpy,panels:oPanels,hover:'Overall FPY'});
+  if(layoutFpy.some(v=>v!==null))traceDefs.push({name:'Layout',color:BLUE,lineWidth:2,dash:'dot',markerSize:5,fpy:layoutFpy,panels:lPanels,hover:'Layout FPY'});
+  if(wireFpy.some(v=>v!==null))traceDefs.push({name:'Wire',color:BOLD[3],lineWidth:2,dash:'dot',markerSize:5,fpy:wireFpy,panels:wPanels,hover:'Wire FPY'});
+  if(finalFpy.some(v=>v!==null))traceDefs.push({name:'Final',color:BOLD[4],lineWidth:2,dash:'dot',markerSize:5,fpy:finalFpy,panels:fPanels,hover:'Final FPY'});
 
   // Custom legend cards HTML
   const legendCards=traceDefs.map((t,i)=>`
@@ -1651,6 +1690,7 @@ function buildPsTrend(person,el,grp='Week'){
     <div style="display:flex;align-items:center;gap:10px;margin-bottom:10px;flex-wrap:wrap">
       <span style="font-size:26px;font-weight:700;color:${trendColor};line-height:1">${trendArrow}</span>
       <span style="font-size:13px;color:${trendColor};font-weight:600">${trendText}</span>
+      ${lowData?`<span title="Below the usual confidence threshold (${MIN_TREND_BUCKETS}+ ${useGrp.toLowerCase()}s and ${MIN_TREND_PANELS}+ panels) — this trend is compiled from whatever data is available in the selected period, so treat it as a rough read rather than a confident signal." style="display:inline-flex;align-items:center;justify-content:center;width:16px;height:16px;border-radius:50%;background:#FFF3CD;color:#8A6D1D;font-size:11px;font-weight:700;cursor:help;border:1px solid #E8CB7A">!</span>`:''}
       <span style="font-size:11px;color:var(--warmgray);margin-left:4px">${myRows.length} panels · ${sorted.length} ${useGrp.toLowerCase()}s</span>
     </div>
     <div style="display:flex;gap:8px;flex-wrap:wrap;margin-bottom:10px" id="${legendId}">${legendCards}</div>
@@ -1659,10 +1699,12 @@ function buildPsTrend(person,el,grp='Week'){
     <div id="${detailId}"></div>`;
 
   const traces=traceDefs.map(t=>({
-    type:'scatter',name:t.name,mode:'lines+markers',x:labels,y:t.fpy,
+    type:'scatter',name:t.name,mode:'lines+markers',x:labels,y:t.fpy,customdata:t.panels,
     line:{color:t.color,width:t.lineWidth,dash:t.dash},marker:{size:t.markerSize,color:t.color},
     connectgaps:t.name==='Overall',
-    hovertemplate:`<b>%{x}</b><br>${t.hover}: %{y:.1f}%<extra></extra>`,
+    // Panel count alongside FPY, so a 100%-on-2-panels bucket doesn't read the
+    // same as a 95%-on-80-panels one without checking the tooltip separately.
+    hovertemplate:`<b>%{x}</b><br>${t.hover}: %{y:.1f}% (%{customdata} panels)<extra></extra>`,
   }));
 
   newPlot(trendId,traces,{
