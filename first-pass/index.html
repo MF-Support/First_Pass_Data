@@ -299,10 +299,10 @@ input:checked+.toggle-slider:before{transform:translateX(18px);}
 <!-- Version changelog -->
 <div class="version-history">
   <details>
-    <summary>v1.27 — changelog (updated 2026-07-30)</summary>
+    <summary>v1.28 — changelog (updated 2026-07-30)</summary>
+    <b>v1.28</b> Person Trend now shows Current FPY as its own number, separate from the Improving/Stable/Declining trend — previously the two could be misread as one figure. Current FPY (the most recent time bucket) and the trend indicator now sit in clearly labeled side-by-side blocks, and update together as you change period or grouping<br>
     <b>v1.27</b> Person Trend's Improving/Stable/Declining now uses a panel-count-weighted trend line across the whole period instead of comparing first-half vs. second-half averages — more accurate and less thrown off by one noisy bucket. The trend is always shown; when a person/period has too little data to be confident (fewer than 3 time buckets or 20 panels), a small warning icon appears next to it explaining the number is a rough read, not hidden. Chart hover tooltips now also show panel count alongside FPY %<br>
     <b>v1.26</b> Download Report: added a banner above the KPI cards stating whether the report covers all people or one person. All section notes are now bold black for readability<br>
-    <b>v1.25</b> Download Report: bar charts are back on Fail Attribution/Layout/Wire/Final alongside their tables (a person-scoped report now shows a volume-over-time chart just for them), added KPI cards accurate for the report's date range and person, fixed the Person Trend chart sometimes exporting as "Building trend…" instead of the finished chart, Period Comparison's table now lists newest month first (site and report), and Trends' bar charts use a distinct color per bar<br>
   </details>
 </div>
 
@@ -1660,6 +1660,12 @@ function buildPsTrend(person,el,grp='Week'){
     }
   }
 
+  // Current FPY is the most recent bucket's own value, not the regression's
+  // fitted endpoint — it's what the person's FPY actually is right now, kept
+  // visually separate from the trend so a reader can't misread the % change
+  // as the % rate.
+  const currentFpy=overallFpy[overallFpy.length-1];
+
   const ts=Date.now();
   const trendId=`ps-tc-${ts}`;
   const detailId=`ps-det-${ts}`;
@@ -1687,12 +1693,21 @@ function buildPsTrend(person,el,grp='Week'){
     </div>`).join('');
 
   el.innerHTML=`
-    <div style="display:flex;align-items:center;gap:10px;margin-bottom:10px;flex-wrap:wrap">
-      <span style="font-size:26px;font-weight:700;color:${trendColor};line-height:1">${trendArrow}</span>
-      <span style="font-size:13px;color:${trendColor};font-weight:600">${trendText}</span>
-      ${lowData?`<span title="Below the usual confidence threshold (${MIN_TREND_BUCKETS}+ ${useGrp.toLowerCase()}s and ${MIN_TREND_PANELS}+ panels) — this trend is compiled from whatever data is available in the selected period, so treat it as a rough read rather than a confident signal." style="display:inline-flex;align-items:center;justify-content:center;width:16px;height:16px;border-radius:50%;background:#FFF3CD;color:#8A6D1D;font-size:11px;font-weight:700;cursor:help;border:1px solid #E8CB7A">!</span>`:''}
-      <span style="font-size:11px;color:var(--warmgray);margin-left:4px">${myRows.length} panels · ${sorted.length} ${useGrp.toLowerCase()}s</span>
+    <div style="display:flex;align-items:flex-start;gap:28px;margin-bottom:6px;flex-wrap:wrap">
+      <div>
+        <div style="font-size:26px;font-weight:700;color:${NAVY};line-height:1">${currentFpy.toFixed(1)}%</div>
+        <div style="font-size:11px;color:var(--warmgray);font-weight:600;margin-top:3px">Current FPY</div>
+      </div>
+      <div>
+        <div style="display:flex;align-items:center;gap:6px">
+          <span style="font-size:26px;font-weight:700;color:${trendColor};line-height:1">${trendArrow}</span>
+          <span style="font-size:13px;color:${trendColor};font-weight:600">${trendText}</span>
+          ${lowData?`<span title="Below the usual confidence threshold (${MIN_TREND_BUCKETS}+ ${useGrp.toLowerCase()}s and ${MIN_TREND_PANELS}+ panels) — this trend is compiled from whatever data is available in the selected period, so treat it as a rough read rather than a confident signal." style="display:inline-flex;align-items:center;justify-content:center;width:16px;height:16px;border-radius:50%;background:#FFF3CD;color:#8A6D1D;font-size:11px;font-weight:700;cursor:help;border:1px solid #E8CB7A">!</span>`:''}
+        </div>
+        <div style="font-size:11px;color:var(--warmgray);font-weight:600;margin-top:3px">Trend</div>
+      </div>
     </div>
+    <div style="font-size:11px;color:var(--warmgray);margin-bottom:10px">${myRows.length} panels · ${sorted.length} ${useGrp.toLowerCase()}s</div>
     <div style="display:flex;gap:8px;flex-wrap:wrap;margin-bottom:10px" id="${legendId}">${legendCards}</div>
     <div class="chart-box"><div id="${trendId}" class="clickable-plot" style="min-height:280px"></div></div>
     <p style="font-size:11px;color:var(--warmgray);margin:6px 0 4px">Click any point on the chart to drill into panels from that period.</p>
