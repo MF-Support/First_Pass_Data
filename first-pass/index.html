@@ -299,10 +299,10 @@ input:checked+.toggle-slider:before{transform:translateX(18px);}
 <!-- Version changelog -->
 <div class="version-history">
   <details>
-    <summary>v1.29 — changelog (updated 2026-07-30)</summary>
+    <summary>v1.30 — changelog (updated 2026-07-30)</summary>
+    <b>v1.30</b> Person Trend now shows Current FPY and the Improving/Stable/Declining trend separately for Overall, Layout, Wire, and Final — not just Overall. Each shows only when the person has activity in that role for the selected period, and updates together as you change period or grouping<br>
     <b>v1.29</b> Fixed Current FPY in Person Trend: it was showing only the most recent time bucket (e.g. today's single panel), which could read 100% or 0% on pure noise. It now shows the person's true overall FPY across every panel in the selected period, no matter how it's grouped<br>
     <b>v1.28</b> Person Trend now shows Current FPY as its own number, separate from the Improving/Stable/Declining trend — previously the two could be misread as one figure. Current FPY and the trend indicator now sit in clearly labeled side-by-side blocks, and update together as you change period or grouping<br>
-    <b>v1.27</b> Person Trend's Improving/Stable/Declining now uses a panel-count-weighted trend line across the whole period instead of comparing first-half vs. second-half averages — more accurate and less thrown off by one noisy bucket. The trend is always shown; when a person/period has too little data to be confident (fewer than 3 time buckets or 20 panels), a small warning icon appears next to it explaining the number is a rough read, not hidden. Chart hover tooltips now also show panel count alongside FPY %<br>
   </details>
 </div>
 
@@ -1633,41 +1633,75 @@ function buildPsTrend(person,el,grp='Week'){
   const wireFpy=sorted.map(b=>b.wP?fpyOf(b.wP,b.wF):null);
   const finalFpy=sorted.map(b=>b.fP?fpyOf(b.fP,b.fF):null);
 
-  // Trend: weighted linear fit of Overall FPY across every bucket (panel count
-  // as weight), read as the predicted change from the first bucket to the
-  // last along that line. Robust to one outlier bucket in a way a first-half
-  // vs second-half average isn't — a step change and a gradual climb of the
-  // same total size both read as "Improving," since a straight line can't
-  // tell those apart; only direction is being measured, not shape.
+  const oPanels=sorted.map(b=>b.oP),lPanels=sorted.map(b=>b.lP),wPanels=sorted.map(b=>b.wP),fPanels=sorted.map(b=>b.fP);
+
+  // Trend + Current FPY, computed the same way for Overall/Layout/Wire/Final:
+  // a weighted linear fit of that role's FPY across every bucket where the
+  // role had activity (panel count as weight), read as the predicted change
+  // from the first active bucket to the last along that line. Robust to one
+  // outlier bucket in a way a first-half vs second-half average isn't — a
+  // step change and a gradual climb of the same total size both read as
+  // "Improving," since a straight line can't tell those apart; only
+  // direction is being measured, not shape. Buckets where the role wasn't
+  // worked (null) are skipped rather than treated as zero, so a week with no
+  // Wire assignments doesn't drag the Wire trend toward "declining."
   //
-  // The trend is always shown, even below MIN_TREND_BUCKETS/MIN_TREND_PANELS —
-  // a supervisor filtering to a short custom range still wants *a* read, not a
-  // blank. Below the floor it's flagged with a hover-alert icon instead of
-  // being hidden, so the number stays honest about its own confidence rather
-  // than pretending a 2-bucket fit is as solid as a 12-bucket one.
-  const lowData=sorted.length<MIN_TREND_BUCKETS||myRows.length<MIN_TREND_PANELS;
-  let trendArrow='→',trendColor=WARMGRAY,trendText='Stable';
-  if(sorted.length<2){
-    trendText='Stable (insufficient data)';
-  }else{
-    const xs=sorted.map((_,i)=>i);
-    const ws=sorted.map(b=>b.oP);
-    const fit=weightedLinearTrend(xs,overallFpy,ws);
-    if(fit){
-      const totalChange=fit.slope*(xs.length-1);
-      if(totalChange>2){trendArrow='↑';trendColor=GREEN;trendText=`+${totalChange.toFixed(1)}% — Improving`;}
-      else if(totalChange<-2){trendArrow='↓';trendColor=RED;trendText=`${totalChange.toFixed(1)}% — Declining`;}
+  // Current FPY is the role's real FPY across every panel in the selected
+  // period/group — NOT the single most recent bucket, which (especially
+  // grouped by Day) can be 1-2 panels and swing to 0% or 100% on pure noise.
+  //
+  // The trend is always shown, even below MIN_TREND_BUCKETS/MIN_TREND_PANELS
+  // — a supervisor filtering to a short custom range still wants *a* read,
+  // not a blank. Below the floor it's flagged with a hover-alert icon
+  // instead of being hidden, so the number stays honest about its own
+  // confidence rather than pretending a 2-bucket fit is as solid as a
+  // 12-bucket one.
+  function roleTrend(fpyArr,panelArr,totalP,totalF){
+    const idxs=[];
+    for(let i=0;i<fpyArr.length;i++)if(fpyArr[i]!==null)idxs.push(i);
+    const activeBuckets=idxs.length;
+    const totalPanels=idxs.reduce((s,i)=>s+panelArr[i],0);
+    const currentFpy=fpyOf(totalP,totalF);
+    const lowData=activeBuckets<MIN_TREND_BUCKETS||totalPanels<MIN_TREND_PANELS;
+    let arrow='→',color=WARMGRAY,text='Stable';
+    if(activeBuckets<2){
+      text='Stable (insufficient data)';
+    }else{
+      const xs=idxs,ys=idxs.map(i=>fpyArr[i]),ws=idxs.map(i=>panelArr[i]);
+      const fit=weightedLinearTrend(xs,ys,ws);
+      if(fit){
+        const totalChange=fit.slope*(xs[xs.length-1]-xs[0]);
+        if(totalChange>2){arrow='↑';color=GREEN;text=`+${totalChange.toFixed(1)}% — Improving`;}
+        else if(totalChange<-2){arrow='↓';color=RED;text=`${totalChange.toFixed(1)}% — Declining`;}
+      }
     }
+    return{arrow,color,text,lowData,currentFpy};
   }
 
-  // Current FPY is this person's overall FPY across every panel in the
-  // selected period/group — NOT the single most recent bucket. The latest
-  // bucket alone (especially grouped by Day) can be 1-2 panels and swing to
-  // 0% or 100% on pure noise, which would misrepresent how good the person
-  // actually is. Summed straight from the same per-row counts used to build
-  // the buckets, so it always matches the total panel count shown below it.
   const totalOP=sorted.reduce((s,b)=>s+b.oP,0),totalOF=sorted.reduce((s,b)=>s+b.oF,0);
-  const currentFpy=fpyOf(totalOP,totalOF);
+  const totalLP=sorted.reduce((s,b)=>s+b.lP,0),totalLF=sorted.reduce((s,b)=>s+b.lF,0);
+  const totalWP=sorted.reduce((s,b)=>s+b.wP,0),totalWF=sorted.reduce((s,b)=>s+b.wF,0);
+  const totalFP=sorted.reduce((s,b)=>s+b.fP,0),totalFF=sorted.reduce((s,b)=>s+b.fF,0);
+
+  const roleCards=[
+    {label:'Overall',fpyArr:overallFpy,panelArr:oPanels,totalP:totalOP,totalF:totalOF},
+    {label:'Layout',fpyArr:layoutFpy,panelArr:lPanels,totalP:totalLP,totalF:totalLF},
+    {label:'Wire',fpyArr:wireFpy,panelArr:wPanels,totalP:totalWP,totalF:totalWF},
+    {label:'Final',fpyArr:finalFpy,panelArr:fPanels,totalP:totalFP,totalF:totalFF},
+  ].filter(c=>c.totalP>0).map(c=>({...c,trend:roleTrend(c.fpyArr,c.panelArr,c.totalP,c.totalF)}));
+
+  const warnIconHtml=`<span title="Below the usual confidence threshold (${MIN_TREND_BUCKETS}+ ${useGrp.toLowerCase()}s and ${MIN_TREND_PANELS}+ panels) — this trend is compiled from whatever data is available in the selected period, so treat it as a rough read rather than a confident signal." style="display:inline-flex;align-items:center;justify-content:center;width:14px;height:14px;border-radius:50%;background:#FFF3CD;color:#8A6D1D;font-size:10px;font-weight:700;cursor:help;border:1px solid #E8CB7A;flex:none">!</span>`;
+
+  const roleCardHtml=roleCards.map(c=>`
+    <div style="min-width:108px">
+      <div style="font-size:10.5px;color:var(--warmgray);font-weight:700;text-transform:uppercase;letter-spacing:.03em;margin-bottom:2px">${c.label}</div>
+      <div style="font-size:20px;font-weight:700;color:${NAVY};line-height:1.15">${c.trend.currentFpy.toFixed(1)}%</div>
+      <div style="display:flex;align-items:center;gap:4px;margin-top:2px">
+        <span style="font-size:14px;font-weight:700;color:${c.trend.color};line-height:1">${c.trend.arrow}</span>
+        <span style="font-size:11px;color:${c.trend.color};font-weight:600">${c.trend.text}</span>
+        ${c.trend.lowData?warnIconHtml:''}
+      </div>
+    </div>`).join('');
 
   const ts=Date.now();
   const trendId=`ps-tc-${ts}`;
@@ -1676,7 +1710,6 @@ function buildPsTrend(person,el,grp='Week'){
 
   // Build trace list with metadata
   const traceDefs=[];
-  const oPanels=sorted.map(b=>b.oP),lPanels=sorted.map(b=>b.lP),wPanels=sorted.map(b=>b.wP),fPanels=sorted.map(b=>b.fP);
   traceDefs.push({name:'Overall',color:NAVY,lineWidth:3,dash:'solid',markerSize:8,fpy:overallFpy,panels:oPanels,hover:'Overall FPY'});
   if(layoutFpy.some(v=>v!==null))traceDefs.push({name:'Layout',color:BLUE,lineWidth:2,dash:'dot',markerSize:5,fpy:layoutFpy,panels:lPanels,hover:'Layout FPY'});
   if(wireFpy.some(v=>v!==null))traceDefs.push({name:'Wire',color:BOLD[3],lineWidth:2,dash:'dot',markerSize:5,fpy:wireFpy,panels:wPanels,hover:'Wire FPY'});
@@ -1696,20 +1729,7 @@ function buildPsTrend(person,el,grp='Week'){
     </div>`).join('');
 
   el.innerHTML=`
-    <div style="display:flex;align-items:flex-start;gap:28px;margin-bottom:6px;flex-wrap:wrap">
-      <div>
-        <div style="font-size:26px;font-weight:700;color:${NAVY};line-height:1">${currentFpy.toFixed(1)}%</div>
-        <div style="font-size:11px;color:var(--warmgray);font-weight:600;margin-top:3px">Current FPY</div>
-      </div>
-      <div>
-        <div style="display:flex;align-items:center;gap:6px">
-          <span style="font-size:26px;font-weight:700;color:${trendColor};line-height:1">${trendArrow}</span>
-          <span style="font-size:13px;color:${trendColor};font-weight:600">${trendText}</span>
-          ${lowData?`<span title="Below the usual confidence threshold (${MIN_TREND_BUCKETS}+ ${useGrp.toLowerCase()}s and ${MIN_TREND_PANELS}+ panels) — this trend is compiled from whatever data is available in the selected period, so treat it as a rough read rather than a confident signal." style="display:inline-flex;align-items:center;justify-content:center;width:16px;height:16px;border-radius:50%;background:#FFF3CD;color:#8A6D1D;font-size:11px;font-weight:700;cursor:help;border:1px solid #E8CB7A">!</span>`:''}
-        </div>
-        <div style="font-size:11px;color:var(--warmgray);font-weight:600;margin-top:3px">Trend</div>
-      </div>
-    </div>
+    <div style="display:flex;gap:26px;flex-wrap:wrap;margin-bottom:8px;padding-bottom:10px;border-bottom:1px solid #E5E1D5">${roleCardHtml}</div>
     <div style="font-size:11px;color:var(--warmgray);margin-bottom:10px">${myRows.length} panels · ${sorted.length} ${useGrp.toLowerCase()}s</div>
     <div style="display:flex;gap:8px;flex-wrap:wrap;margin-bottom:10px" id="${legendId}">${legendCards}</div>
     <div class="chart-box"><div id="${trendId}" class="clickable-plot" style="min-height:280px"></div></div>
