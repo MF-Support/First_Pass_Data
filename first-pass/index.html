@@ -941,11 +941,7 @@ function buildReportKpiHtml(period,sub,person){
   if(person){
     kpiHtml=kpiHtml.replace('Most Fails From','Most Fails From *');
   }
-  const footnote=person
-    ?`<p style="font-size:10.5px;color:var(--warmgray);margin:-6px 0 14px">* Shop-wide for this period —
-        not filtered to ${esc(person)}.</p>`
-    :'';
-  return scopeNote+kpiHtml+footnote;
+  
 }
 
 // Groups already-filtered rows into Day/Week/Month buckets, auto-picked from
