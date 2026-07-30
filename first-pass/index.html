@@ -281,6 +281,7 @@ input:checked+.toggle-slider:before{transform:translateX(18px);}
     <div class="kpi-card"><div class="kpi-label">First Pass Yield</div><div class="kpi-value" id="kv-fpy">—</div><div class="kpi-sub" id="ks-fpy"></div></div>
     <div class="kpi-card"><div class="kpi-label">Total Fails</div><div class="kpi-value" id="kv-fails">—</div><div class="kpi-sub" id="ks-fails"></div></div>
     <div class="kpi-card"><div class="kpi-label">Avg / Day</div><div class="kpi-value" id="kv-avg">—</div><div class="kpi-sub">panels per day</div></div>
+    <div class="kpi-card"><div class="kpi-label">Man-Hours</div><div class="kpi-value" id="kv-manhours">—</div><div class="kpi-sub" id="ks-manhours"></div></div>
     <div class="kpi-card"><div class="kpi-label">Most Fails From</div><div class="kpi-value" id="kv-top" style="font-size:15px;padding-top:4px">—</div><div class="kpi-sub" id="ks-top"></div></div>
   </div>
 
@@ -304,10 +305,10 @@ input:checked+.toggle-slider:before{transform:translateX(18px);}
 <!-- Version changelog -->
 <div class="version-history">
   <details>
-    <summary>v1.33 — changelog (updated 2026-07-30)</summary>
+    <summary>v1.34 — changelog (updated 2026-07-30)</summary>
+    <b>v1.34</b> Added a Man-Hours KPI card (sum of the workbook's Routing Hours column for the selected period, with avg hours/panel underneath) to the top KPI row and to Download Report exports<br>
     <b>v1.33</b> Clicking Refresh now updates the "Live · updated" time to the moment you clicked, so it's obvious the refresh actually happened. Period Comparison's Period column now sorts chronologically (Jul 2025 → Jul 2026) instead of alphabetically<br>
     <b>v1.32</b> Sort arrows on table headers are now always visible (⇅), not just on the active column<br>
-    <b>v1.31</b> Added sort and filter to every table on the dashboard (Fail Attribution, Layout, Wire, Final, Period Comparison, Person Summary) — click a column header to sort by it, or type in the filter box above a table to narrow it down. Person Summary also gained an Overall FPY% column showing each person's combined Layout/Wire/Final pass rate for the selected period<br>
   </details>
 </div>
 
@@ -1039,6 +1040,12 @@ function renderKPIs({dff,dff_fails,maxDate}){
   const days=Math.max((maxD-minD)/86400000,1);
   const fc={};for(const r of dff_fails)fc[r.Fail_Name]=(fc[r.Fail_Name]||0)+1;
   const top=Object.entries(fc).sort((a,b)=>b[1]-a[1])[0];
+  // Man-Hours: straight sum of the workbook's Routing Hours column for every
+  // row in the selected period — not the Time Analysis tab's actual-vs-target
+  // comparison, just the raw total. Values come from Excel/Supabase as-is
+  // (string or number), so each is parsed defensively; blank/non-numeric
+  // rows contribute 0 rather than breaking the sum.
+  const manHours=dff.reduce((s,r)=>s+(parseFloat(r.Routing_Hours)||0),0);
   document.getElementById('kv-total').textContent=tot.toLocaleString();
   document.getElementById('ks-days').textContent=`${Math.round(days)} days`;
   document.getElementById('kv-fpy').textContent=fpy+'%';
@@ -1046,6 +1053,8 @@ function renderKPIs({dff,dff_fails,maxDate}){
   document.getElementById('kv-fails').textContent=fail.toLocaleString();
   document.getElementById('ks-fails').textContent=tot?`${(fail/tot*100).toFixed(1)}% rate`:'';
   document.getElementById('kv-avg').textContent=(tot/days).toFixed(1);
+  document.getElementById('kv-manhours').textContent=manHours.toLocaleString(undefined,{maximumFractionDigits:1});
+  document.getElementById('ks-manhours').textContent=tot?`${(manHours/tot).toFixed(2)} hrs/panel`:'';
   document.getElementById('kv-top').textContent=top?top[0]:'—';
   document.getElementById('ks-top').textContent=top?`${top[1]} attributed fails`:'';
   const lbl=getPeriodLabel();
