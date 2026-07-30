@@ -112,6 +112,11 @@ table.dash-table tbody tr.row-click:hover td:first-child{color:var(--blue);text-
 table.dash-table tbody td{padding:6px 10px;vertical-align:middle;text-align:left;word-break:break-word;}
 table.dash-table tbody tr.row-fail{background:#fff0f0;}
 table.dash-table tbody tr.row-fail:hover{background:#ffe0e0;}
+table.dash-table thead th.sortable{cursor:pointer;user-select:none;}
+table.dash-table thead th.sortable:hover{background:#1a2a7a;}
+table.dash-table thead th .sort-arrow{display:inline-block;width:10px;font-size:10px;opacity:.75;}
+.tbl-filter-input{width:100%;max-width:260px;margin-bottom:6px;padding:5px 9px;font-size:12px;border:1px solid #d8d4c4;border-radius:6px;background:#fff;color:var(--navy);}
+.tbl-filter-input:focus{outline:none;border-color:var(--blue);}
 .badge-over{background:var(--red);color:#fff;border-radius:4px;padding:2px 6px;font-size:11px;}
 .badge-ok{background:var(--green);color:#fff;border-radius:4px;padding:2px 6px;font-size:11px;}
 .pct-high{color:var(--red);font-weight:700;}
@@ -299,10 +304,10 @@ input:checked+.toggle-slider:before{transform:translateX(18px);}
 <!-- Version changelog -->
 <div class="version-history">
   <details>
-    <summary>v1.30 — changelog (updated 2026-07-30)</summary>
+    <summary>v1.31 — changelog (updated 2026-07-30)</summary>
+    <b>v1.31</b> Added sort and filter to every table on the dashboard (Fail Attribution, Layout, Wire, Final, Period Comparison, Person Summary) — click a column header to sort by it, or type in the filter box above a table to narrow it down. Person Summary also gained an Overall FPY% column showing each person's combined Layout/Wire/Final pass rate for the selected period<br>
     <b>v1.30</b> Person Trend now shows Current FPY and the Improving/Stable/Declining trend separately for Overall, Layout, Wire, and Final — not just Overall. Each shows only when the person has activity in that role for the selected period, and updates together as you change period or grouping<br>
     <b>v1.29</b> Fixed Current FPY in Person Trend: it was showing only the most recent time bucket (e.g. today's single panel), which could read 100% or 0% on pure noise. It now shows the person's true overall FPY across every panel in the selected period, no matter how it's grouped<br>
-    <b>v1.28</b> Person Trend now shows Current FPY as its own number, separate from the Improving/Stable/Declining trend — previously the two could be misread as one figure. Current FPY and the trend indicator now sit in clearly labeled side-by-side blocks, and update together as you change period or grouping<br>
   </details>
 </div>
 
@@ -581,11 +586,64 @@ const esc=v=>v==null?'':String(v).replace(/[&<>"']/g,
 const rawHtml=h=>({__html:h});
 const cellHtml=c=>(c&&typeof c==='object'&&'__html' in c)?c.__html:esc(c);
 
+let tblSeq=0;
 function tbl(cols,rows,rowCls){
-  return `<div class="tbl-wrap"><table class="dash-table">
-    <thead><tr>${cols.map(c=>`<th>${esc(c)}</th>`).join('')}</tr></thead>
+  const tid=`dt-${tblSeq++}`;
+  const head=cols.map((c,i)=>
+    `<th class="sortable" data-col="${i}" onclick="sortDashTable('${tid}',${i})">${esc(c)}<span class="sort-arrow"></span></th>`
+  ).join('');
+  return `<div class="tbl-wrap">
+    <input type="text" class="tbl-filter-input" placeholder="Filter table…" oninput="filterDashTable('${tid}',this.value)">
+    <table class="dash-table" id="${tid}">
+    <thead><tr>${head}</tr></thead>
     <tbody>${rows.map((r,i)=>`<tr class="${rowCls?rowCls(i):''}">${r.map(c=>`<td>${cellHtml(c)}</td>`).join('')}</tr>`).join('')}
     </tbody></table></div>`;
+}
+
+// Re-sorts a rendered table's <tr> elements in place by comparing each row's
+// td text at the clicked column — no dependency on the JS array that built
+// the table, so it works uniformly across every call site. Numeric-looking
+// cells (after stripping $,%,commas) sort as numbers; everything else sorts
+// as text. Blank/"—" cells always sort last regardless of direction, since
+// "smallest" isn't a meaningful read for missing data.
+function sortDashTable(tid,colIdx){
+  const table=document.getElementById(tid);
+  if(!table)return;
+  const tbody=table.querySelector('tbody');
+  const rows=[...tbody.querySelectorAll('tr')];
+  const dir=(table.dataset.sortCol===String(colIdx)&&table.dataset.sortDir==='asc')?'desc':'asc';
+  table.dataset.sortCol=colIdx;
+  table.dataset.sortDir=dir;
+
+  const keyOf=td=>{
+    const txt=(td?td.innerText||td.textContent:'').trim();
+    if(!txt||txt==='—'||txt==='-')return{blank:true};
+    const cleaned=txt.replace(/[$,%]/g,'');
+    const num=parseFloat(cleaned);
+    return(!isNaN(num)&&/^-?[\d.]+$/.test(cleaned))?{blank:false,num}:{blank:false,str:txt.toLowerCase()};
+  };
+  rows.sort((a,b)=>{
+    const ka=keyOf(a.children[colIdx]),kb=keyOf(b.children[colIdx]);
+    if(ka.blank&&kb.blank)return 0;
+    if(ka.blank)return 1;
+    if(kb.blank)return -1;
+    const cmp=ka.num!==undefined&&kb.num!==undefined?ka.num-kb.num:String(ka.str??ka.num).localeCompare(String(kb.str??kb.num));
+    return dir==='asc'?cmp:-cmp;
+  });
+  rows.forEach(r=>tbody.appendChild(r));
+
+  table.querySelectorAll('thead th .sort-arrow').forEach(s=>s.textContent='');
+  const arrow=table.querySelectorAll('thead th')[colIdx].querySelector('.sort-arrow');
+  if(arrow)arrow.textContent=dir==='asc'?' ▲':' ▼';
+}
+
+function filterDashTable(tid,query){
+  const table=document.getElementById(tid);
+  if(!table)return;
+  const q=query.trim().toLowerCase();
+  table.querySelectorAll('tbody tr').forEach(tr=>{
+    tr.style.display=(!q||tr.textContent.toLowerCase().includes(q))?'':'none';
+  });
 }
 
 function getPeriodLabel(period,sub){
@@ -1484,6 +1542,11 @@ function getPsBase(){return getFilteredFor('t5-ps').dff;}
 function getPtBase(){return getFilteredFor('t5-pt').dff;}
 
 
+// Higher-is-better coloring for FPY%, mirroring pctCls' fail-rate thresholds
+// inverted (100-15=85, 100-8=92) so the same red/orange/green bands mean the
+// same thing whether the column is a fail rate or a pass rate.
+const fpyCls=v=>{v=parseFloat(v);if(isNaN(v))return'';return v>=92?'pct-ok':v>=85?'pct-med':'pct-high';};
+
 function drawPersonSummary(){
   const psData=getPsBase();
   const allInits=new Set();
@@ -1491,38 +1554,40 @@ function drawPersonSummary(){
   const pRows=[...allInits].sort().map(init=>{
     const nm=initMap[init]||init;
     const cols={};
+    let totalP=0,totalF=0;
     for(const[c,l]of[['Layout','Layout'],['Wire','Wire'],['FA','Final']]){
       const s=psData.filter(r=>r[c]===init),n=s.length;
       const mf=s.filter(r=>r.Is_Fail&&r.Fail_Inits.includes(init)).length;
       const fr=n?mf/n*100:null;
       cols[l+'P']=n;cols[l+'F']=n&&mf>0?+(fr.toFixed(1)):n?0:null;
+      totalP+=n;totalF+=mf;
     }
-    return{nm,init,...cols};
+    const overallFpy=totalP?+((totalP-totalF)/totalP*100).toFixed(1):null;
+    return{nm,init,...cols,overallFpy};
   }).filter(r=>(r.LayoutP||0)+(r.WireP||0)+(r.FinalP||0)>0)
     .sort((a,b)=>(b.LayoutP||0)-(a.LayoutP||0));
 
   // Report, single person: keep only their row — everyone else is out of scope.
   const scopedRows=reportPersonFilter?pRows.filter(r=>r.nm===reportPersonFilter):pRows;
 
-  const fmtP=v=>v===null?'<td>—</td>':`<td class="${pctCls(v)}">${v.toFixed(1)}%</td>`;
-  const rows=scopedRows.map(r=>`
-    <tr>
-      <td>${esc(r.nm)}</td>
-      <td>${r.LayoutP||'—'}</td>${fmtP(r.LayoutF)}
-      <td>${r.WireP||'—'}</td>${fmtP(r.WireF)}
-      <td>${r.FinalP||'—'}</td>${fmtP(r.FinalF)}
-    </tr>`).join('');
+  const fmtP=v=>v===null?'—':rawHtml(`<span class="${pctCls(v)}">${v.toFixed(1)}%</span>`);
+  const fmtOverall=v=>v===null?'—':rawHtml(`<span class="${fpyCls(v)}">${v.toFixed(1)}%</span>`);
+  const rows=scopedRows.map(r=>[
+    r.nm,
+    r.overallFpy===null?'—':fmtOverall(r.overallFpy),
+    r.LayoutP||'—',fmtP(r.LayoutF),
+    r.WireP||'—',fmtP(r.WireF),
+    r.FinalP||'—',fmtP(r.FinalF),
+  ]);
 
   const note=reportPersonFilter
-    ?`<p class="report-note">Layout/Wire/Final Panels and Fail% below are <b>${esc(reportPersonFilter)}</b>'s
+    ?`<p class="report-note">Overall FPY% and Layout/Wire/Final Panels/Fail% below are <b>${esc(reportPersonFilter)}</b>'s
         own totals for this period, by role.</p>`
-    :(isGeneratingReport?`<p class="report-note">Panels and Fail% are each person's own totals for this period,
+    :(isGeneratingReport?`<p class="report-note">Overall FPY%, Panels, and Fail% are each person's own totals for this period,
         by role — not compared against anyone else.</p>`:'');
   const missing=reportPersonFilter&&!scopedRows.length
     ?`<div style="padding:16px;color:var(--warmgray)">No Layout/Wire/Final panels for ${esc(reportPersonFilter)} in this period.</div>`
-    :`<div class="tbl-wrap"><table class="dash-table">
-        <thead><tr><th>Person</th><th>Layout Panels</th><th>Layout Fail%</th><th>Wire Panels</th><th>Wire Fail%</th><th>Final Panels</th><th>Final Fail%</th></tr></thead>
-        <tbody>${rows}</tbody></table></div>`;
+    :tbl(['Person','Overall FPY%','Layout Panels','Layout Fail%','Wire Panels','Wire Fail%','Final Panels','Final Fail%'],rows);
 
   document.getElementById('person-summary').innerHTML=note+missing;
 }
@@ -2481,6 +2546,13 @@ async function generateReport(){
           span.style.cssText='font-family:Arial;font-size:12px;font-weight:600';
           el.parentNode.replaceChild(span,el);
         }else el.remove();
+      });
+      // Sortable table headers only work with the live page's JS, which the
+      // exported file doesn't include — drop the onclick/cursor/arrow so a
+      // static report doesn't look clickable where nothing will happen.
+      clone.querySelectorAll('th.sortable').forEach(th=>{
+        th.removeAttribute('onclick');th.classList.remove('sortable');
+        const arrow=th.querySelector('.sort-arrow');if(arrow)arrow.remove();
       });
       parts.push({name:meta.name,html:clone.innerHTML});
     }
