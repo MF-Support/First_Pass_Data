@@ -89,6 +89,9 @@ body{background:var(--offwhite);font-family:'Inter',Arial,sans-serif;font-size:1
 .section-hdr .sec-period:focus{outline:2px solid rgba(255,255,255,.5);outline-offset:1px;}
 .section-hdr .sec-period option{background:#fff;color:var(--navy);font-weight:500;}
 .section-hdr .sec-span{font-family:Arial;font-size:11.5px;font-weight:400;opacity:.72;margin-left:8px;white-space:nowrap;}
+.report-note{background:#F4F6FB;border-left:3px solid var(--blue);color:var(--warmgray);
+  font-size:11.5px;line-height:1.55;padding:7px 11px;margin:0 0 12px;border-radius:0 4px 4px 0;}
+.report-note b{color:var(--navy);}
 
 .grp-btns{display:flex;gap:6px;margin-bottom:12px;}
 .grp-btn{background:#fff;border:1px solid #c8d0e7;border-radius:6px;padding:4px 12px;font-size:12px;font-weight:500;color:var(--navy);cursor:pointer;transition:background .15s;}
@@ -296,10 +299,10 @@ input:checked+.toggle-slider:before{transform:translateX(18px);}
 <!-- Version changelog -->
 <div class="version-history">
   <details>
-    <summary>v1.23 — changelog (updated 2026-07-29)</summary>
+    <summary>v1.24 — changelog (updated 2026-07-30)</summary>
+    <b>v1.24</b> Fixed a person-scoped Download Report undercounting fails and showing a badly wrong percentage. Reports for one person now correctly show only that person everywhere: their full attributed-fails list, their own Layout/Wire/Final panels, a single-row Person Summary, and a Person Trend built for them. Added a small note under each section explaining what its numbers and percentages mean<br>
     <b>v1.23</b> Fixed the KPI cards (Total Panels, FPY%, etc.) not updating when the period was changed inside Fail Attribution/Layout/Wire/Final's own header — they only refreshed when changed at the top of the page. Both now stay in sync<br>
     <b>v1.22</b> Download Report's date range picker now also offers <b>Custom Range</b>, matching the top bar and section headers<br>
-    <b>v1.21</b> Added <b>Custom Range</b> as the last Period option (top bar and every section header) — pick exact start/end dates by typing or with the calendar icon. Changing the period in Fail Attribution/Layout/Wire/Final now updates the top-of-page period too (Trends stays independent). Each tab now has its own URL. Fail Attribution bars are now a red↔green gradient by fail count; swapped the Layout/Final tab icons<br>
   </details>
 </div>
 
@@ -736,6 +739,20 @@ function subFor(key){
 // from that person's last shift and two people would get different windows for
 // the same selection. reportAnchor pins it to the full dataset.
 let reportAnchor=null;
+// Set only while generateReport() is building a single-person report. Every
+// render this turn shows ONLY that person's data instead of the normal
+// multi-person view: Fail Attribution becomes their attributed-fails list,
+// Layout/Wire/Final become their own panel list, Person Summary keeps only
+// their row. reportSourceFails is the un-narrowed failExploded (period-filtered
+// only), so Fail Attribution counts every fail attributed to them via Reason
+// text even on a row where they weren't the assigned role — the module-level
+// failExploded gets narrowed to "roles they touched" for Panels Built/Period
+// Comparison, which would otherwise silently drop that fail.
+let reportPersonFilter=null,reportSourceFails=null;
+// True only while generateReport() is running, for ANY report (person-scoped
+// or all-people) — gates the small "what this data/percent means" notes so
+// they appear in the exported file without adding text to the live dashboard.
+let isGeneratingReport=false;
 function dataAnchor(){
   if(reportAnchor)return reportAnchor;
   return df.length?new Date(Math.max(...df.map(r=>r._date))):new Date();
@@ -922,6 +939,35 @@ function renderKPIs({dff,dff_fails,maxDate}){
 function renderT1(){
   const el=document.getElementById('t1');
   purgePlots(el);
+
+  if(reportPersonFilter){
+    // Report, single person: every fail attributed to them, from the
+    // UN-narrowed failExploded (see reportSourceFails' comment) — so a fail
+    // named in Reason text on a row where they weren't the assigned role is
+    // still counted, exactly as the live dashboard counts it. No ranking or
+    // percentage: those compare people against each other, which doesn't
+    // apply once everyone else has been filtered out.
+    const periodFails=filterRowsByPeriod(reportSourceFails,periodFor('t1'),subFor('t1'));
+    const rows=periodFails.filter(r=>r.Fail_Name===reportPersonFilter).sort((a,b)=>b._date-a._date);
+    const roleOf=r=>{
+      const roles=[];
+      if(r.Layout===r.Fail_Init)roles.push('Layout');
+      if(r.Wire===r.Fail_Init)roles.push('Wire');
+      if(r.FA===r.Fail_Init)roles.push('Final');
+      if(r.Tech===r.Fail_Init)roles.push('Tech');
+      return roles.join('/')||'—';
+    };
+    el.innerHTML=`
+      ${secHdr('Fail Attribution','t1')}
+      <p class="report-note">Every fail attributed to <b>${esc(reportPersonFilter)}</b> in this period — matched by
+        their initials in the Reason text, on any row, regardless of which role they were assigned there.
+        ${rows.length} fail${rows.length===1?'':'s'} total.</p>
+      ${rows.length?tbl(['Date','Job #','Panel','Line','Role','Reason'],
+          rows.map(r=>[fmtDate(r._date),r.Sales_Order||'',r.Panel||'',r.Line||'',roleOf(r),r.Reason||'']))
+        :`<div style="padding:20px;color:var(--warmgray)">No fails attributed to ${esc(reportPersonFilter)} in this period.</div>`}`;
+    return;
+  }
+
   const {dff,dff_fails}=getFilteredFor('t1');
   const totalFails=dff.filter(r=>r.Is_Fail).length;
   if(!dff_fails.length){
@@ -934,6 +980,9 @@ function renderT1(){
   el.innerHTML=`
     ${secHdr('Fail Attribution','t1')}
     <p style="color:var(--warmgray);font-size:12px;margin:0 0 12px">Click a bar to highlight it and see that person's full fail list below.</p>
+    ${isGeneratingReport?`<p class="report-note"><b>Fails Caused</b> = fails attributed to that person via their
+      initials in the Reason text. <b>% of Fails</b> is their share of all ${totalFails} attributed fails
+      shop-wide in this period, not of their own panels.</p>`:''}
     <div style="display:grid;grid-template-columns:3fr 2fr;gap:16px;min-width:0">
       <div class="chart-box" style="min-width:0"><div id="ch-fa" class="plot-div clickable-plot"></div></div>
       <div style="min-width:0;overflow:auto">${tbl(['Person','Fails Caused','% of Fails','Most Common Issue'],
@@ -1002,6 +1051,41 @@ function renderPersonTab(tabId,roleCol,roleLabel){
   const el=document.getElementById(tabId);
   purgePlots(el);
   const {dff}=getFilteredFor(tabId);
+
+  if(reportPersonFilter){
+    // Report, single person: their own panel list for THIS role only (a
+    // person's Layout panels are a different set from their Wire panels), in
+    // the same format as the live dashboard's click-through drilldown — no
+    // multi-person chart, since there is no one left to compare them against.
+    const nameCol=roleCol+'_Name';
+    const init=Object.keys(initMap).find(k=>initMap[k]===reportPersonFilter)||reportPersonFilter;
+    const rows=dff.filter(r=>r[nameCol]===reportPersonFilter).sort((a,b)=>b._date-a._date);
+    const roleRows=rows.map(r=>{
+      const myFail=r.Is_Fail&&r.Fail_Inits.includes(init);
+      const roles=[];
+      if(r.Fail_Inits.length){
+        for(const fi of r.Fail_Inits){
+          if(r.Layout===fi)roles.push('Layout');
+          if(r.Wire===fi)roles.push('Wire');
+          if(r.FA===fi)roles.push('Final');
+        }
+      }
+      const attr=!r.Is_Fail?'':r.Fail_Inits.length?r.Fail_Inits.map(i=>initMap[i]||i).join(', '):'— unattributed';
+      return{cells:[fmtDate(r._date),r.Sales_Order||'',r.Pass_Fail,r.Panel||'',r.Line||'',r.Reason||'',[...new Set(roles)].join(', '),attr],myFail};
+    });
+    const n=rows.length,myFails=roleRows.filter(r=>r.myFail).length;
+    const fpy=n?((n-myFails)/n*100).toFixed(1):null;
+    el.innerHTML=`
+      ${secHdr(`${roleLabel} Panels by Person`,tabId)}
+      <p class="report-note">${esc(roleLabel)} panels assigned to <b>${esc(reportPersonFilter)}</b> in this period —
+        ${n} panel${n===1?'':'s'}${fpy!==null?`, First Pass Yield ${fpy}%`:''}. Rows highlighted red are fails
+        attributed to them specifically in this role (not fails on the panel caused by someone else).</p>
+      ${roleRows.length?tbl(['Date','Job #','Pass/Fail','Panel','Line','Reason','Role','Failure Caused By'],
+          roleRows.map(r=>r.cells),i=>roleRows[i].myFail?'row-fail':'')
+        :`<div style="padding:20px;color:var(--warmgray)">No ${esc(roleLabel)} panels for ${esc(reportPersonFilter)} in this period.</div>`}`;
+    return;
+  }
+
   const g=grpState[tabId];
   const sub=dff.filter(r=>r[roleCol]);
   if(!sub.length){el.innerHTML='<div style="padding:20px;color:var(--warmgray)">No data.</div>';return;}
@@ -1057,6 +1141,8 @@ function renderPersonTab(tabId,roleCol,roleLabel){
     <div class="grp-btns">
       ${['Day','Week','Month'].map(g2=>`<button class="grp-btn${g===g2?' active':''}" onclick="setGrp('${tabId}','${g2}','${roleCol}','${roleLabel}')">${g2}</button>`).join('')}
     </div>
+    ${isGeneratingReport?`<p class="report-note">Panel counts and FPY% below are each person's own totals for the
+      ${roleLabel} role in this period — not a share of the whole shop's fails.</p>`:''}
     <div style="display:grid;grid-template-columns:3fr 2fr;gap:16px;margin-bottom:16px">
       <div class="chart-box"><div id="ch-grp-${tabId}" class="plot-div clickable-plot"></div></div>
       <div id="pivot-${tabId}" style="overflow-x:auto">${tbl(pivotCols,pivotRows)}</div>
@@ -1186,6 +1272,16 @@ function renderT5(){
   const el=document.getElementById('t5');
   purgePlots(el);
   const ptRows=getFilteredFor('t5-pt').dff;
+  // Report, single person: force the trend onto them regardless of the
+  // dropdown's previous selection, and guarantee they're an option even if
+  // they only worked a role (e.g. Tech) that isn't one of these three.
+  if(reportPersonFilter)psTrendPerson=reportPersonFilter;
+  const ptNames=new Set(ptRows.flatMap(r=>[r.Layout_Name,r.Wire_Name,r.FA_Name].filter(Boolean)));
+  if(reportPersonFilter)ptNames.add(reportPersonFilter);
+
+  const involvedNote=reportPersonFilter?`<p class="report-note">Panels Built and Period Comparison below cover only
+      panels <b>${esc(reportPersonFilter)}</b> was involved in, in any role.</p>`:'';
+
   el.innerHTML=`
     ${secHdr('Panels Built','t5-built')}
     <div style="display:flex;align-items:center;gap:8px;margin-bottom:12px">
@@ -1194,6 +1290,7 @@ function renderT5(){
         ${['Day','Week','Month'].map(g=>`<option value="${g}"${trendsGrp===g?' selected':''}>${g}</option>`).join('')}
       </select>
     </div>
+    ${involvedNote}
     <div class="chart-box"><div id="ch-trend" class="plot-div" style="min-height:380px"></div></div>
 
     ${secHdr('Period Comparison','t5-comp','mt-2')}
@@ -1203,6 +1300,7 @@ function renderT5(){
         ${['Day','Week','Month','Quarter'].map(c=>`<option value="${c}"${compareBy===c?' selected':''}>${c}</option>`).join('')}
       </select>
     </div>
+    ${involvedNote}
     <div style="display:grid;grid-template-columns:1fr 1fr;gap:16px">
       <div class="chart-box"><div id="ch-comp-p" class="plot-div"></div></div>
       <div class="chart-box"><div id="ch-comp-f" class="plot-div"></div></div>
@@ -1210,16 +1308,21 @@ function renderT5(){
     <div id="comp-tbl" class="mt-2" style="margin-bottom:16px"></div>
 
     ${secHdr('Person Summary','t5-ps')}
-    <p style="color:var(--warmgray);font-size:12px;margin:0 0 8px">Panels built and fail rate by person for the period selected above.</p>
+    <p style="color:var(--warmgray);font-size:12px;margin:0 0 8px">${reportPersonFilter
+      ?`${esc(reportPersonFilter)}'s panels and fail rate for the period selected above.`
+      :'Panels built and fail rate by person for the period selected above.'}</p>
     <div id="person-summary"></div>
 
     ${secHdr('Person Trend','t5-pt','mt-2')}
     <p style="color:var(--warmgray);font-size:12px;margin:0 0 8px">First Pass Yield % over time for a selected person. Layout, Wire, and Final lines show gaps when not active in that role.</p>
+    ${isGeneratingReport?`<p class="report-note">Built for <b>${esc(psTrendPerson||'the selected person')}</b>. Gaps
+        in the Layout/Wire/Final lines mean they were not active in that role during that period, not that they
+        had 0% FPY.</p>`:''}
     <div class="ps-filter-row" style="margin-bottom:12px">
       <div><label>Person</label>
         <select id="ps-trend-name" onchange="onPsTrendPersonChange()">
           <option value="">— Select a person —</option>
-          ${[...new Set(ptRows.flatMap(r=>[r.Layout_Name,r.Wire_Name,r.FA_Name].filter(Boolean)))].sort()
+          ${[...ptNames].sort()
             .map(nm=>`<option value="${esc(nm)}"${nm===psTrendPerson?' selected':''}>${esc(nm)}</option>`).join('')}
         </select>
       </div>
@@ -1322,8 +1425,11 @@ function drawPersonSummary(){
   }).filter(r=>(r.LayoutP||0)+(r.WireP||0)+(r.FinalP||0)>0)
     .sort((a,b)=>(b.LayoutP||0)-(a.LayoutP||0));
 
+  // Report, single person: keep only their row — everyone else is out of scope.
+  const scopedRows=reportPersonFilter?pRows.filter(r=>r.nm===reportPersonFilter):pRows;
+
   const fmtP=v=>v===null?'<td>—</td>':`<td class="${pctCls(v)}">${v.toFixed(1)}%</td>`;
-  const rows=pRows.map(r=>`
+  const rows=scopedRows.map(r=>`
     <tr>
       <td>${esc(r.nm)}</td>
       <td>${r.LayoutP||'—'}</td>${fmtP(r.LayoutF)}
@@ -1331,9 +1437,18 @@ function drawPersonSummary(){
       <td>${r.FinalP||'—'}</td>${fmtP(r.FinalF)}
     </tr>`).join('');
 
-  document.getElementById('person-summary').innerHTML=`<div class="tbl-wrap"><table class="dash-table">
-    <thead><tr><th>Person</th><th>Layout Panels</th><th>Layout Fail%</th><th>Wire Panels</th><th>Wire Fail%</th><th>Final Panels</th><th>Final Fail%</th></tr></thead>
-    <tbody>${rows}</tbody></table></div>`;
+  const note=reportPersonFilter
+    ?`<p class="report-note">Layout/Wire/Final Panels and Fail% below are <b>${esc(reportPersonFilter)}</b>'s
+        own totals for this period, by role.</p>`
+    :(isGeneratingReport?`<p class="report-note">Panels and Fail% are each person's own totals for this period,
+        by role — not compared against anyone else.</p>`:'');
+  const missing=reportPersonFilter&&!scopedRows.length
+    ?`<div style="padding:16px;color:var(--warmgray)">No Layout/Wire/Final panels for ${esc(reportPersonFilter)} in this period.</div>`
+    :`<div class="tbl-wrap"><table class="dash-table">
+        <thead><tr><th>Person</th><th>Layout Panels</th><th>Layout Fail%</th><th>Wire Panels</th><th>Wire Fail%</th><th>Final Panels</th><th>Final Fail%</th></tr></thead>
+        <tbody>${rows}</tbody></table></div>`;
+
+  document.getElementById('person-summary').innerHTML=note+missing;
 }
 
 function onPsTrendPersonChange(){
@@ -2089,7 +2204,7 @@ async function generateReport(){
 
   // Snapshot everything the render path touches.
   const saved={
-    df,failExploded,activeTab,
+    df,failExploded,activeTab,psTrendPerson,
     secPeriod:{...secPeriod},secSub:{...secSub},
     trendsGrp,grpState:{...grpState},
     topPeriod:document.getElementById('period-select').value,
@@ -2098,6 +2213,16 @@ async function generateReport(){
   };
 
   try{
+    isGeneratingReport=true;
+    // reportSourceFails keeps the pristine, period-filterable failExploded so
+    // Fail Attribution can count every fail attributed to the chosen person
+    // even on a row where they were not the assigned role — see its own
+    // top-of-file comment. Must be captured before the "involved" narrowing
+    // below, which is a different, looser definition of "their data" used for
+    // the whole-shop-shaped charts (Panels Built, Period Comparison).
+    reportSourceFails=saved.failExploded;
+    reportPersonFilter=person||null;
+
     // Pin the window to the whole dataset before any person filtering.
     reportAnchor=saved.df.length
       ? new Date(Math.max(...saved.df.map(r=>r._date))) : new Date();
@@ -2197,9 +2322,13 @@ async function generateReport(){
   }catch(err){
     prog.textContent='Failed: '+err.message;
   }finally{
-    // Always put the dashboard back exactly as it was.
+    // Always put the dashboard back exactly as it was. Reset the report-only
+    // flags before the final renderTab() below, or the live dashboard would
+    // render in person-scoped/report mode too.
     reportAnchor=null;
+    reportPersonFilter=null;reportSourceFails=null;isGeneratingReport=false;
     df=saved.df;failExploded=saved.failExploded;
+    psTrendPerson=saved.psTrendPerson;
     secPeriod=saved.secPeriod;secSub=saved.secSub;
     trendsGrp=saved.trendsGrp;Object.assign(grpState,saved.grpState);
     document.getElementById('period-select').value=saved.topPeriod;
@@ -2246,6 +2375,9 @@ function downloadReportFile(parts,meta){
     .kpi-label{font-size:9px;opacity:.7;text-transform:uppercase;letter-spacing:.7px;}
     .kpi-value{font-size:20px;font-weight:bold;font-family:Georgia;}
     .kpi-sub{font-size:9px;opacity:.6;}
+    .report-note{background:#F4F6FB;border-left:3px solid #0F3CFF;color:#ABA18B;
+      font-size:11px;line-height:1.55;padding:7px 11px;margin:0 0 12px;border-radius:0 4px 4px 0;}
+    .report-note b{color:#000E57;}
     .drilldown-box,.trace-card,.ps-filter-row,.grp-btns,.ta-filters{display:none;}
     @media print{body{padding:0;} .sec{page-break-before:always;}}
   `;
