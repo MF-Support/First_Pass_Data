@@ -299,10 +299,10 @@ input:checked+.toggle-slider:before{transform:translateX(18px);}
 <!-- Version changelog -->
 <div class="version-history">
   <details>
-    <summary>v1.28 — changelog (updated 2026-07-30)</summary>
-    <b>v1.28</b> Person Trend now shows Current FPY as its own number, separate from the Improving/Stable/Declining trend — previously the two could be misread as one figure. Current FPY (the most recent time bucket) and the trend indicator now sit in clearly labeled side-by-side blocks, and update together as you change period or grouping<br>
+    <summary>v1.29 — changelog (updated 2026-07-30)</summary>
+    <b>v1.29</b> Fixed Current FPY in Person Trend: it was showing only the most recent time bucket (e.g. today's single panel), which could read 100% or 0% on pure noise. It now shows the person's true overall FPY across every panel in the selected period, no matter how it's grouped<br>
+    <b>v1.28</b> Person Trend now shows Current FPY as its own number, separate from the Improving/Stable/Declining trend — previously the two could be misread as one figure. Current FPY and the trend indicator now sit in clearly labeled side-by-side blocks, and update together as you change period or grouping<br>
     <b>v1.27</b> Person Trend's Improving/Stable/Declining now uses a panel-count-weighted trend line across the whole period instead of comparing first-half vs. second-half averages — more accurate and less thrown off by one noisy bucket. The trend is always shown; when a person/period has too little data to be confident (fewer than 3 time buckets or 20 panels), a small warning icon appears next to it explaining the number is a rough read, not hidden. Chart hover tooltips now also show panel count alongside FPY %<br>
-    <b>v1.26</b> Download Report: added a banner above the KPI cards stating whether the report covers all people or one person. All section notes are now bold black for readability<br>
   </details>
 </div>
 
@@ -1660,11 +1660,14 @@ function buildPsTrend(person,el,grp='Week'){
     }
   }
 
-  // Current FPY is the most recent bucket's own value, not the regression's
-  // fitted endpoint — it's what the person's FPY actually is right now, kept
-  // visually separate from the trend so a reader can't misread the % change
-  // as the % rate.
-  const currentFpy=overallFpy[overallFpy.length-1];
+  // Current FPY is this person's overall FPY across every panel in the
+  // selected period/group — NOT the single most recent bucket. The latest
+  // bucket alone (especially grouped by Day) can be 1-2 panels and swing to
+  // 0% or 100% on pure noise, which would misrepresent how good the person
+  // actually is. Summed straight from the same per-row counts used to build
+  // the buckets, so it always matches the total panel count shown below it.
+  const totalOP=sorted.reduce((s,b)=>s+b.oP,0),totalOF=sorted.reduce((s,b)=>s+b.oF,0);
+  const currentFpy=fpyOf(totalOP,totalOF);
 
   const ts=Date.now();
   const trendId=`ps-tc-${ts}`;
