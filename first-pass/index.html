@@ -114,7 +114,7 @@ table.dash-table tbody tr.row-fail{background:#fff0f0;}
 table.dash-table tbody tr.row-fail:hover{background:#ffe0e0;}
 table.dash-table thead th.sortable{cursor:pointer;user-select:none;}
 table.dash-table thead th.sortable:hover{background:#1a2a7a;}
-table.dash-table thead th .sort-arrow{display:inline-block;width:10px;font-size:10px;opacity:.75;}
+table.dash-table thead th .sort-arrow{display:inline-block;min-width:12px;margin-left:3px;font-size:10px;opacity:.85;}
 .tbl-filter-input{width:100%;max-width:260px;margin-bottom:6px;padding:5px 9px;font-size:12px;border:1px solid #d8d4c4;border-radius:6px;background:#fff;color:var(--navy);}
 .tbl-filter-input:focus{outline:none;border-color:var(--blue);}
 .badge-over{background:var(--red);color:#fff;border-radius:4px;padding:2px 6px;font-size:11px;}
@@ -304,10 +304,10 @@ input:checked+.toggle-slider:before{transform:translateX(18px);}
 <!-- Version changelog -->
 <div class="version-history">
   <details>
-    <summary>v1.31 — changelog (updated 2026-07-30)</summary>
+    <summary>v1.32 — changelog (updated 2026-07-30)</summary>
+    <b>v1.32</b> Sort arrows on table headers are now always visible (⇅), not just on the active column. The Live badge now shows a separate "checked" time next to "updated" — Refresh always advances "checked" even when there's no new synced data yet, so it's now visible that clicking Refresh really did just talk to the server<br>
     <b>v1.31</b> Added sort and filter to every table on the dashboard (Fail Attribution, Layout, Wire, Final, Period Comparison, Person Summary) — click a column header to sort by it, or type in the filter box above a table to narrow it down. Person Summary also gained an Overall FPY% column showing each person's combined Layout/Wire/Final pass rate for the selected period<br>
     <b>v1.30</b> Person Trend now shows Current FPY and the Improving/Stable/Declining trend separately for Overall, Layout, Wire, and Final — not just Overall. Each shows only when the person has activity in that role for the selected period, and updates together as you change period or grouping<br>
-    <b>v1.29</b> Fixed Current FPY in Person Trend: it was showing only the most recent time bucket (e.g. today's single panel), which could read 100% or 0% on pure noise. It now shows the person's true overall FPY across every panel in the selected period, no matter how it's grouped<br>
   </details>
 </div>
 
@@ -336,7 +336,7 @@ let activeTab='t1';
 let psTrendPerson='', psTrendGrp='Week';
 // Live feed state. dataSource is 'live' (Supabase, fed by Power Automate) or
 // 'file' (manual upload fallback).
-let dataSource='file', liveTimer=null, liveLastSync=null;
+let dataSource='file', liveTimer=null, liveLastSync=null, lastCheckedAt=null;
 // Per-section period overrides, keyed by section id (see periodFor/secHdr).
 // secPeriod holds the period name, secSub the chosen bucket for picker periods.
 let secPeriod={},secSub={};
@@ -590,7 +590,7 @@ let tblSeq=0;
 function tbl(cols,rows,rowCls){
   const tid=`dt-${tblSeq++}`;
   const head=cols.map((c,i)=>
-    `<th class="sortable" data-col="${i}" onclick="sortDashTable('${tid}',${i})">${esc(c)}<span class="sort-arrow"></span></th>`
+    `<th class="sortable" data-col="${i}" onclick="sortDashTable('${tid}',${i})">${esc(c)}<span class="sort-arrow">⇅</span></th>`
   ).join('');
   return `<div class="tbl-wrap">
     <input type="text" class="tbl-filter-input" placeholder="Filter table…" oninput="filterDashTable('${tid}',this.value)">
@@ -632,7 +632,7 @@ function sortDashTable(tid,colIdx){
   });
   rows.forEach(r=>tbody.appendChild(r));
 
-  table.querySelectorAll('thead th .sort-arrow').forEach(s=>s.textContent='');
+  table.querySelectorAll('thead th .sort-arrow').forEach(s=>s.textContent='⇅');
   const arrow=table.querySelectorAll('thead th')[colIdx].querySelector('.sort-arrow');
   if(arrow)arrow.textContent=dir==='asc'?' ▲':' ▼';
 }
@@ -2249,6 +2249,12 @@ async function loadLive(){
     Line:r.line,Emp:r.emp,Routing_Hours:r.routing_hours,Tech:r.tech,
     Layout:r.layout,Wire:r.wire,FA:r.fa,Sales_Order:r.sales_order})));
   liveLastSync=state&&state[0]?state[0].last_sync:null;
+  // "updated" (liveLastSync) only moves when the sync script actually pushed
+  // new data from Excel — it can legitimately stay the same across a manual
+  // refresh if nothing changed since the last sync. lastCheckedAt is separate:
+  // it always advances on a successful fetch, so a click that finds no new
+  // data still visibly confirms it *did* just talk to the server.
+  lastCheckedAt=new Date();
   return df.length;
 }
 
@@ -2257,9 +2263,18 @@ function updateLiveBadge(){
   const btn=document.getElementById('live-refresh');
   if(!el)return;
   if(dataSource==='live'){
+    const fmt=d=>d.toLocaleTimeString('en-US',{hour:'numeric',minute:'2-digit'});
     const t=liveLastSync?new Date(liveLastSync):null;
+    // "updated" is when the sync script last pushed new data from Excel — it
+    // only moves when the workbook actually changed. "checked" is when this
+    // page itself last talked to the server, which advances on every refresh
+    // click (and every 60s poll) even if nothing new was found — so a click
+    // that finds no new data still visibly confirms it happened.
+    const checkedHtml=lastCheckedAt
+      ?` <span style="color:var(--warmgray);font-weight:400">· checked ${fmt(lastCheckedAt)}</span>`:'';
     el.innerHTML=`<span style="color:var(--green)">●</span> Live · updated `+
-      (t?t.toLocaleString('en-US',{month:'short',day:'numeric',hour:'numeric',minute:'2-digit'}):'—');
+      (t?t.toLocaleString('en-US',{month:'short',day:'numeric',hour:'numeric',minute:'2-digit'}):'—')
+      +checkedHtml;
     el.style.color='var(--green)';
     if(btn)btn.style.display='';
   }else{
@@ -2288,6 +2303,7 @@ function startLivePolling(){
       const s=await sbGet('fp_sync_state?select=last_sync&limit=1');
       const ts=s&&s[0]?s[0].last_sync:null;
       if(ts&&ts!==liveLastSync){await loadLive();showDashboard();}
+      else{lastCheckedAt=new Date();updateLiveBadge();}
     }catch(e){/* transient network issue — try again next tick */}
   },60000);
 }
