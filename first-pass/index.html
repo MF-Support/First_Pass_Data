@@ -68,11 +68,17 @@ body{background:var(--offwhite);font-family:'Inter',Arial,sans-serif;font-size:1
 .reset-btn{background:transparent;border:1px solid #c8d0e7;color:var(--navy);border-radius:6px;padding:4px 10px;font-size:12px;cursor:pointer;}
 .reset-btn:hover{background:var(--tint);}
 
-#kpi-row{display:grid;grid-template-columns:repeat(5,1fr);gap:12px;padding:16px 20px 0;}
-.kpi-card{background:var(--navy);color:#fff;border-radius:10px;padding:14px 16px;text-align:center;box-shadow:0 2px 8px rgba(0,14,87,.18);}
-.kpi-label{font-size:10px;opacity:.7;letter-spacing:.8px;text-transform:uppercase;}
-.kpi-value{font-size:26px;font-weight:700;font-family:Georgia;line-height:1.2;margin:2px 0;}
-.kpi-sub{font-size:10px;opacity:.6;}
+/* Flex, not grid-with-fixed-columns: cards shrink together to keep every KPI
+   on one row at any width, rather than wrapping once there isn't room for a
+   fixed column count. clamp() on the text sizes keeps them legible as they
+   shrink instead of overflowing; overflow-x is a last-resort safety net for
+   extremely narrow screens where even the clamped minimum wouldn't fit six
+   cards without truncating text. */
+#kpi-row{display:flex;flex-wrap:nowrap;gap:8px;padding:16px 20px 0;overflow-x:auto;}
+.kpi-card{flex:1 1 0;min-width:0;background:var(--navy);color:#fff;border-radius:10px;padding:14px 10px;text-align:center;box-shadow:0 2px 8px rgba(0,14,87,.18);}
+.kpi-label{font-size:clamp(7px,1.6vw,10px);opacity:.7;letter-spacing:.5px;text-transform:uppercase;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
+.kpi-value{font-size:clamp(13px,3vw,26px);font-weight:700;font-family:Georgia;line-height:1.2;margin:2px 0;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
+.kpi-sub{font-size:clamp(7px,1.4vw,10px);opacity:.6;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
 
 #tab-nav{display:flex;gap:0;padding:16px 20px 0;border-bottom:2px solid #e0e4f0;overflow-x:auto;}
 .tab-btn{background:none;border:none;border-bottom:3px solid transparent;padding:8px 14px;font-size:13px;font-weight:500;color:var(--warmgray);cursor:pointer;white-space:nowrap;transition:color .15s,border-color .15s;}
@@ -163,8 +169,18 @@ input:checked+.toggle-slider:before{transform:translateX(18px);}
 .version-history b{color:var(--blue);}
 
 @media(max-width:768px){
-  #kpi-row{grid-template-columns:repeat(2,1fr);}
-  .kpi-value{font-size:20px;}
+  #kpi-row{gap:5px;padding:12px 12px 0;}
+  .kpi-card{padding:9px 5px;}
+}
+/* Below ~360px even the clamp() floor is too wide for six cards to show a
+   full value like "7,965.5" without the browser ellipsis-truncating it —
+   which would silently hide digits rather than just shrink text. Drop the
+   floor further here instead of letting that happen. */
+@media(max-width:360px){
+  #kpi-row{gap:3px;padding:10px 8px 0;}
+  .kpi-card{padding:6px 3px;}
+  .kpi-value{font-size:clamp(9px,3.6vw,13px);}
+  .kpi-label,.kpi-sub{font-size:6px;}
 }
 </style>
 </head>
@@ -282,7 +298,7 @@ input:checked+.toggle-slider:before{transform:translateX(18px);}
     <div class="kpi-card"><div class="kpi-label">Total Fails</div><div class="kpi-value" id="kv-fails">—</div><div class="kpi-sub" id="ks-fails"></div></div>
     <div class="kpi-card"><div class="kpi-label">Avg / Day</div><div class="kpi-value" id="kv-avg">—</div><div class="kpi-sub">panels per day</div></div>
     <div class="kpi-card"><div class="kpi-label">Man-Hours</div><div class="kpi-value" id="kv-manhours">—</div><div class="kpi-sub" id="ks-manhours"></div></div>
-    <div class="kpi-card"><div class="kpi-label">Most Fails From</div><div class="kpi-value" id="kv-top" style="font-size:15px;padding-top:4px">—</div><div class="kpi-sub" id="ks-top"></div></div>
+    <div class="kpi-card"><div class="kpi-label">Most Fails From</div><div class="kpi-value" id="kv-top" style="font-size:clamp(11px,2.4vw,15px);padding-top:4px">—</div><div class="kpi-sub" id="ks-top"></div></div>
   </div>
 
   <div id="tab-nav">
@@ -305,10 +321,10 @@ input:checked+.toggle-slider:before{transform:translateX(18px);}
 <!-- Version changelog -->
 <div class="version-history">
   <details>
-    <summary>v1.34 — changelog (updated 2026-07-30)</summary>
+    <summary>v1.35 — changelog (updated 2026-07-30)</summary>
+    <b>v1.35</b> The top KPI row (now 6 cards) stays on one row at any browser width instead of wrapping — cards shrink together and text scales down to fit, all the way down to a phone screen, without ever cutting off a number mid-digit<br>
     <b>v1.34</b> Added a Man-Hours KPI card (sum of the workbook's Routing Hours column for the selected period, with avg hours/panel underneath) to the top KPI row and to Download Report exports<br>
     <b>v1.33</b> Clicking Refresh now updates the "Live · updated" time to the moment you clicked, so it's obvious the refresh actually happened. Period Comparison's Period column now sorts chronologically (Jul 2025 → Jul 2026) instead of alphabetically<br>
-    <b>v1.32</b> Sort arrows on table headers are now always visible (⇅), not just on the active column<br>
   </details>
 </div>
 
