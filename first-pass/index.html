@@ -321,10 +321,10 @@ input:checked+.toggle-slider:before{transform:translateX(18px);}
 <!-- Version changelog -->
 <div class="version-history">
   <details>
-    <summary>v1.39 — changelog (updated 2026-07-30)</summary>
-    <b>v1.39</b> Fail Attribution: "% of Fails" renamed to "Personal Fail Rate," plus a new "Panel Shop Fail Rate Contribution" column showing how many percentage points of the shop's overall fail rate this period come from that person specifically. Fixed Download Report's person-scoped KPI "Total Fails" (and FPY) to match Fail Attribution's own count exactly — they could differ because Fail Attribution counts every mention of a person's initials in Reason text (including a panel with 2 separate defects both blamed on them, or a fail attributed to them on a row they weren't formally assigned), which the KPI wasn't accounting for. Period Comparison's Fail Rate% in a person-scoped report now shows their own fail rate (their panels, fails actually attributed to them) instead of a shop-wide-style rate<br>
-    <b>v1.38</b> Fixed Download Report's KPI row for a person-scoped report: Total Panels/Fails/FPY/Avg-Day/Man-Hours now use the same "involved in Layout, Wire, or Final, fail actually attributed to them" definition as Person Trend, so the numbers agree with it exactly instead of using a KPI-only definition nobody else used. Most Fails From now always shows the shop-wide leader for the period (marked with an asterisk and a note) instead of just restating the filtered person and their own count. Layout/Wire/Final's Panels-by-Person bar chart no longer repeats colors past 12 people<br>
-    <b>v1.37</b> Person Summary now defaults to sorting alphabetically by name, instead of by Layout Panels count<br>
+    <summary>v1.40 — changelog (updated 2026-07-30)</summary>
+    <b>v1.40</b> Fixed Fail Attribution's two rate columns to mean what their names say: Personal Fail Rate is now that person's own fail rate (their fails ÷ their own panels), and Panel Shop Fail Rate Contribution is their share of every attributed fail shop-wide — these now sum to 100% across everyone, as they should. Fixed Download Report's Period Comparison always showing a full year of unrelated history regardless of the report's chosen date range (it had its own hardcoded default that the report period never overrode) — it now correctly shows only the report's own window, with a bucket size (Day/Week/Month/Quarter) auto-picked to fit how much data is in it<br>
+    <b>v1.39</b> Fail Attribution gained a "Panel Shop Fail Rate Contribution" column. Fixed Download Report's person-scoped KPI "Total Fails" to match Fail Attribution's own count exactly<br>
+    <b>v1.38</b> Fixed Download Report's KPI row for a person-scoped report: Total Panels/Fails/FPY/Avg-Day/Man-Hours now use the same definition as Person Trend. Most Fails From now always shows the shop-wide leader for the period. Layout/Wire/Final's Panels-by-Person bar chart no longer repeats colors past 12 people<br>
   </details>
 </div>
 
@@ -1217,39 +1217,44 @@ function renderT1(){
   }
 
   const {dff,dff_fails}=getFilteredFor('t1');
-  const totalFails=dff.filter(r=>r.Is_Fail).length;
   if(!dff_fails.length){
     el.innerHTML=`${secHdr('Fail Attribution','t1')}<div style="padding:20px;color:var(--warmgray)">No attributed fails in this period.</div>`;return;
   }
   const bp={};for(const r of dff_fails)bp[r.Fail_Name]=(bp[r.Fail_Name]||0)+1;
-  // Personal Fail Rate (renamed from "% of Fails") = their share of all
-  // attributed fails, unchanged. Panel Shop Fail Rate Contribution is new:
-  // out of every panel the shop ran this period, what % failed with a fail
-  // attributed to this person — same numerator, but divided by every panel
-  // in the period (totalPanelsShop) instead of by the fail count, so it's
-  // expressed as percentage points of the shop's own overall fail rate
-  // rather than a share of the failures. (Since one failed panel can have
-  // more than one person attributed, these — like Personal Fail Rate — don't
-  // strictly sum to 100%/the shop rate across everyone; that's inherent to
-  // multi-attribution, not new here.)
-  const totalPanelsShop=dff.length;
+  // Personal Fail Rate = THEIR OWN fail rate: fails attributed to them ÷
+  // their own panels (Layout/Wire/Final assigned to them), same basis as
+  // Person Trend/Person Summary/the KPI's Total Panels — a bounded, personal
+  // quality number, not a comparison against the shop total.
+  //
+  // Panel Shop Fail Rate Contribution = their share of every attributed fail
+  // the shop had this period (c ÷ totalAttributedFails). Deliberately sums
+  // to exactly 100% across everyone (each fail's attributions are counted
+  // once each, and every attribution belongs to exactly one person's count
+  // here), answering "out of all the fails the shop had, what % came from
+  // this person" — a comparison against the shop total, not their own panels.
+  const totalAttributedFails=dff_fails.length;
   const sorted=Object.entries(bp)
-    .map(([n,c])=>({n,c,pct:(c/totalFails*100).toFixed(1),
-      contrib:totalPanelsShop?(c/totalPanelsShop*100).toFixed(1):'0.0',
-      issue:topIssue(n,dff_fails)}))
+    .map(([n,c])=>{
+      const init=Object.keys(initMap).find(k=>initMap[k]===n)||n;
+      const ownPanels=dff.filter(r=>r.Layout===init||r.Wire===init||r.FA===init).length;
+      return{n,c,
+        personalRate:ownPanels?(c/ownPanels*100).toFixed(1):null,
+        contrib:totalAttributedFails?(c/totalAttributedFails*100).toFixed(1):'0.0',
+        issue:topIssue(n,dff_fails)};
+    })
     .sort((a,b)=>b.c-a.c);
   el.innerHTML=`
     ${secHdr('Fail Attribution','t1')}
     <p style="color:var(--warmgray);font-size:12px;margin:0 0 12px">Click a bar to highlight it and see that person's full fail list below.</p>
     ${isGeneratingReport?`<p class="report-note"><b>Fails Caused</b> = fails attributed to that person via their
-      initials in the Reason text. <b>Personal Fail Rate</b> is their share of all ${totalFails} attributed fails
-      shop-wide in this period, not of their own panels. <b>Panel Shop Fail Rate Contribution</b> is how much of
-      the shop's overall fail rate for this period (${totalPanelsShop?(totalFails/totalPanelsShop*100).toFixed(1):'0.0'}%)
-      is attributable to them specifically.</p>`:''}
+      initials in the Reason text. <b>Personal Fail Rate</b> is their own fail rate — those fails as a percent of
+      their own Layout/Wire/Final panels, not the shop total. <b>Panel Shop Fail Rate Contribution</b> is their
+      share of all ${totalAttributedFails} attributed fails shop-wide this period — these add up to 100% across
+      everyone (a fail with two people attributed counts once for each of them).</p>`:''}
     <div style="display:grid;grid-template-columns:3fr 2fr;gap:16px;min-width:0">
       <div class="chart-box" style="min-width:0"><div id="ch-fa" class="plot-div clickable-plot"></div></div>
       <div style="min-width:0;overflow:auto">${tbl(['Person','Fails Caused','Personal Fail Rate','Panel Shop Fail Rate Contribution','Most Common Issue'],
-        sorted.map(r=>[r.n,r.c,r.pct+'%',r.contrib+'%',r.issue]),null,'fail-attribution')}</div>
+        sorted.map(r=>[r.n,r.c,r.personalRate===null?'—':r.personalRate+'%',r.contrib+'%',r.issue]),null,'fail-attribution')}</div>
     </div>
     <div id="t1-drilldown"></div>
     <div id="t1-unattr"></div>`;
@@ -2615,7 +2620,7 @@ async function generateReport(){
   const saved={
     df,failExploded,activeTab,psTrendPerson,
     secPeriod:{...secPeriod},secSub:{...secSub},
-    trendsGrp,grpState:{...grpState},
+    trendsGrp,grpState:{...grpState},compareBy,
     topPeriod:document.getElementById('period-select').value,
     topSub:document.getElementById('sub-select').value,
     taWorker:document.getElementById('ta-workers')?document.getElementById('ta-workers').value:null,
@@ -2658,8 +2663,25 @@ async function generateReport(){
       }
     }else{populateSubSelect(true);}
     secPeriod={};secSub={};
+    // Period Comparison has its own hardcoded default period ("Last Year" -
+    // see SECTION_DEFAULT) so a live-dashboard visitor switching the top
+    // period doesn't get a useless single-bucket comparison by accident. In
+    // a report that default is wrong: it silently ignores the report's own
+    // chosen date range and always shows a full year of unrelated history.
+    // Pin it explicitly to the report's period/sub so it actually reflects
+    // what the user picked.
+    secPeriod['t5-comp']=period;secSub['t5-comp']=sub;
     trendsGrp=group;
     ['t2','t3','t4'].forEach(t=>grpState[t]=group);
+    // compareBy (Period Comparison's Day/Week/Month/Quarter bucket size) has
+    // no control of its own in the report dialog, so it was just whatever
+    // was last left over from the live dashboard - a Quarter bucket size for
+    // a one-week report, or a Day bucket size for an All Time report. Pick a
+    // bucket size from the actual span of data in the report's own period.
+    const spanRows=getFiltered(period,sub).dff;
+    const spanDays=spanRows.length>1
+      ?(Math.max(...spanRows.map(r=>r._date))-Math.min(...spanRows.map(r=>r._date)))/86400000:0;
+    compareBy=spanDays<=30?'Day':spanDays<=120?'Week':spanDays<=730?'Month':'Quarter';
     if(person&&document.getElementById('ta-workers')){
       const tw=document.getElementById('ta-workers');
       if([...tw.options].some(o=>o.value===person))tw.value=person;
@@ -2751,7 +2773,7 @@ async function generateReport(){
     df=saved.df;failExploded=saved.failExploded;
     psTrendPerson=saved.psTrendPerson;
     secPeriod=saved.secPeriod;secSub=saved.secSub;
-    trendsGrp=saved.trendsGrp;Object.assign(grpState,saved.grpState);
+    trendsGrp=saved.trendsGrp;Object.assign(grpState,saved.grpState);compareBy=saved.compareBy;
     document.getElementById('period-select').value=saved.topPeriod;
     populateSubSelect(true);
     const ss=document.getElementById('sub-select');
