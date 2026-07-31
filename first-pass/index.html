@@ -287,7 +287,6 @@ input:checked+.toggle-slider:before{transform:translateX(18px);}
     </span>
     <span id="period-badge"></span>
     <span id="live-status" style="font-size:11px;margin-left:6px"></span>
-    <button class="reset-btn" id="live-refresh" onclick="refreshLive()" title="Re-read the live feed now" style="display:none">⟳ Refresh</button>
     <span id="data-summary"></span>
     <button class="reset-btn" onclick="resetDashboard()">⬆ Use a file instead</button>
   </div>
@@ -321,10 +320,10 @@ input:checked+.toggle-slider:before{transform:translateX(18px);}
 <!-- Version changelog -->
 <div class="version-history">
   <details>
-    <summary>v1.41 — changelog (updated 2026-07-30)</summary>
-    <b>v1.41</b> Added short explanations to the KPI row, Person Summary, and Person Trend in Download Report (person-scoped) noting that their FPY numbers use different counting rules and can legitimately differ for the same person and period — no more wondering why they don't match<br>
-    <b>v1.40</b> Fixed Fail Attribution's two rate columns to mean what their names say: Personal Fail Rate is now that person's own fail rate (their fails ÷ their own panels), and Panel Shop Fail Rate Contribution is their share of every attributed fail shop-wide — these now sum to 100% across everyone. Fixed Download Report's Period Comparison always showing a full year of unrelated history regardless of the report's chosen date range — it now correctly shows only the report's own window, with a bucket size auto-picked to fit<br>
-    <b>v1.39</b> Fail Attribution gained a "Panel Shop Fail Rate Contribution" column. Fixed Download Report's person-scoped KPI "Total Fails" to match Fail Attribution's own count exactly<br>
+    <summary>v1.42 — changelog (updated 2026-07-30)</summary>
+    <b>v1.42</b> Removed the Refresh button — clicking it never actually pulled fresh data from Excel (only the background sync does that, previously every 15 min, now every 5 min), it just re-asked Supabase for whatever was already there, so the "updated" time moving on click was misleading. The Live badge now just states the real sync time plus "auto-refreshes every ~5 min"<br>
+    <b>v1.41</b> Added short explanations to the KPI row, Person Summary, and Person Trend in Download Report (person-scoped) noting that their FPY numbers use different counting rules and can legitimately differ for the same person and period<br>
+    <b>v1.40</b> Fixed Fail Attribution's two rate columns to mean what their names say: Personal Fail Rate is that person's own fail rate; Panel Shop Fail Rate Contribution is their share of every attributed fail shop-wide, summing to 100% across everyone. Fixed Download Report's Period Comparison always showing a full year of unrelated history regardless of the report's chosen date range<br>
   </details>
 </div>
 
@@ -2431,45 +2430,24 @@ async function loadLive(){
     Line:r.line,Emp:r.emp,Routing_Hours:r.routing_hours,Tech:r.tech,
     Layout:r.layout,Wire:r.wire,FA:r.fa,Sales_Order:r.sales_order})));
   liveLastSync=state&&state[0]?state[0].last_sync:null;
-  // Default display time is the sync's own timestamp. refreshLive() overrides
-  // this to the moment of the click after calling loadLive() — see there for
-  // why: a manual refresh should visibly confirm it just ran.
+  // The badge always shows this real sync timestamp — there's no manual
+  // refresh button to fake a more-recent time with, so "updated" only ever
+  // moves when the background sync actually pushed new data.
   displayUpdatedAt=liveLastSync?new Date(liveLastSync):new Date();
   return df.length;
 }
 
 function updateLiveBadge(){
   const el=document.getElementById('live-status');
-  const btn=document.getElementById('live-refresh');
   if(!el)return;
   if(dataSource==='live'){
     el.innerHTML=`<span style="color:var(--green)">●</span> Live · updated `+
-      (displayUpdatedAt?displayUpdatedAt.toLocaleString('en-US',{month:'short',day:'numeric',hour:'numeric',minute:'2-digit'}):'—');
+      (displayUpdatedAt?displayUpdatedAt.toLocaleString('en-US',{month:'short',day:'numeric',hour:'numeric',minute:'2-digit'}):'—')
+      +` <span style="color:var(--warmgray)">· auto-refreshes every ~5 min</span>`;
     el.style.color='var(--green)';
-    if(btn)btn.style.display='';
   }else{
     el.innerHTML='<span style="color:var(--warmgray)">●</span> From uploaded file';
     el.style.color='var(--warmgray)';
-    if(btn)btn.style.display='none';
-  }
-}
-
-async function refreshLive(){
-  const el=document.getElementById('live-status');
-  if(el)el.innerHTML='<span style="color:var(--blue)">●</span> Refreshing…';
-  try{
-    if(await loadLive()){
-      dataSource='live';
-      // A manual refresh should visibly confirm it just ran, so the badge
-      // shows the moment the user clicked — not the sync script's own
-      // last-push time, which can legitimately be older if nothing new has
-      // synced yet. Automatic loads (boot, background poll) still show the
-      // real sync time via loadLive()'s own default.
-      displayUpdatedAt=new Date();
-      showDashboard();
-    }
-  }catch(e){
-    if(el)el.innerHTML='<span style="color:var(--red)">●</span> Refresh failed';
   }
 }
 

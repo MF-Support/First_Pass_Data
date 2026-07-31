@@ -1,5 +1,5 @@
 <#
-    Registers sync-first-pass.ps1 to run every 15 minutes with no visible window.
+    Registers sync-first-pass.ps1 to run every 5 minutes with no visible window.
 
     Launches through `conhost.exe --headless`, which runs the command without
     creating a console at all - so nothing appears or steals focus while you work.
@@ -15,7 +15,7 @@
 $ErrorActionPreference = 'Stop'
 
 $TaskName    = 'First Pass Sync'
-$IntervalMin = 15
+$IntervalMin = 5
 $Script      = Join-Path $PSScriptRoot 'sync-first-pass.ps1'
 $LogPath     = Join-Path $PSScriptRoot 'sync-first-pass.log'
 
