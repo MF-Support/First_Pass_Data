@@ -321,10 +321,10 @@ input:checked+.toggle-slider:before{transform:translateX(18px);}
 <!-- Version changelog -->
 <div class="version-history">
   <details>
-    <summary>v1.40 — changelog (updated 2026-07-30)</summary>
-    <b>v1.40</b> Fixed Fail Attribution's two rate columns to mean what their names say: Personal Fail Rate is now that person's own fail rate (their fails ÷ their own panels), and Panel Shop Fail Rate Contribution is their share of every attributed fail shop-wide — these now sum to 100% across everyone, as they should. Fixed Download Report's Period Comparison always showing a full year of unrelated history regardless of the report's chosen date range (it had its own hardcoded default that the report period never overrode) — it now correctly shows only the report's own window, with a bucket size (Day/Week/Month/Quarter) auto-picked to fit how much data is in it<br>
+    <summary>v1.41 — changelog (updated 2026-07-30)</summary>
+    <b>v1.41</b> Added short explanations to the KPI row, Person Summary, and Person Trend in Download Report (person-scoped) noting that their FPY numbers use different counting rules and can legitimately differ for the same person and period — no more wondering why they don't match<br>
+    <b>v1.40</b> Fixed Fail Attribution's two rate columns to mean what their names say: Personal Fail Rate is now that person's own fail rate (their fails ÷ their own panels), and Panel Shop Fail Rate Contribution is their share of every attributed fail shop-wide — these now sum to 100% across everyone. Fixed Download Report's Period Comparison always showing a full year of unrelated history regardless of the report's chosen date range — it now correctly shows only the report's own window, with a bucket size auto-picked to fit<br>
     <b>v1.39</b> Fail Attribution gained a "Panel Shop Fail Rate Contribution" column. Fixed Download Report's person-scoped KPI "Total Fails" to match Fail Attribution's own count exactly<br>
-    <b>v1.38</b> Fixed Download Report's KPI row for a person-scoped report: Total Panels/Fails/FPY/Avg-Day/Man-Hours now use the same definition as Person Trend. Most Fails From now always shows the shop-wide leader for the period. Layout/Wire/Final's Panels-by-Person bar chart no longer repeats colors past 12 people<br>
   </details>
 </div>
 
@@ -953,12 +953,19 @@ function buildReportKpiHtml(period,sub,person){
         only their own data, not the whole shop, <b>except Most Fails From*</b>, which always shows the
         shop-wide leader for this period regardless of the person filter.</p>`
     :`<p class="report-note">This report covers <b>all people</b> — nothing is filtered to one person.</p>`;
+  // Total Fails/FPY here, Person Summary's Overall FPY%, and Person Trend's
+  // Overall all use different counting rules (see each section's own note),
+  // so they can legitimately show different numbers for the same person and
+  // period — flagged here since this KPI row is the first thing a reader sees.
+  const fpyNote=person
+    ?`<p class="report-note">This card's Fails/FPY counts every mention of ${esc(person)}'s name as a fail cause
+        (even twice on one panel). Person Summary and Person Trend below count at most one fail per panel, so
+        their FPY numbers can come out higher — see each section's own note for details.</p>`:'';
   let kpiHtml=document.getElementById('kpi-row').outerHTML;
   if(person){
     kpiHtml=kpiHtml.replace('Most Fails From','Most Fails From *');
   }
-  return scopeNote+kpiHtml;
-  
+  return scopeNote+fpyNote+kpiHtml;
 }
 
 // Groups already-filtered rows into Day/Week/Month buckets, auto-picked from
@@ -1604,7 +1611,9 @@ function renderT5(){
     <p style="color:var(--warmgray);font-size:12px;margin:0 0 8px">First Pass Yield % over time for a selected person. Layout, Wire, and Final lines show gaps when not active in that role.</p>
     ${isGeneratingReport?`<p class="report-note">Built for <b>${esc(psTrendPerson||'the selected person')}</b>. Gaps
         in the Layout/Wire/Final lines mean they were not active in that role during that period, not that they
-        had 0% FPY.</p>`:''}
+        had 0% FPY. Overall counts each panel once (no matter how many roles they did on it or how many separate
+        issues it had) — the strictest of the FPY numbers on this page, so it can read higher than the top KPI
+        card or Person Summary's Overall FPY%.</p>`:''}
     <div class="ps-filter-row" style="margin-bottom:12px">
       <div><label>Person</label>
         <select id="ps-trend-name" onchange="onPsTrendPersonChange()">
@@ -1753,9 +1762,11 @@ function drawPersonSummary(){
 
   const note=reportPersonFilter
     ?`<p class="report-note">Overall FPY% and Layout/Wire/Final Panels/Fail% below are <b>${esc(reportPersonFilter)}</b>'s
-        own totals for this period, by role.</p>`
+        own totals for this period, by role. Overall FPY% adds Layout+Wire+Final panels together, so a panel
+        worked in two roles counts twice — this can differ from Person Trend's Overall, which counts each panel once.</p>`
     :(isGeneratingReport?`<p class="report-note">Overall FPY%, Panels, and Fail% are each person's own totals for this period,
-        by role — not compared against anyone else.</p>`:'');
+        by role — not compared against anyone else. Overall FPY% adds the three roles together, so a panel worked
+        in two roles counts twice.</p>`:'');
   const missing=reportPersonFilter&&!scopedRows.length
     ?`<div style="padding:16px;color:var(--warmgray)">No Layout/Wire/Final panels for ${esc(reportPersonFilter)} in this period.</div>`
     :tbl(['Person','Overall FPY%','Layout Panels','Layout Fail%','Wire Panels','Wire Fail%','Final Panels','Final Fail%'],rows,null,'person-summary');
