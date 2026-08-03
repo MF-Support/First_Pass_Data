@@ -320,10 +320,10 @@ input:checked+.toggle-slider:before{transform:translateX(18px);}
 <!-- Version changelog -->
 <div class="version-history">
   <details>
-    <summary>v1.44 — changelog (updated 2026-08-03)</summary>
+    <summary>v1.45 — changelog (updated 2026-08-03)</summary>
+    <b>v1.45</b> The top KPI row now follows whichever of Fail Attribution/Layout/Wire/Final tab you're on and its own period — switch to Layout while it's set to Weekly and the KPI cards update to that week. Trends and Time Analysis are unaffected and keep showing the top-of-page period, since they don't have one single period to follow<br>
     <b>v1.44</b> Person Summary now defaults to Weekly instead of mirroring the top-of-page period<br>
     <b>v1.43</b> Fail Attribution, Layout, Wire, and Final now each have their own independent period (previously they all shared one control with the top of the page). Fail Attribution defaults to Daily/today; Layout/Wire/Final and Trends' Panels Built default to Weekly, grouped by Day. Download Report now pins every section to the report's own chosen date range instead of letting any of them fall back to their individual defaults<br>
-    <b>v1.42</b> Removed the Refresh button — clicking it never actually pulled fresh data from Excel (only the background sync does that, previously every 15 min, now every 5 min), it just re-asked Supabase for whatever was already there. The Live badge now just states the real sync time plus "auto-refreshes every ~5 min"<br>
   </details>
 </div>
 
@@ -1015,16 +1015,32 @@ function filterRowsByPeriod(rows,period,sub){
 function getFiltered(period,sub){
   period=period||globalPeriod();
   if(sub===undefined)sub=(needsSub(period)||isCustomRange(period))?(globalSub()||defaultSub(period)):'';
-  if(!df.length)return{dff:[],dff_fails:[],maxDate:new Date(),period};
+  if(!df.length)return{dff:[],dff_fails:[],maxDate:new Date(),period,sub};
   const maxDate=dataAnchor();
   const dff=filterRowsByPeriod(df,period,sub);
   const dff_fails=filterRowsByPeriod(failExploded,period,sub);
   const minDate=dff.length?new Date(Math.min(...dff.map(r=>r._date))):maxDate;
-  return{dff,dff_fails,maxDate,minDate,period};
+  return{dff,dff_fails,maxDate,minDate,period,sub};
 }
 
 // Data for one section, honouring its own period override.
 function getFilteredFor(key){return getFiltered(periodFor(key),subFor(key));}
+
+// The top KPI row follows whichever tab is currently open — Fail Attribution/
+// Layout/Wire/Final each have their own period now, so the KPI cards should
+// read the same period the user is actually looking at instead of a separate
+// number tied to the (largely vestigial, for these four tabs) top-of-page
+// control. Trends and Time Analysis are excluded on purpose: Trends' four
+// sub-sections each have their own period already and don't map to one
+// single "the period for this tab," and Time Analysis is a separate,
+// Supabase-backed filter model entirely — both keep the KPI row on the
+// top-of-page period, same as before this change.
+function kpiFiltered(){
+  if(activeTab==='t1'||activeTab==='t2'||activeTab==='t3'||activeTab==='t4'){
+    return getFilteredFor(activeTab);
+  }
+  return getFiltered();
+}
 
 // Section header with an inline period dropdown: "Title — [period ▾]"
 function secHdr(title,key,extraCls){
@@ -1066,10 +1082,12 @@ function onSecPeriodChange(key,val){
   secPeriod[key]=val;
   secSub[key]=defaultSub(val); // newest bucket of the newly chosen period
   renderTab(activeTab);
+  renderKPIs(kpiFiltered());
 }
 function onSecSubChange(key,val){
   secSub[key]=val;
   renderTab(activeTab);
+  renderKPIs(kpiFiltered());
 }
 
 // One field of a section's Custom Range pair changed. Waits for both fields to
@@ -1082,6 +1100,7 @@ function onSecCustomChange(key,part,val){
   secPeriod[key]='Custom Range';
   secSub[key]=encodeRange(s,e);
   renderTab(activeTab);
+  renderKPIs(kpiFiltered());
 }
 
 // Time Analysis sub-sections are all views of one Supabase-backed filter, so they
@@ -1124,7 +1143,7 @@ function subHdr(title,label,extraCls){
 }
 
 // ─── KPIs ─────────────────────────────────────────────────────────────────────
-function renderKPIs({dff,dff_fails,maxDate}){
+function renderKPIs({dff,dff_fails,maxDate,period,sub}){
   const tot=dff.length,pass=dff.filter(r=>r.Is_Pass).length,fail=dff.filter(r=>r.Is_Fail).length;
   const fpy=tot?(pass/tot*100).toFixed(1):'0.0';
   const maxD=dff.length?new Date(Math.max(...dff.map(r=>r._date))):maxDate;
@@ -1149,7 +1168,7 @@ function renderKPIs({dff,dff_fails,maxDate}){
   document.getElementById('ks-manhours').textContent=tot?`${(manHours/tot).toFixed(2)} hrs/panel`:'';
   document.getElementById('kv-top').textContent=top?top[0]:'—';
   document.getElementById('ks-top').textContent=top?`${top[1]} attributed fails`:'';
-  const lbl=getPeriodLabel();
+  const lbl=getPeriodLabel(period,sub);
   document.getElementById('period-badge').textContent='Period: '+lbl;
   document.getElementById('data-summary').textContent=
     `📅 ${fmtDate(new Date(Math.min(...df.map(r=>r._date))))} – ${fmtDate(new Date(Math.max(...df.map(r=>r._date))))} · 📋 ${df.length.toLocaleString()} total records`;
@@ -2753,8 +2772,9 @@ async function generateReport(){
     if(back)back.classList.add('active');
     try{renderTab(activeTab);}catch(e){}
     // buildReportKpiHtml() overwrote the live #kpi-row with the report's
-    // scope; put the dashboard's own numbers back now that df/period/etc are.
-    try{renderKPIs(getFiltered());}catch(e){}
+    // scope; put the dashboard's own numbers back now that df/period/etc are
+    // restored — kpiFiltered() follows whichever tab the user was on.
+    try{renderKPIs(kpiFiltered());}catch(e){}
     goBtn.disabled=false;
   }
 }
@@ -2845,6 +2865,7 @@ function activateTab(tab,{push=true}={}){
   if(tab==='t6'&&!timingLoaded)renderT6();
   else if(tab==='t6')buildTA(document.getElementById('t6'));
   else if(df.length)renderTab(tab);
+  if(df.length)renderKPIs(kpiFiltered());
   if(push){
     const path=TAB_ROUTES[tab]||'/';
     if(location.pathname!==path)history.pushState({tab},'',path);
@@ -2923,13 +2944,11 @@ function populateSubSelect(reset){
 
 function render(){
   if(!df.length)return;
-  const data=getFiltered();
-  renderKPIs(data);
   renderTab(activeTab);
+  renderKPIs(kpiFiltered());
 }
 
 function renderTab(tab){
-  const data=getFiltered();
   if(tab==='t1')renderT1();
   else if(tab==='t2')renderPersonTab('t2','Layout','Layout');
   else if(tab==='t3')renderPersonTab('t3','Wire','Wire');
