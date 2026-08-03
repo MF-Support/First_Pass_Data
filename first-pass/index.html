@@ -320,10 +320,10 @@ input:checked+.toggle-slider:before{transform:translateX(18px);}
 <!-- Version changelog -->
 <div class="version-history">
   <details>
-    <summary>v1.42 — changelog (updated 2026-07-30)</summary>
-    <b>v1.42</b> Removed the Refresh button — clicking it never actually pulled fresh data from Excel (only the background sync does that, previously every 15 min, now every 5 min), it just re-asked Supabase for whatever was already there, so the "updated" time moving on click was misleading. The Live badge now just states the real sync time plus "auto-refreshes every ~5 min"<br>
+    <summary>v1.43 — changelog (updated 2026-08-03)</summary>
+    <b>v1.43</b> Fail Attribution, Layout, Wire, and Final now each have their own independent period (previously they all shared one control with the top of the page). Fail Attribution defaults to Daily/today; Layout/Wire/Final and Trends' Panels Built default to Weekly, grouped by Day. Download Report now pins every section to the report's own chosen date range instead of letting any of them fall back to their individual defaults<br>
+    <b>v1.42</b> Removed the Refresh button — clicking it never actually pulled fresh data from Excel (only the background sync does that, previously every 15 min, now every 5 min), it just re-asked Supabase for whatever was already there. The Live badge now just states the real sync time plus "auto-refreshes every ~5 min"<br>
     <b>v1.41</b> Added short explanations to the KPI row, Person Summary, and Person Trend in Download Report (person-scoped) noting that their FPY numbers use different counting rules and can legitimately differ for the same person and period<br>
-    <b>v1.40</b> Fixed Fail Attribution's two rate columns to mean what their names say: Personal Fail Rate is that person's own fail rate; Panel Shop Fail Rate Contribution is their share of every attributed fail shop-wide, summing to 100% across everyone. Fixed Download Report's Period Comparison always showing a full year of unrelated history regardless of the report's chosen date range<br>
   </details>
 </div>
 
@@ -352,7 +352,7 @@ const SB_ANON='eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJl
 // ─── State ────────────────────────────────────────────────────────────────────
 let df=[], initMap={}, knownInits=new Set(), failExploded=[];
 let timingData=[], timingLoaded=false;
-const grpState={t2:'Month',t3:'Month',t4:'Month'};
+const grpState={t2:'Day',t3:'Day',t4:'Day'};
 let activeTab='t1';
 let psTrendPerson='', psTrendGrp='Week';
 // Live feed state. dataSource is 'live' (Supabase, fed by Power Automate) or
@@ -840,14 +840,16 @@ function globalSub(){
   return document.getElementById('sub-select')?.value||'';
 }
 
-// A section's effective period. A global 'By Quarter' resolves to the concrete
-// quarter so section dropdowns always show a real, selectable value.
 // A section's effective period, and the bucket it has selected. A section with
-// no override mirrors the top bar exactly — same period, same bucket.
-// Period Comparison plots buckets against each other, so inheriting a
-// single-bucket period like "Monthly / Jul 2026" would leave it with one bar.
-// It holds a wide default until explicitly changed in its own header.
-const SECTION_DEFAULT={'t5-comp':'Last Year'};
+// no override AND no default of its own mirrors the top bar exactly — same
+// period, same bucket. Sections listed here start on their own period
+// instead, until explicitly changed in that section's own header:
+// - Fail Attribution: Daily, so it opens on the newest day of data ("today").
+// - Layout/Wire/Final and Panels Built: Weekly.
+// - Period Comparison: Last Year — it plots buckets against each other, so
+//   inheriting a single-bucket period like "Monthly / Jul 2026" would leave
+//   it with one bar; it needs a wide range regardless of what the others show.
+const SECTION_DEFAULT={'t1':'Daily','t2':'Weekly','t3':'Weekly','t4':'Weekly','t5-built':'Weekly','t5-comp':'Last Year'};
 function periodFor(key){
   return secPeriod[key]||SECTION_DEFAULT[key]||globalPeriod();
 }
@@ -857,7 +859,11 @@ function subFor(key){
   // An explicit bucket pick wins even when the section is otherwise inheriting
   // the top bar's period — picking a month is itself an override.
   if(secSub[key])return secSub[key];
-  if(secPeriod[key])return defaultSub(p);
+  // A section running on its own period (an explicit override, or one of the
+  // defaults above) must compute its own bucket too — borrowing the top bar's
+  // sub-select here would hand a Monthly value like "2026-07" to a section
+  // that's actually on Weekly/Daily, which isn't even a valid bucket for it.
+  if(secPeriod[key]||SECTION_DEFAULT[key])return defaultSub(p);
   return globalSub()||defaultSub(p);
 }
 
@@ -1052,33 +1058,16 @@ function secHdr(title,key,extraCls){
     (span?`<span class="sec-span">(${esc(span)})</span>`:'')+`</div>`;
 }
 
-// Fail Attribution / Layout / Wire / Final all read the SAME underlying data
-// (dff), so their section-header period is really just another handle on the
-// one top-of-page period rather than an independent filter — changing it here
-// pushes the value up to the top control too. Trends' sections (t5-*) keep
-// their own independent overrides and do not propagate.
-const SYNC_TO_TOP=new Set(['t1','t2','t3','t4']);
-
+// Every section (Fail Attribution, Layout, Wire, Final, and Trends' own
+// sub-sections) has its own independent period, separate from the single
+// top-of-page period — each defaults per SECTION_DEFAULT below until the
+// user picks something different in that section's own header.
 function onSecPeriodChange(key,val){
-  if(SYNC_TO_TOP.has(key)){
-    for(const k of SYNC_TO_TOP){delete secPeriod[k];delete secSub[k];}
-    document.getElementById('period-select').value=val;
-    populateSubSelect(true);
-    render(); // the top-of-page period actually changed — KPIs must follow
-    return;
-  }
   secPeriod[key]=val;
   secSub[key]=defaultSub(val); // newest bucket of the newly chosen period
   renderTab(activeTab);
 }
 function onSecSubChange(key,val){
-  if(SYNC_TO_TOP.has(key)){
-    for(const k of SYNC_TO_TOP){delete secPeriod[k];delete secSub[k];}
-    const sel=document.getElementById('sub-select');
-    if([...sel.options].some(o=>o.value===val))sel.value=val;
-    render();
-    return;
-  }
   secSub[key]=val;
   renderTab(activeTab);
 }
@@ -1090,18 +1079,8 @@ function onSecCustomChange(key,part,val){
   const s=part==='start'?val:(other?other.value:'');
   const e=part==='end'  ?val:(other?other.value:'');
   if(!s||!e)return;
-  const encoded=encodeRange(s,e);
-  if(SYNC_TO_TOP.has(key)){
-    for(const k of SYNC_TO_TOP){delete secPeriod[k];delete secSub[k];}
-    document.getElementById('period-select').value='Custom Range';
-    populateSubSelect(true);
-    document.getElementById('custom-start').value=s;
-    document.getElementById('custom-end').value=e;
-    render();
-    return;
-  }
   secPeriod[key]='Custom Range';
-  secSub[key]=encoded;
+  secSub[key]=encodeRange(s,e);
   renderTab(activeTab);
 }
 
@@ -1556,7 +1535,7 @@ function showPersonDrill(tabId,person,dff,roleCol,roleLabel){
 }
 
 // ─── TAB 5: Trends ────────────────────────────────────────────────────────────
-let trendsGrp='Week',compareBy='Month';
+let trendsGrp='Day',compareBy='Month';
 
 function renderT5(){
   const el=document.getElementById('t5');
@@ -2652,14 +2631,15 @@ async function generateReport(){
       }
     }else{populateSubSelect(true);}
     secPeriod={};secSub={};
-    // Period Comparison has its own hardcoded default period ("Last Year" -
-    // see SECTION_DEFAULT) so a live-dashboard visitor switching the top
-    // period doesn't get a useless single-bucket comparison by accident. In
-    // a report that default is wrong: it silently ignores the report's own
-    // chosen date range and always shows a full year of unrelated history.
-    // Pin it explicitly to the report's period/sub so it actually reflects
-    // what the user picked.
-    secPeriod['t5-comp']=period;secSub['t5-comp']=sub;
+    // Every section in SECTION_DEFAULT (Fail Attribution, Layout, Wire,
+    // Final, Panels Built, Period Comparison) has its own default period so
+    // a live-dashboard visitor sees something sensible without configuring
+    // each one by hand. In a report that's wrong: clearing the overrides
+    // above would let each of them fall straight back to its own default
+    // instead of the report's chosen date range — Fail Attribution silently
+    // showing "today" in a report someone built for last quarter, for
+    // instance. Pin every one of them to the report's own period/sub.
+    for(const k of Object.keys(SECTION_DEFAULT)){secPeriod[k]=period;secSub[k]=sub;}
     trendsGrp=group;
     ['t2','t3','t4'].forEach(t=>grpState[t]=group);
     // compareBy (Period Comparison's Day/Week/Month/Quarter bucket size) has
