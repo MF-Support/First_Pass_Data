@@ -320,10 +320,10 @@ input:checked+.toggle-slider:before{transform:translateX(18px);}
 <!-- Version changelog -->
 <div class="version-history">
   <details>
-    <summary>v1.43 — changelog (updated 2026-08-03)</summary>
+    <summary>v1.44 — changelog (updated 2026-08-03)</summary>
+    <b>v1.44</b> Person Summary now defaults to Weekly instead of mirroring the top-of-page period<br>
     <b>v1.43</b> Fail Attribution, Layout, Wire, and Final now each have their own independent period (previously they all shared one control with the top of the page). Fail Attribution defaults to Daily/today; Layout/Wire/Final and Trends' Panels Built default to Weekly, grouped by Day. Download Report now pins every section to the report's own chosen date range instead of letting any of them fall back to their individual defaults<br>
     <b>v1.42</b> Removed the Refresh button — clicking it never actually pulled fresh data from Excel (only the background sync does that, previously every 15 min, now every 5 min), it just re-asked Supabase for whatever was already there. The Live badge now just states the real sync time plus "auto-refreshes every ~5 min"<br>
-    <b>v1.41</b> Added short explanations to the KPI row, Person Summary, and Person Trend in Download Report (person-scoped) noting that their FPY numbers use different counting rules and can legitimately differ for the same person and period<br>
   </details>
 </div>
 
@@ -845,11 +845,11 @@ function globalSub(){
 // period, same bucket. Sections listed here start on their own period
 // instead, until explicitly changed in that section's own header:
 // - Fail Attribution: Daily, so it opens on the newest day of data ("today").
-// - Layout/Wire/Final and Panels Built: Weekly.
+// - Layout/Wire/Final, Panels Built, and Person Summary: Weekly.
 // - Period Comparison: Last Year — it plots buckets against each other, so
 //   inheriting a single-bucket period like "Monthly / Jul 2026" would leave
 //   it with one bar; it needs a wide range regardless of what the others show.
-const SECTION_DEFAULT={'t1':'Daily','t2':'Weekly','t3':'Weekly','t4':'Weekly','t5-built':'Weekly','t5-comp':'Last Year'};
+const SECTION_DEFAULT={'t1':'Daily','t2':'Weekly','t3':'Weekly','t4':'Weekly','t5-built':'Weekly','t5-ps':'Weekly','t5-comp':'Last Year'};
 function periodFor(key){
   return secPeriod[key]||SECTION_DEFAULT[key]||globalPeriod();
 }
