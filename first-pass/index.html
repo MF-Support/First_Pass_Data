@@ -320,10 +320,10 @@ input:checked+.toggle-slider:before{transform:translateX(18px);}
 <!-- Version changelog -->
 <div class="version-history">
   <details>
-    <summary>v1.45 — changelog (updated 2026-08-03)</summary>
+    <summary>v1.46 — changelog (updated 2026-08-03)</summary>
+    <b>v1.46</b> The Period dropdowns at the top of the page now show whichever period Fail Attribution/Layout/Wire/Final is actually on, and changing them there updates that tab's period too — no more the top bar saying one period while the tab below it shows another. Trends and Time Analysis are unchanged<br>
     <b>v1.45</b> The top KPI row now follows whichever of Fail Attribution/Layout/Wire/Final tab you're on and its own period — switch to Layout while it's set to Weekly and the KPI cards update to that week. Trends and Time Analysis are unaffected and keep showing the top-of-page period, since they don't have one single period to follow<br>
     <b>v1.44</b> Person Summary now defaults to Weekly instead of mirroring the top-of-page period<br>
-    <b>v1.43</b> Fail Attribution, Layout, Wire, and Final now each have their own independent period (previously they all shared one control with the top of the page). Fail Attribution defaults to Daily/today; Layout/Wire/Final and Trends' Panels Built default to Weekly, grouped by Day. Download Report now pins every section to the report's own chosen date range instead of letting any of them fall back to their individual defaults<br>
   </details>
 </div>
 
@@ -1035,11 +1035,12 @@ function getFilteredFor(key){return getFiltered(periodFor(key),subFor(key));}
 // single "the period for this tab," and Time Analysis is a separate,
 // Supabase-backed filter model entirely — both keep the KPI row on the
 // top-of-page period, same as before this change.
+// Fail Attribution/Layout/Wire/Final each carry their own independent
+// period; Trends and Time Analysis don't map to one single period, so they
+// keep using the top-of-page control the traditional way.
+const TAB_OWN_PERIOD=new Set(['t1','t2','t3','t4']);
 function kpiFiltered(){
-  if(activeTab==='t1'||activeTab==='t2'||activeTab==='t3'||activeTab==='t4'){
-    return getFilteredFor(activeTab);
-  }
-  return getFiltered();
+  return TAB_OWN_PERIOD.has(activeTab)?getFilteredFor(activeTab):getFiltered();
 }
 
 // Section header with an inline period dropdown: "Title — [period ▾]"
@@ -1083,11 +1084,13 @@ function onSecPeriodChange(key,val){
   secSub[key]=defaultSub(val); // newest bucket of the newly chosen period
   renderTab(activeTab);
   renderKPIs(kpiFiltered());
+  syncTopBarToTab();
 }
 function onSecSubChange(key,val){
   secSub[key]=val;
   renderTab(activeTab);
   renderKPIs(kpiFiltered());
+  syncTopBarToTab();
 }
 
 // One field of a section's Custom Range pair changed. Waits for both fields to
@@ -1101,6 +1104,7 @@ function onSecCustomChange(key,part,val){
   secSub[key]=encodeRange(s,e);
   renderTab(activeTab);
   renderKPIs(kpiFiltered());
+  syncTopBarToTab();
 }
 
 // Time Analysis sub-sections are all views of one Supabase-backed filter, so they
@@ -2865,7 +2869,7 @@ function activateTab(tab,{push=true}={}){
   if(tab==='t6'&&!timingLoaded)renderT6();
   else if(tab==='t6')buildTA(document.getElementById('t6'));
   else if(df.length)renderTab(tab);
-  if(df.length)renderKPIs(kpiFiltered());
+  if(df.length){renderKPIs(kpiFiltered());syncTopBarToTab();}
   if(push){
     const path=TAB_ROUTES[tab]||'/';
     if(location.pathname!==path)history.pushState({tab},'',path);
@@ -2889,27 +2893,69 @@ window.addEventListener('popstate',()=>activateTab(tabFromPath(location.pathname
   }
 })();
 
+// Fail Attribution/Layout/Wire/Final: the top bar IS that tab's own period
+// control while one of them is active — it displays that tab's period
+// (syncTopBarToTab) and, since there's nothing else for it to mean here,
+// editing it edits that tab's period too, exactly like using the section's
+// own inline dropdown would. Trends/Time Analysis have no single period to
+// hand off to, so the top bar keeps its traditional meaning there: the
+// literal top-of-page period, and changing it resets every section back to
+// its own default.
 function onPeriodChange(){
+  if(TAB_OWN_PERIOD.has(activeTab)){
+    onSecPeriodChange(activeTab,document.getElementById('period-select').value);
+    return;
+  }
   populateSubSelect(true);
-  secPeriod={};secSub={}; // top-of-page Period is master — drop section overrides
+  secPeriod={};secSub={};
   render();
 }
 
 function onSubChange(){
+  if(TAB_OWN_PERIOD.has(activeTab)){
+    onSecSubChange(activeTab,document.getElementById('sub-select').value);
+    return;
+  }
   secPeriod={};secSub={};
   render();
 }
 
 // One field of the top bar's Custom Range pair changed. Waits for both fields
 // to hold a value (a fresh "Custom Range" pick starts with the other field
-// blank) before dropping section overrides and re-rendering.
+// blank) before committing.
 function onCustomRangeChange(part,val){
+  if(TAB_OWN_PERIOD.has(activeTab)){
+    onSecCustomChange(activeTab,part,val);
+    return;
+  }
   const other=document.getElementById(part==='start'?'custom-end':'custom-start');
   const s=part==='start'?val:(other?other.value:'');
   const e=part==='end'  ?val:(other?other.value:'');
   if(!s||!e)return;
   secPeriod={};secSub={};
   render();
+}
+
+// Keeps the top-of-page Period controls showing whichever period Fail
+// Attribution/Layout/Wire/Final is actually on, so there's never a mismatch
+// between what the top bar says and what the KPI row / section below it are
+// filtered to. No-op for Trends/Time Analysis, where the top bar already IS
+// the state being shown (nothing to sync from).
+function syncTopBarToTab(){
+  if(!TAB_OWN_PERIOD.has(activeTab))return;
+  const p=periodFor(activeTab),s=subFor(activeTab);
+  document.getElementById('period-select').value=p;
+  populateSubSelect(true); // rebuilds sub-select's options for the period just set above
+  if(isCustomRange(p)){
+    const r=decodeRange(s);
+    if(r){
+      document.getElementById('custom-start').value=r.startISO;
+      document.getElementById('custom-end').value=r.endISO;
+    }
+  }else if(needsSub(p)){
+    const sel=document.getElementById('sub-select');
+    if([...sel.options].some(o=>o.value===s))sel.value=s;
+  }
 }
 
 // Fill the top bar's second control for the current period: the bucket
@@ -2946,6 +2992,7 @@ function render(){
   if(!df.length)return;
   renderTab(activeTab);
   renderKPIs(kpiFiltered());
+  syncTopBarToTab();
 }
 
 function renderTab(tab){
